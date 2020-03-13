@@ -1,0 +1,5 @@
+argparse==1.4.0
+colorama
+plotly
+numpy
+scipy
