@@ -13,7 +13,15 @@ Some (maybe evident) notes:
         * How to find how much sequence surrounding R[i:j] to consider?
             * possible solution: change the granularity of match, say always match in chunks of 8bp each. A mismatch will be at least 16bp long which is more likely to already not exist in parent. (generally 32bp should be a better lowerbound)
 
-**Second approach (I'm not sure this is feasible):**
+**Approach 1.1:**
+1. we index the parents' samples with an FM-index
+2. we perform kmer counting on the child sample (for different values of k, let's say from 17 to 200/250? For small values of k we can use KMC. I have to check if we can use KMC for bigger values of k)
+3. we search each kmer in the index and we count how many kmers are only in the child
+4. we can plot a sort-of histogram to see the distribution of unique kmers
+
+My hope is that we can use such unique kmers to "assembly" longer unique strings.
+
+**Second approach (I'm not sure this is feasible - EDIT 03/21: I don't think it's feasible. I'll try approach 1.1 first):**
 1. we create the references of the parents by combining the reference genome and the VCF containing the known SVs (with SNPs and indels this can be done with bcftools. We have to check if this works also for SVs)
 2. we align the reads from the child to the references. I expect to have clipped reads near a SV (maybe we can just use the provided BAMs?)
     * If there is a SV in the child (compared to ref), there will be clipped reads in the BAM that map near the breakpoints. Maybe use those?
