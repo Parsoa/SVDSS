@@ -1,4 +1,4 @@
-CXXFLAGS=-DNDEBUG -Wall -O3 -std=c++11 -I. -I./include -I./KMC
+CXXFLAGS=-DNDEBUG -Wall -O3 -std=c++11 -I. -I./include -I./KMC -fopenmp
 LIBS=-L./lib -lz -lsdsl -ldivsufsort -ldivsufsort64
 
 .PHONY: all

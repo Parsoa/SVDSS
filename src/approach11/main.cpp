@@ -3,6 +3,8 @@
 
 #include <zlib.h>
 
+#include <omp.h>
+
 #include "kseq.h"
 #include "sdsl/suffix_arrays.hpp"
 #include "kmc_api/kmc_file.h"
@@ -34,10 +36,28 @@ void build_fmi(const string &sample_path, FMI &fm_index) {
   }
 }
 
+int analyze_kmers(const vector<string> &kmers, const FMI &fm_index1, const FMI &fm_index2, int threads) {
+  vector<int> solutions (threads);
+
+#pragma omp parallel for num_threads(threads)
+  for(uint i=0; i<kmers.size(); ++i) {
+    string kmer = kmers[i];
+    size_t occs1 = count(fm_index1, kmer.begin(), kmer.end());
+    size_t occs2 = count(fm_index2, kmer.begin(), kmer.end());
+    if(occs1 == 0 && occs2 == 0)
+      ++solutions[omp_get_thread_num()];
+  }
+  int unique_kmers = 0;
+  for(const int s : solutions)
+    unique_kmers+=s;
+  return unique_kmers;
+}
+
 int main(int argc, char *argv[]) {
   string sample1_path = argv[1];
   string sample2_path = argv[2];
   string kmc_path = argv[3];
+  int threads = stoi(argv[4]);
 
   FMI fm_index1;
   build_fmi(sample1_path, fm_index1);
@@ -57,15 +77,22 @@ int main(int argc, char *argv[]) {
   string kmer;
   int curr_kmer = 0;
   int unique_kmers = 0;
+  vector<string> kmers;
   while(kmer_db.ReadNextKmer(kmer_obj, counter)) {
     ++curr_kmer;
-    if(curr_kmer % 500 == 0)
-      cerr << curr_kmer << "/" << tot_kmers << "\r" << flush;
     kmer_obj.to_string(kmer);
-    size_t occs1 = count(fm_index1, kmer.begin(), kmer.end());
-    size_t occs2 = count(fm_index2, kmer.begin(), kmer.end());
-    if(occs1 == 0 && occs2 == 0)
-      ++unique_kmers;
+    kmers.push_back(kmer);
+
+    if(kmers.size() == 10000) {
+      int s = analyze_kmers(kmers, fm_index1, fm_index2, threads);
+      unique_kmers += s;
+      cerr << curr_kmer << "/" << tot_kmers << "\r" << flush;
+      kmers.clear();
+    }
+  }
+  if(!kmers.empty()) {
+    int s = analyze_kmers(kmers, fm_index1, fm_index2, threads);
+    unique_kmers += s;
   }
   cerr << curr_kmer << "/" << tot_kmers << endl;
   cout << unique_kmers << "/" << tot_kmers << endl;
