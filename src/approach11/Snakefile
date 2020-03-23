@@ -1,0 +1,139 @@
+configfile: "config.yaml"
+
+import os
+pjoin = os.path.join
+
+DATA = "/data/" # TODO: get from config.yaml
+
+reference = pjoin(DATA, "GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz")
+
+father_sample = config["samples"]["father"]
+mother_sample = config["samples"]["mother"]
+child_sample = config["samples"]["child"]
+
+ks = config["parameters"]["ks"].split(',')
+chroms = config["parameters"]["chroms"]
+
+rule run:
+    input:
+        expand(pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.txt"),
+               chnum = chroms,
+               k = ks)
+
+rule kmer_counting:
+    input:
+        expand(pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}.kmc_pre"),
+               chnum = chroms,
+               k = ks)
+
+rule split_samples:
+    input:
+        expand(pjoin(DATA, "subsamples", "{sample}", "{chnum}.bam"),
+               sample = [father_sample, mother_sample, child_sample],
+               chnum = chroms),
+        expand(pjoin(DATA, "subsamples", "{sample}", "{chnum}.fastq.gz"),
+               sample = [father_sample, mother_sample, child_sample],
+               chnum = chroms)
+
+rule fetch_sample:
+    output:
+        pjoin(DATA, "samples", "{sample}.fastq.gz")
+    params:
+        acc_n = "{sample}",
+        fold = DATA
+    shell:
+        """
+        fastq-dump -O {params.fold} --gzip {params.acc_n}
+        """
+
+rule fetch_reference:
+    output:
+        reference
+    shell:
+        """
+        wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.39_GRCh38.p13/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+        """
+
+# FIXME: minimap2 path is hardcoded
+rule minimap:
+    input:
+        genome = reference,
+        sample = pjoin(DATA, "samples", "{sample}.fastq.gz")
+    output:
+        temp(pjoin(DATA, "samples", "{sample}.sam"))
+    threads: 8
+    log:
+        time = pjoin(DATA, "samples", "{sample}.minimap.time"),
+        out = pjoin(DATA, "samples", "{sample}.minimap.log")
+    shell:
+        """
+        /usr/bin/time -v -o {log.time} ~/software/minimap2/minimap2 -ax map-pb -t {threads} {input.genome} {input.sample} > {output} 2> {log.out}
+        """
+
+# TODO: install samtools via conda
+rule sam2bam:
+    input:
+        sam = pjoin(DATA, "samples", "{sample}.sam")
+    output:
+        bam = protected(pjoin(DATA, "samples", "{sample}.bam")),
+        bai = pjoin(DATA, "samples", "{sample}.bam.bai"),
+    threads: 8
+    shell:
+        """
+        samtools view -@ {threads} -bS {input.sam} | samtools sort -@ {threads} - > {output.bam}
+        samtools index -@ {threads} {output.bam}
+        """
+
+rule extract_chrom_reads:
+    input:
+        bam = pjoin(DATA, "samples", "{sample}.bam")
+    output:
+        bam = pjoin(DATA, "subsamples", "{sample}", "{chnum}.bam"),
+        fastq = pjoin(DATA, "subsamples", "{sample}", "{chnum}.fastq.gz")
+    params:
+        chrom = "{chnum}"
+    threads: 8
+    shell:
+        """
+        samtools view -@ {threads} -b {input.bam} {params.chrom} > {output.bam}
+        samtools index -@ {threads} {output.bam}
+        samtools fastq -@ {threads} -F 260 {output.bam} -0 {output.fastq}
+        """
+
+rule kmc:
+    input:
+        pjoin(DATA, "subsamples", child_sample, "{chnum}.fastq.gz")
+    output:
+        pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}.kmc_pre")
+    params:
+        k = "{k}",
+        kmc_prefix = pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}"),
+        kmc_tmp = pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}.tmp")
+    threads: 8
+    log:
+        time = pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}.time"),
+        out = pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}.log")
+    shell:
+        """
+        mkdir -p {params.kmc_tmp}
+        /usr/bin/time -v -o {log.time} ~/software/KMC/bin/kmc -k{params.k} -t{threads} {input} {params.kmc_prefix} {params.kmc_tmp} &> {log.out}
+        rm -r {params.kmc_tmp}
+        """
+
+rule approach11:
+    input:
+        father_fq = pjoin(DATA, "subsamples", father_sample, "{chnum}.fastq.gz"),
+        mother_fq = pjoin(DATA, "subsamples", mother_sample, "{chnum}.fastq.gz"),
+        child_kmc = pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}.kmc_pre")
+    output:
+        pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.txt")
+    params:
+        child_kmc_prefix = pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}")
+    threads: 1
+    log:
+        time = pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.time"),
+        out = pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.log")
+    shell:
+        """
+        /usr/bin/time -v -o {log.time} ./main {input.father_fq} {input.mother_fq} {params.child_kmc_prefix} > {output} 2> {log.out}
+        """
