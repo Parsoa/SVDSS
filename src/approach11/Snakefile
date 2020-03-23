@@ -3,7 +3,7 @@ configfile: "config.yaml"
 import os
 pjoin = os.path.join
 
-DATA = "/data/" # TODO: get from config.yaml
+DATA = config["root"]
 
 reference = pjoin(DATA, "GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz")
 
@@ -129,11 +129,11 @@ rule approach11:
         pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.txt")
     params:
         child_kmc_prefix = pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}")
-    threads: 1
+    threads: 16
     log:
         time = pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.time"),
         out = pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.log")
     shell:
         """
-        /usr/bin/time -v -o {log.time} ./main {input.father_fq} {input.mother_fq} {params.child_kmc_prefix} > {output} 2> {log.out}
+        /usr/bin/time -v -o {log.time} ./main {input.father_fq} {input.mother_fq} {params.child_kmc_prefix} {threads} > {output} 2> {log.out}
         """

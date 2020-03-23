@@ -7,3 +7,4 @@ main
 kmc_tmp
 *.kmc_pre
 *.kmc_suf
+.snakemake
