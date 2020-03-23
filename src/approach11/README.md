@@ -10,7 +10,7 @@ bash install.sh ..
 cd ..
 cd KMC
 make
-..
+cd ..
 make
 ```
 
@@ -24,10 +24,10 @@ mkdir -p kmc_tmp
 ### Analysis
 1. set data folder, samples, chromosomes, and kmer sizes in `config.yaml`
 2. run snakemake to:
-  1. download the data (reference and samples)
-  2. align the samples
-  3. extract reads from specific chromosomes
-  4. run approach1.1
+    1. download the data (reference and samples)
+    2. align the samples
+    3. extract reads from specific chromosomes
+    4. run approach1.1
 
 
 ##### FIXME
