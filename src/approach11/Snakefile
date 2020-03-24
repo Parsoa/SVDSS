@@ -120,10 +120,25 @@ rule kmc:
         rm -r {params.kmc_tmp}
         """
 
-rule approach11:
+
+rule approach11_index:
     input:
         father_fq = pjoin(DATA, "subsamples", father_sample, "{chnum}.fastq.gz"),
-        mother_fq = pjoin(DATA, "subsamples", mother_sample, "{chnum}.fastq.gz"),
+        mother_fq = pjoin(DATA, "subsamples", mother_sample, "{chnum}.fastq.gz")
+    output:
+        index = pjoin(DATA, "aproach11", father_sample + "_" + mother_sample + ".{chnum}.fm9")
+    threads: 1
+    log:
+        time = pjoin(DATA, "approach11", father_sample + "_" + mother_sample + ".{chnum}.time"),
+        out = pjoin(DATA, "approach11", father_sample + "_" + mother_sample + ".{chnum}.log")
+    shell:
+        """
+        /usr/bin/time -v -o {log.time} ./main index {input.father_fq} {input.mother_fq} {output.index} &> {log.out}
+        """
+
+rule approach11_count:
+    input:
+        index = pjoin(DATA, "aproach11", father_sample + "_" + mother_sample + ".{chnum}.fm9"),
         child_kmc = pjoin(DATA, "subsamples", child_sample, "{chnum}.k{k}.kmc_pre")
     output:
         pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.txt")
@@ -135,5 +150,5 @@ rule approach11:
         out = pjoin(DATA, "approach11", child_sample, "{chnum}.k{k}.log")
     shell:
         """
-        /usr/bin/time -v -o {log.time} ./main {input.father_fq} {input.mother_fq} {params.child_kmc_prefix} {threads} > {output} 2> {log.out}
+        /usr/bin/time -v -o {log.time} ./main count {input.index} {params.child_kmc_prefix} {threads} > {output} 2> {log.out}
         """
