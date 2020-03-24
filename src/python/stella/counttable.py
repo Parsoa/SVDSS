@@ -1,9 +1,9 @@
-from fulminata import (
+from stella import (
     config,
 )
 
-from fulminata.kmers import *
-from fulminata.logger import *
+from stella.kmers import *
+from stella.logger import *
 
 import dna_jellyfish as jellyfish
 

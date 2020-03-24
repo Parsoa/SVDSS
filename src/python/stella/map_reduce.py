@@ -16,15 +16,15 @@ import traceback
 
 from shutil import copyfile
 
-from fulminata import (
+from stella import (
     bed,
     config,
     counttable,
 )
 
-from fulminata.debug import *
-from fulminata.kmers import *
-from fulminata.logger import *
+from stella.debug import *
+from stella.kmers import *
+from stella.logger import *
 print = pretty_print
 
 def on_exit(job):

@@ -12,11 +12,11 @@ import time
 import random
 import traceback
 
-from fulminata import (
+from stella import (
     config,
 )
 
-from fulminata.logger import *
+from stella.logger import *
 
 # ============================================================================================================================ #
 # kmer helpers

@@ -95,7 +95,7 @@ def parse_args():
     # a reference genome assembly, used to extract sequences from a set of BED tracks etc
     parser.add_argument("--reference", default = None)
     # tmp file directory 
-    parser.add_argument("--workdir", default = )
+    parser.add_argument("--workdir", default = '/share/hormozdiarilab/Codes/Stella/output')
     # if selecting kmers for genotyping 
     parser.add_argument("--select", action = 'store_true')
     # which chromosomes to consider
@@ -105,7 +105,7 @@ def parse_args():
     # father
     parser.add_argument("--father", default = None)
     # progeny
-    parser.add_argument("--progeny", default = None)
+    parser.add_argument("--child", default = None)
     #
     main = argparse.ArgumentParser(prog = 'stella', add_help = False)
     subparsers = main.add_subparsers(dest = 'command')

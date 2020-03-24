@@ -1,19 +1,19 @@
-from fulminata import (
+from stella import (
     config,
-    extractor,
-    processor,
+    indexer,
     map_reduce,
 )
 
-from fulminata.debug import *
-from fulminata.kmers import *
-from fulminata.logger import *
-from fulminata.chromosomes import *
+from stella.debug import *
+from stella.kmers import *
+from stella.logger import *
+from stella.chromosomes import *
 
 # ============================================================================================================================ #
 
 def index():
-
+    job = indexer.SuffixTreeIndexCreator()
+    job.execute()
 
 # ============================================================================================================================ #
 # ============================================================================================================================ #
