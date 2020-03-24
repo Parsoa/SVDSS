@@ -11,7 +11,7 @@ father_sample = config["samples"]["father"]
 mother_sample = config["samples"]["mother"]
 child_sample = config["samples"]["child"]
 
-ks = config["parameters"]["ks"].split(',')
+ks = config["parameters"]["ks"]
 chroms = config["parameters"]["chroms"]
 
 rule run:
