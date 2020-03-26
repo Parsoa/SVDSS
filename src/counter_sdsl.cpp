@@ -18,19 +18,16 @@
 
 #include "sdsl/suffix_trees.hpp"
 
-#include "suffixtree.h"
-
 #define DEBUG 0
 
 using namespace std ;
 using namespace sdsl ;
 
-//typedef cst_sct3<csa_bitcompressed<int_alphabet<> > > cst_t ;
+typedef cst_sct3<csa_bitcompressed<int_alphabet<> > > cst_t ;
 typedef cst_t::string_type string_type ;
 typedef cst_t::char_type char_type ;
 typedef std::vector<uint16_t> read_type ;
 typedef uint16_t base_type ;
-typedef SuffixTree<uint16_t> cst_t ;
 
 // prototypes
 
@@ -116,11 +113,6 @@ std::vector<read_type*>* process_bam_debug_father(string bam) {
 
 cst_t* create_suffix_tree(std::string sample) {
     std::vector<read_type*>* reads = process_bam_debug_father(sample) ;
-    /*cst_t* stree = new cst_t<uint16_t>() ;
-    for (auto it = reads->begin(); it != reads->end(); it++) { //iterate over reads
-        stree->add_string((*it)->begin(), (*it)->end() - 1) ;
-    }
-    return stree ;*/
     int i = 0 ;
     int l = 0 ;
     int n = 0 ;
@@ -205,8 +197,7 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
     std::vector<char*> diff ;
     int n = reads->size() ;
     int m = 0 ;
-    SuffixTree<uint16_t>* mismatches = new SuffixTree<uint16_t>() ;
-    std::vector<read_type*> mismatched_reads ;
+    std::vector<read_type*>* mismatches = new std::vector<read_type*>() ;
     for (auto it = reads->begin(); it != reads->end(); it++) {
         cout << "------- matching -------" << endl ;
         int q = 0 ;
@@ -217,7 +208,6 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
             std::this_thread::sleep_for (std::chrono::seconds(1));
             offset = search_sequence_backward(father, *it, (*it)->begin(), (*it)->end() - q - 1 - 1) ; // end() is one past the terminator, subtract two to get to the last base pair
             if (offset != -1) {
-                int m = 0 ;
                 int p = 0 ;
                 cout << "binary search for longest mismatch at offset " << offset << ", " << (*it)->at(l - q - offset) << endl ;
                 while (true) {
@@ -232,10 +222,9 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
                     int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end) ;
                     if (m == 0) {
                         // check if subsequences of another string
+                        cout << "matched." << endl ;
                         p -= 1 ;
                         break ;
-                    } else {
-                        mismatched_reads.push_back(read_type(*(it)->begin() + begin, *(it)->end() + end)) ;
                     }
                     if (begin == 0) {
                         break ;

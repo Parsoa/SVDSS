@@ -1,0 +1,1 @@
+make counter && ./counter.out /share/hormozdiarilab/Codes/Stella/data/PUR-HiFi/HG00731/HG00731_hifi_r54329U_20190531_173856_A01.bam.2 /share/hormozdiarilab/Codes/Stella/data/PUR-HiFi/HG00732/HG00732_hifi_r54329U_20190604_223930_A01.bam.2 /share/hormozdiarilab/Codes/Stella/data/PUR-HiFi/HG00733/HG00733_hifi_r54329U_20190827_172128_1_A01.bam.2
