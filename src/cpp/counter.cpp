@@ -25,12 +25,12 @@
 using namespace std ;
 using namespace sdsl ;
 
-//typedef cst_sct3<csa_bitcompressed<int_alphabet<> > > cst_t ;
+typedef cst_sct3<csa_bitcompressed<int_alphabet<> > > cst_t ;
 typedef cst_t::string_type string_type ;
 typedef cst_t::char_type char_type ;
 typedef std::vector<uint16_t> read_type ;
 typedef uint16_t base_type ;
-typedef SuffixTree<uint16_t> cst_t ;
+//typedef SuffixTree<uint16_t> cst_t ;
 
 // prototypes
 
@@ -115,7 +115,7 @@ std::vector<read_type*>* process_bam_debug_father(string bam) {
 }
 
 cst_t* create_suffix_tree(std::string sample) {
-    std::vector<read_type*>* reads = process_bam_debug_father(sample) ;
+    std::vector<read_type*>* reads = process_bam(sample) ;
     /*cst_t* stree = new cst_t<uint16_t>() ;
     for (auto it = reads->begin(); it != reads->end(); it++) { //iterate over reads
         stree->add_string((*it)->begin(), (*it)->end() - 1) ;
@@ -201,12 +201,12 @@ const char* intergralize_string(read_type* source) {
 }
 
 void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
-    std::vector<read_type*>* reads = process_bam_debug_child(child) ;
+    std::vector<read_type*>* reads = process_bam(child) ;
     std::vector<char*> diff ;
     int n = reads->size() ;
     int m = 0 ;
     SuffixTree<uint16_t>* mismatches = new SuffixTree<uint16_t>() ;
-    std::vector<read_type*> mismatched_reads ;
+    std::vector<read_type*>* mismatched_seqs = new std::vector<read_type*>() ;
     for (auto it = reads->begin(); it != reads->end(); it++) {
         cout << "------- matching -------" << endl ;
         int q = 0 ;
@@ -217,39 +217,32 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
             std::this_thread::sleep_for (std::chrono::seconds(1));
             offset = search_sequence_backward(father, *it, (*it)->begin(), (*it)->end() - q - 1 - 1) ; // end() is one past the terminator, subtract two to get to the last base pair
             if (offset != -1) {
-                int m = 0 ;
-                int p = 0 ;
                 cout << "binary search for longest mismatch at offset " << offset << ", " << (*it)->at(l - q - offset) << endl ;
-                while (true) {
+                int begin = l - 1 - q - offset + 1 ;
+                while (begin >= 0) {
                     std::this_thread::sleep_for (std::chrono::seconds(1));
-                    p += 1 ;
-                    int end_offset = - q + p ;
-                    int begin_offset = - q - offset - p ;
-                    int end = l - 1 + end_offset <= l - 1 ? l - 1 + end_offset : l - 1 ;
-                    int begin = l - 1 + begin_offset >= 0 ? l - 1 + begin_offset : 0 ;
-                    cout << "begin offset: " << begin_offset << " , end offset: " << end_offset << endl ;
-                    cout << "interval [" << begin << ", " << end << "]" << endl ;
-                    int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end) ;
-                    if (m == 0) {
-                        // check if subsequences of another string
-                        p -= 1 ;
-                        break ;
-                    } else {
-                        mismatched_reads.push_back(read_type(*(it)->begin() + begin, *(it)->end() + end)) ;
+                    int end = l - 1 - q - offset + 1 ;
+                    while (end <= l - 1) {
+                        std::this_thread::sleep_for (std::chrono::seconds(1));
+                        cout << "interval [" << begin << ", " << end << "]" << endl ;
+                        int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end) ;
+                        if (m == 0) {
+                            cout << "added" << endl ;
+                            read_type* tmp = new read_type((*it)->begin() + begin, (*it)->begin() + end) ;
+                            mismatched_seqs->push_back(tmp) ;
+                        }
+                        end += 1 ;
                     }
-                    if (begin == 0) {
-                        break ;
-                    }
-                }
-                q += offset + p ;
-                if (q == l - 1) { // consumed whole read
-                    break ;
+                    begin -= 1 ;
                 }
             } else {
-                // matches whole read
                 break ;
             }
-        }
+            q += offset ;
+            if (q == l - 1) {
+                break ;
+            }
+        } 
     }
     cout << m << " out of " << n << " not found." << endl ;
 }
@@ -278,17 +271,15 @@ int search_sequence_backward(cst_t* cst, read_type* seq, read_type::iterator beg
 
 int search_sequence(cst_t* cst, read_type* seq, read_type::iterator begin, read_type::iterator end) {
     uint64_t lb = 0, rb = cst->size() - 1 ;
-    // slice read
     read_type* tmp = new read_type(begin, end + 1) ;
-    // convert to char array
-    const char* read = intergralize_string(tmp) ;
-    cout << "searching for: " << read << endl ;
-    // copy to a vector for iterator access
-    std::vector<char> c ;
-    c.assign(read, read + strlen(read)) ;
-    backward_search(cst->csa, lb, rb, c.begin(), c.end(), lb, rb) ;
-    int match_size = rb + 1 - lb - tmp->size() ;
-    cout << rb << ", " << lb << ", " << tmp->size() << endl ;
+    cout << "searching for: " ;
+    for (auto t = tmp->begin(); t != tmp->end(); t++) {
+        cout << *t << " " ;
+    }
+    cout << endl ;
+    backward_search(cst->csa, lb, rb, tmp->begin(), tmp->end(), lb, rb) ;
+    // the number of matches
+    int match_size = rb + 1 - lb ;
     return match_size ;
 }
 

@@ -77,14 +77,14 @@ void execute(const char* input, uint8_t num_bytes, t_pat pat, const char* format
 
 int main()
 {
-    {
+    /*{
         cout << "# Byte alphabet example\n" << endl;
         execute<cst_sct3<> >("abracadabra#bracda", 1, string("brac"), "%2I %3S %T");
         cout << "\n\n" << endl;
-    }
+    }*/
 
     {
         cout << "# Integer alphabet example\n" << endl;
-        execute<cst_sct3<csa_bitcompressed<int_alphabet<> > > >("2 801 543 293 597 801 444 444 293", 'd', {597, 801, 444}, "%2I %3S %:4T");
+        execute<cst_sct3<csa_bitcompressed<int_alphabet<> > > >("2 801 543 293 597 801 444 444 293", 'd', {293, 597, 801, 444}, "%2I %3S %:4T");
     }
 }
