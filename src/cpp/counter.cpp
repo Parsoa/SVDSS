@@ -164,13 +164,49 @@ void traverse_cst(cst_t* cst) {
     }
 }
 
+void print_read(read_type* read, read_type::iterator begin, read_type::iterator end) {
+    for (auto t = begin; t != end; t++) {
+        cout << *t << " " ;
+    }
+    cout << endl ;
+}
+
+void print_read(read_type* read) {
+    print_read(read, read->begin(), read->end()) ;
+}
+
+// TODO: optimize this
+std::string hash_string(read_type* source, read_type::iterator begin, read_type::iterator end) {
+    int l = 0 ;
+    int i = 0 ;
+    std::vector<string> tmp ;
+    for (auto it = begin; it != end; it++) { //iterate over characters in each read
+        std::string b = std::to_string(*it) ;
+        tmp.push_back(b) ;
+        l += b.length() + 1 ; // add one for space
+    }
+    char read[l] ;
+    for (auto itt = tmp.begin(); itt != tmp.end(); itt++) {
+        strncpy(read + i, (*itt).c_str(), (*itt).length()) ;
+        read[i + (*itt).length()] = ' ' ;
+        i += (*itt).length() + 1 ;
+    }
+    read[l - 1] = '\0' ; //overwrites the final space
+    string s = std::string(read) ;
+    DEBUG(cout << "hash: " << s << endl ;)
+    return s ;
+}
+
+std::string hash_string(read_type* source) {
+    return hash_string(source, source->begin(), source->end()) ;
+}
+
 void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
     std::vector<read_type*>* reads = process_bam(child) ;
     std::vector<char*> diff ;
     int n = reads->size() ;
     int m = 0 ;
     int u = 0 ;
-    //SuffixTree<uint16_t>* mismatches = new SuffixTree<uint16_t>() ;
     std::vector<read_type*>* mismatched_seqs = new std::vector<read_type*>() ;
     for (auto it = reads->begin(); it != reads->end(); it++) {
         cout << "------- matching -------" << endl ;
@@ -178,27 +214,50 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
         int offset = 0 ;
         int l = (*it)->size() - 1 ; // ignore the terminator
         cout << "read length " << l << endl ;
+        std::unordered_map<std::string, int>* mismatched_strings = new std::unordered_map<std::string, int>() ;
         while (true) {
             DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
-            cout << "continue at offset" << q << endl ;
+            cout << "continue at offset " << q << endl ;
             offset = search_sequence_backward(father, *it, (*it)->begin(), (*it)->end() - 1 - 1 - q + 1) ; // end() is one past the terminator, subtract two to get to the last base pair
             if (offset != -1) {
                 DEBUG(cout << "binary search for longest mismatch at offset " << offset << ", " << (*it)->at(l - q - offset) << endl ;)
-                int begin = l - 1 - q - offset + 1 ;
+                // (end of read) - (offset into the read) - (change since last offset) + (adjustment) 
+                int pivot = (l - 1) - q - offset + 1 ;
+                int end_limit = pivot;
+                int begin_limit = pivot ;
+                //
+                int end = pivot ;
+                int begin = pivot ;
+                while (end <= l - 1) {
+                    begin = pivot ;
+                    DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
+                    DEBUG(cout << "interval [" << begin << ", " << end << "]" << endl ;)
+                    int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
+                    if (m == 0) {
+                        DEBUG(cout << "added" << endl ;)
+                        if (end > pivot) {
+                            u += 1 ;
+                            end_limit = end ;
+                            mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), 1)) ;
+                            break ;
+                        }
+                    }
+                    end += 1 ;
+                }
+                end = pivot ;
+                begin = pivot ;
                 while (begin >= 0) {
                     DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
-                    int end = l - 1 - q - offset + 1 ;
-                    while (end <= l - 1) {
-                        DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
-                        DEBUG(cout << "interval [" << begin << ", " << end << "]" << endl ;)
-                        int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
-                        if (m == 0) {
-                            DEBUG(cout << "added" << endl ;)
+                    DEBUG(cout << "interval [" << begin << ", " << end << "]" << endl ;)
+                    int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
+                    if (m == 0) {
+                        DEBUG(cout << "added" << endl ;)
+                        if (begin < pivot) {
                             u += 1 ;
-                            //read_type* tmp = new read_type((*it)->begin() + begin, (*it)->begin() + end) ;
-                            //mismatched_seqs->push_back(tmp) ;
+                            begin_limit = begin ;
+                            mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), 1)) ;
+                            break ;
                         }
-                        end += 1 ;
                     }
                     begin -= 1 ;
                 }
@@ -211,7 +270,7 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
             }
         } 
     }
-    cout << "found " << u << " novel sequences in the child" << endl ;
+    cout << "found " << u << " novel sequences in the child." << endl ;
 }
 
 // The end iterator passed to this should +1 the last desired base pair
@@ -226,6 +285,7 @@ int search_sequence_backward(cst_t* cst, read_type* seq, read_type::iterator beg
     if (begin != seq->begin()) {
         begin-- ;
     }
+    end-- ;
     for (auto itt = end; itt != begin and lb <= rb;) {
         offset++ ;
         if (backward_search(cst->csa, lb, rb, (char_type)*itt, lb, rb) > 0) {
