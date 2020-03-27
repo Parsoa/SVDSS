@@ -18,9 +18,13 @@
 
 #include "sdsl/suffix_trees.hpp"
 
-#include "suffixtree.h"
+//#include "suffixtree.h"
 
-#define DEBUG 0
+#ifdef DEBUG_BUILD
+#  define DEBUG(x) x
+#else
+#  define DEBUG(x)
+#endif
 
 using namespace std ;
 using namespace sdsl ;
@@ -30,7 +34,6 @@ typedef cst_t::string_type string_type ;
 typedef cst_t::char_type char_type ;
 typedef std::vector<uint16_t> read_type ;
 typedef uint16_t base_type ;
-//typedef SuffixTree<uint16_t> cst_t ;
 
 // prototypes
 
@@ -39,7 +42,6 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child, std::
 const char* intergralize_string(read_type* source) ;
 int search_sequence(cst_t* cst, read_type* seq, read_type::iterator begin, read_type::iterator end) ;
 int search_sequence_backward(cst_t* cst, read_type* seq, read_type::iterator begin, read_type::iterator end) ;
-//bool search_sequence(cst_t* cst, read_type* seq) ;
 
 //
 
@@ -50,7 +52,7 @@ std::vector<read_type*>* process_bam(string bam) {
     int n = 0 ;
     uint16_t u = 0 ;
     uint32_t len = 0 ;
-    char* line ; //= (char*) malloc(200) ;
+    char* line ;
     // Timing
     time_t t ;
     time(&t) ;
@@ -75,20 +77,18 @@ std::vector<read_type*>* process_bam(string bam) {
         for (int i = 0; i < l; i++) {
             uint16_t base = uint16_t(seq_nt16_str[bam_seqi(q, i)]) ;
             (*reads)[u]->push_back(base) ;
-            if (i == 20) {
-                break ;
-            }
+            DEBUG(if (i == 20) { break ; })
         }
         (*reads)[u]->push_back(u + uint16_t(255 + 1)) ;
         n += 1 ;
         u += 1 ;
-        if (n == 10) {
-            break ;
+        DEBUG(if (n == 10) { break ; })
+        if (n == 1000) {
             n = 0 ;
             time_t s ;
             time(&s) ;
             cout.precision(10) ;
-            if (s - t != 0 && DEBUG == 0) {
+            if (s - t != 0) {
                 cout << std::left << "processed " << setw(12) << u << " reads, " ;
                 cout << " took: " << setw(7) << std::fixed << s - t ;
                 cout << " reads per second: " << u / (s - t) << "\r" ;
@@ -102,25 +102,8 @@ std::vector<read_type*>* process_bam(string bam) {
     return reads ;
 }
 
-std::vector<read_type*>* process_bam_debug_child(string bam) {
-    std::vector<read_type*>* reads = new std::vector<read_type*>() ;
-    reads->push_back(new read_type({71, 67, 67, 84, 84, 67, 84, 67, 84, 84, 67, 65, 84, 71, 71, 65, 71, 67, 84, 67, 67, 256})) ;
-    return reads ;
-}
-
-std::vector<read_type*>* process_bam_debug_father(string bam) {
-    std::vector<read_type*>* reads = new std::vector<read_type*>() ;
-    reads->push_back(new read_type({84, 67, 65, 84, 71, 71, 65, 71, 67, 84, 67, 67, 84, 84, 67, 84, 84, 71, 71, 67, 84, 67, 67, 71, 65, 71, 67, 71, 67, 67, 256})) ;
-    return reads ;
-}
-
 cst_t* create_suffix_tree(std::string sample) {
     std::vector<read_type*>* reads = process_bam(sample) ;
-    /*cst_t* stree = new cst_t<uint16_t>() ;
-    for (auto it = reads->begin(); it != reads->end(); it++) { //iterate over reads
-        stree->add_string((*it)->begin(), (*it)->end() - 1) ;
-    }
-    return stree ;*/
     int i = 0 ;
     int l = 0 ;
     int n = 0 ;
@@ -142,7 +125,7 @@ cst_t* create_suffix_tree(std::string sample) {
             i += (*itt).length() + 1 ;
         }
         read[l] = '\0' ;
-        cout << "|" << read << "|" << endl ;
+        DEBUG(cout << "|" << read << "|" << endl ;)
         n += 1 ;
         int_reads->push_back(read) ;
     }
@@ -181,31 +164,13 @@ void traverse_cst(cst_t* cst) {
     }
 }
 
-const char* intergralize_string(read_type* source) {
-    int l = 0 ;
-    int i = 0 ;
-    std::vector<string> tmp ;
-    for (auto it = (source)->begin(); it != (source)->end(); it++) { //iterate over characters in each read
-        std::string b = std::to_string(*it) ;
-        tmp.push_back(b) ;
-        l += b.length() + 1 ; // add one for space
-    }
-    char* read = (char*) malloc(sizeof(char) * l) ;
-    for (auto itt = tmp.begin(); itt != tmp.end(); itt++) {
-        strncpy(read + i, (*itt).c_str(), (*itt).length()) ; 
-        read[i + (*itt).length()] = ' ' ;
-        i += (*itt).length() + 1 ;
-    }
-    read[l - 1] = '\0' ; //overwrites the final space
-    return (const char*) read ;
-}
-
 void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
     std::vector<read_type*>* reads = process_bam(child) ;
     std::vector<char*> diff ;
     int n = reads->size() ;
     int m = 0 ;
-    SuffixTree<uint16_t>* mismatches = new SuffixTree<uint16_t>() ;
+    int u = 0 ;
+    //SuffixTree<uint16_t>* mismatches = new SuffixTree<uint16_t>() ;
     std::vector<read_type*>* mismatched_seqs = new std::vector<read_type*>() ;
     for (auto it = reads->begin(); it != reads->end(); it++) {
         cout << "------- matching -------" << endl ;
@@ -214,22 +179,24 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
         int l = (*it)->size() - 1 ; // ignore the terminator
         cout << "read length " << l << endl ;
         while (true) {
-            std::this_thread::sleep_for (std::chrono::seconds(1));
-            offset = search_sequence_backward(father, *it, (*it)->begin(), (*it)->end() - q - 1 - 1) ; // end() is one past the terminator, subtract two to get to the last base pair
+            DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
+            cout << "continue at offset" << q << endl ;
+            offset = search_sequence_backward(father, *it, (*it)->begin(), (*it)->end() - 1 - 1 - q + 1) ; // end() is one past the terminator, subtract two to get to the last base pair
             if (offset != -1) {
-                cout << "binary search for longest mismatch at offset " << offset << ", " << (*it)->at(l - q - offset) << endl ;
+                DEBUG(cout << "binary search for longest mismatch at offset " << offset << ", " << (*it)->at(l - q - offset) << endl ;)
                 int begin = l - 1 - q - offset + 1 ;
                 while (begin >= 0) {
-                    std::this_thread::sleep_for (std::chrono::seconds(1));
+                    DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
                     int end = l - 1 - q - offset + 1 ;
                     while (end <= l - 1) {
-                        std::this_thread::sleep_for (std::chrono::seconds(1));
-                        cout << "interval [" << begin << ", " << end << "]" << endl ;
-                        int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end) ;
+                        DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
+                        DEBUG(cout << "interval [" << begin << ", " << end << "]" << endl ;)
+                        int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
                         if (m == 0) {
-                            cout << "added" << endl ;
-                            read_type* tmp = new read_type((*it)->begin() + begin, (*it)->begin() + end) ;
-                            mismatched_seqs->push_back(tmp) ;
+                            DEBUG(cout << "added" << endl ;)
+                            u += 1 ;
+                            //read_type* tmp = new read_type((*it)->begin() + begin, (*it)->begin() + end) ;
+                            //mismatched_seqs->push_back(tmp) ;
                         }
                         end += 1 ;
                     }
@@ -244,43 +211,46 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
             }
         } 
     }
-    cout << m << " out of " << n << " not found." << endl ;
+    cout << "found " << u << " novel sequences in the child" << endl ;
 }
 
+// The end iterator passed to this should +1 the last desired base pair
 int search_sequence_backward(cst_t* cst, read_type* seq, read_type::iterator begin, read_type::iterator end) {
     uint64_t lb = 0, rb = cst->size() - 1 ;
-    const char* read = intergralize_string(seq) ;
-    read_type* tmp = new read_type(begin, end + 1) ;
-    cout << "searching for: " << intergralize_string(tmp) << endl ;
+    DEBUG(cout << "searching for: " ;
+    for (auto t = begin; t != end; t++) {
+        cout << *t << " " ;
+    }
+    cout << endl ;)
     int offset = 0 ;
-    // TODO: doesn't match last base
+    if (begin != seq->begin()) {
+        begin-- ;
+    }
     for (auto itt = end; itt != begin and lb <= rb;) {
         offset++ ;
         if (backward_search(cst->csa, lb, rb, (char_type)*itt, lb, rb) > 0) {
-            cout << *itt << endl ;
+            DEBUG(cout << *itt << endl ;)
             --itt ;
             continue ;
         } else {
-            cout << "Not found. offset " << offset << ", value " << *itt << endl ;
+            DEBUG(cout << "Not found. offset " << offset << ", value " << *itt << endl ;)
             return offset ;
         } 
     }
-    //cout << "Found." << endl ;
     return -1 ;
 } 
 
+// The end iterator passed to this should +1 the last desired base pair
 int search_sequence(cst_t* cst, read_type* seq, read_type::iterator begin, read_type::iterator end) {
     uint64_t lb = 0, rb = cst->size() - 1 ;
-    read_type* tmp = new read_type(begin, end + 1) ;
-    cout << "searching for: " ;
-    for (auto t = tmp->begin(); t != tmp->end(); t++) {
+    DEBUG(cout << "searching for: " ;
+    for (auto t = begin; t != end; t++) {
         cout << *t << " " ;
     }
-    cout << endl ;
-    backward_search(cst->csa, lb, rb, tmp->begin(), tmp->end(), lb, rb) ;
-    // the number of matches
-    int match_size = rb + 1 - lb ;
-    return match_size ;
+    cout << endl ;)
+    backward_search(cst->csa, lb, rb, begin, end, lb, rb) ;
+    int match_num = rb + 1 - lb ;
+    return match_num ;
 }
 
 int main(int argc, char** argv) {
@@ -292,5 +262,6 @@ int main(int argc, char** argv) {
     cout << "Creating mother suffix tree.." << endl ;
     //cst_t* mother_cst = create_suffix_tree(mother) ;
     calculate_child_diff(father_cst, father_cst, child) ;
-    calculate_child_diff(father_cst, father_cst, father) ;
+    //calculate_child_diff(father_cst, father_cst, father) ;
+    std::this_thread::sleep_for (std::chrono::seconds(10000)) ;
 }
