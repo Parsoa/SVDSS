@@ -11,23 +11,35 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <algorithm>
+#include <mutex>
 #include <unordered_map>
+#include <pthread.h>
 
 #include <htslib/sam.h>
 #include <htslib/hts.h>
 
 #include "sdsl/suffix_trees.hpp"
+#include "sdsl/io.hpp"
 
 //#include "suffixtree.h"
 
+#include "json.hpp"
+
 #ifdef DEBUG_BUILD
 #  define DEBUG(x) x
+#  define NEBUG(x)
+#  define NUM_THREADS 1
 #else
 #  define DEBUG(x)
+#  define NEBUG(x) x
+#  define NUM_THREADS 16
 #endif
+
 
 using namespace std ;
 using namespace sdsl ;
+
+// typedefs
 
 typedef cst_sct3<csa_bitcompressed<int_alphabet<> > > cst_t ;
 typedef cst_t::string_type string_type ;
@@ -43,7 +55,8 @@ const char* intergralize_string(read_type* source) ;
 int search_sequence(cst_t* cst, read_type* seq, read_type::iterator begin, read_type::iterator end) ;
 int search_sequence_backward(cst_t* cst, read_type* seq, read_type::iterator begin, read_type::iterator end) ;
 
-//
+// gobals
+std::mutex cout_mutex ;
 
 std::vector<read_type*>* process_bam(string bam) {
     samFile *bam_file = hts_open(bam.c_str(), "r") ;
@@ -58,6 +71,7 @@ std::vector<read_type*>* process_bam(string bam) {
     time(&t) ;
     cout << "Processig BAM file" << endl ;
     std::vector<read_type*>* reads = new std::vector<read_type*>() ;
+    //return reads ;
     while (sam_read1(bam_file, bam_header, alignment) > 0){
         uint32_t l = alignment->core.l_qseq ; //length of the read
         char qname[alignment->core.l_qname] ;
@@ -77,13 +91,15 @@ std::vector<read_type*>* process_bam(string bam) {
         for (int i = 0; i < l; i++) {
             uint16_t base = uint16_t(seq_nt16_str[bam_seqi(q, i)]) ;
             (*reads)[u]->push_back(base) ;
-            DEBUG(if (i == 20) { break ; })
+            DEBUG(if (i == 30) { break ; })
+            //if (i == 30) { break ;}
         }
         (*reads)[u]->push_back(u + uint16_t(255 + 1)) ;
         n += 1 ;
         u += 1 ;
         DEBUG(if (n == 10) { break ; })
-        if (n == 1000) {
+        if (n == 100) {
+            //break ;
             n = 0 ;
             time_t s ;
             time(&s) ;
@@ -98,11 +114,31 @@ std::vector<read_type*>* process_bam(string bam) {
     cout << endl ;
     bam_destroy1(alignment) ;
     sam_close(bam_file) ;
-    cout << "Extracted " << u << " reads.." << std::endl ;
+    cout << "Extracted " << reads->size() << " reads.." << std::endl ;
     return reads ;
 }
 
+//cst_t* create_suffix_tree(std::string sample) {
+//    //return nullptr ;
+//    std::vector<read_type*>* reads = process_bam(sample) ;
+//    cout << "Assembling master read.." << endl ;
+//    read_type master_read ; //= new read_type() ;
+//    for (auto it = reads->begin(); it != reads->end(); it++) { //iterate over reads
+//        for (auto itt = (*it)->begin(); itt != (*it)->end(); itt++) { //iterate over characters in each read
+//            master_read.push_back(*itt) ;
+//        }
+//    }
+//    cout << "Master read size: " << master_read.size() << " bytes.." << endl ;
+//    cout << "Assembling tree.." << endl ;
+//    cst_t* cst = new cst_t() ;
+//    std::string tmp_file = "master_read.txt" ;
+//    store_to_file(master_read, tmp_file);
+//    construct_im(*cst, master_read, 0) ;
+//    return cst ;
+//}
+
 cst_t* create_suffix_tree(std::string sample) {
+    //return nullptr ;
     std::vector<read_type*>* reads = process_bam(sample) ;
     int i = 0 ;
     int l = 0 ;
@@ -201,23 +237,54 @@ std::string hash_string(read_type* source) {
     return hash_string(source, source->begin(), source->end()) ;
 }
 
-void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
-    std::vector<read_type*>* reads = process_bam(child) ;
-    std::vector<char*> diff ;
-    int n = reads->size() ;
-    int m = 0 ;
+void output_diff(std::string path, int index, std::unordered_map<std::string, int>* seqs) {
+    //NEBUG(cout_mutex.lock() ;)
+    nlohmann::json payload ;
+    cout << "dumping novel sequences..." << endl ;
+    cout << "found " << seqs->size() << " novel sequences in the child." << endl ;
+    string p = "batch_" + std::to_string(index) + ".json" ;
+    std::ofstream o(p);
+    nlohmann::json j(*seqs) ;
+    o << j.dump(4) << std::endl ;
+    cout << "done" << endl ;
+    //NEBUG(cout_mutex.unlock() ;)
+}
+
+struct thread_data {
+    int index ;
+    cst_t* father ;
+    cst_t* mother ;
+    std::string child ;
+    std::vector<read_type*>* reads ;
+} ;
+
+void* calculate_child_diff_t(void* args) {
+    struct thread_data* t_data = (struct thread_data*) args ;
+    int index = t_data->index ;
+    cst_t* father = t_data->father ;
+    cst_t* mother = t_data->mother ;
+    //cout << "starting diff thread " << index << ".." << endl ;
+    time_t t ;
+    time(&t) ;
+    int n = 0 ;
     int u = 0 ;
-    std::vector<read_type*>* mismatched_seqs = new std::vector<read_type*>() ;
+    std::vector<read_type*>* reads = t_data->reads ;
+    std::unordered_map<std::string, int>* mismatched_strings = new std::unordered_map<std::string, int>() ;
     for (auto it = reads->begin(); it != reads->end(); it++) {
-        cout << "------- matching -------" << endl ;
+    //while(true) {
+        //auto it = reads->begin() ;
+        u += 1 ;
+        DEBUG(cout << "------- matching -------" << endl ;)
+        if (u % NUM_THREADS != index) {
+            continue ;
+        }
         int q = 0 ;
         int offset = 0 ;
         int l = (*it)->size() - 1 ; // ignore the terminator
-        cout << "read length " << l << endl ;
-        std::unordered_map<std::string, int>* mismatched_strings = new std::unordered_map<std::string, int>() ;
+        DEBUG(cout << "read length " << l << endl ;)
         while (true) {
             DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
-            cout << "continue at offset " << q << endl ;
+            DEBUG(cout << "continue at offset " << q << endl ;)
             offset = search_sequence_backward(father, *it, (*it)->begin(), (*it)->end() - 1 - 1 - q + 1) ; // end() is one past the terminator, subtract two to get to the last base pair
             if (offset != -1) {
                 DEBUG(cout << "binary search for longest mismatch at offset " << offset << ", " << (*it)->at(l - q - offset) << endl ;)
@@ -228,6 +295,7 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
                 //
                 int end = pivot ;
                 int begin = pivot ;
+                // fix the end
                 while (end <= l - 1) {
                     begin = pivot ;
                     DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
@@ -236,41 +304,93 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
                     if (m == 0) {
                         DEBUG(cout << "added" << endl ;)
                         if (end > pivot) {
-                            u += 1 ;
                             end_limit = end ;
-                            mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), 1)) ;
+                            mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), end - begin + 1)) ;
                             break ;
                         }
                     }
                     end += 1 ;
                 }
-                end = pivot ;
-                begin = pivot ;
-                while (begin >= 0) {
-                    DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
-                    DEBUG(cout << "interval [" << begin << ", " << end << "]" << endl ;)
-                    int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
-                    if (m == 0) {
-                        DEBUG(cout << "added" << endl ;)
-                        if (begin < pivot) {
-                            u += 1 ;
-                            begin_limit = begin ;
-                            mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), 1)) ;
-                            break ;
+                while (end > pivot) {
+                    end -= 1 ;
+                    begin = begin_limit ;
+                    while (begin >= 0) {
+                        DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
+                        DEBUG(cout << "interval [" << begin << ", " << end << "]" << endl ;)
+                        int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
+                        if (m == 0) {
+                            DEBUG(cout << "added" << endl ;)
+                            if (begin < pivot) {
+                                begin_limit = begin ;
+                                mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), end - begin + 1)) ;
+                                break ;
+                            }
                         }
+                        begin -= 1 ;
                     }
-                    begin -= 1 ;
                 }
             } else {
                 break ;
             }
             q += offset ;
-            if (q == l - 1) {
+            if (q >= l - 1) {
                 break ;
             }
-        } 
+        }
+        n += 1 ;
+        if (n == 100) {
+            n = 0 ;
+            time_t s ;
+            time(&s) ;
+            cout.precision(6) ;
+            double p = u / (double(reads->size()) / NUM_THREADS) ;
+            double e = (((1.0 - p) * (s - t)) / p) / 3600 ;
+            if (s - t != 0) {
+                //NEBUG(cout_mutex.lock() ;)
+                for (int j = 0; j < NUM_THREADS - index; j++) {
+                    cout << "\x1b[A" ;
+                }
+                cout << "\r"
+                << std::left << "thread " << setw(3) << index
+                << " processed " << setw(8) << u << " reads, "
+                << " took: " << setw(7) << std::fixed << s - t
+                << " reads per second: " << u / (s - t)
+                << " progress: " << setw(10) << std::fixed << p
+                << " ETA: " << setw(12) << e ;
+                for (int j = 0; j < NUM_THREADS - index; j++) {
+                    cout << endl ;
+                }
+                //NEBUG(cout_mutex.unlock() ;)
+            }
+        }
     }
-    cout << "found " << u << " novel sequences in the child." << endl ;
+    output_diff("", index, mismatched_strings) ;
+    pthread_exit(NULL) ;
+}
+
+void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
+    pthread_t threads[NUM_THREADS] ;
+    struct thread_data* t_data[NUM_THREADS] ;
+    std::vector<read_type*>* reads = process_bam(child) ;
+    cout << "======================== STATUS ============================ " << endl ;
+    for (int t = 0; t < NUM_THREADS; t++) {
+        cout << endl ;
+    }
+    cout << endl ;
+    for (int t = 0; t < NUM_THREADS; t++) {
+        t_data[t] = new thread_data() ;
+        t_data[t]->index = t ;
+        t_data[t]->father = father ;
+        t_data[t]->mother = mother ;
+        t_data[t]->child = child ;
+        t_data[t]->reads = reads ;
+        int rc = pthread_create(&threads[t], NULL, calculate_child_diff_t, (void *) t_data[t]) ;
+    }
+    int rc ;
+    void *status ;
+    for (int t = 0; t < NUM_THREADS; t++) {
+        rc = pthread_join(threads[t], &status);
+    }
 }
 
 // The end iterator passed to this should +1 the last desired base pair
@@ -323,5 +443,4 @@ int main(int argc, char** argv) {
     //cst_t* mother_cst = create_suffix_tree(mother) ;
     calculate_child_diff(father_cst, father_cst, child) ;
     //calculate_child_diff(father_cst, father_cst, father) ;
-    std::this_thread::sleep_for (std::chrono::seconds(10000)) ;
 }

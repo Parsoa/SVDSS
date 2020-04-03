@@ -15,12 +15,7 @@
 #include <unordered_map>
 #include <pthread.h>
 
-#include <htslib/sam.h>
-#include <htslib/hts.h>
-
 #include "sdsl/suffix_trees.hpp"
-
-//#include "suffixtree.h"
 
 #include "json.hpp"
 
@@ -56,66 +51,6 @@ int search_sequence_backward(cst_t* cst, read_type* seq, read_type::iterator beg
 // gobals
 std::mutex cout_mutex ;
 
-std::vector<read_type*>* process_bam(string bam) {
-    samFile *bam_file = hts_open(bam.c_str(), "r") ;
-    bam_hdr_t *bam_header = sam_hdr_read(bam_file) ; //read header
-    bam1_t *alignment = bam_init1(); //initialize an alignment
-    int n = 0 ;
-    uint16_t u = 0 ;
-    uint32_t len = 0 ;
-    char* line ;
-    // Timing
-    time_t t ;
-    time(&t) ;
-    cout << "Processig BAM file" << endl ;
-    std::vector<read_type*>* reads = new std::vector<read_type*>() ;
-    //return reads ;
-    while (sam_read1(bam_file, bam_header, alignment) > 0){
-        uint32_t l = alignment->core.l_qseq ; //length of the read
-        char qname[alignment->core.l_qname] ;
-        strncpy(qname, (char*) alignment->data, alignment->core.l_qname) ;
-        if (l <= 1) {
-            continue ;
-        }
-        if (alignment->core.tid == -1) {
-            continue ;
-        }
-        char* contig = bam_header->target_name[alignment->core.tid] ; //contig name (chromosome)
-        if (strcmp(contig, "chr22") != 0) {
-            continue ;
-        }
-        reads->push_back(new read_type()) ;
-        uint8_t *q = bam_get_seq(alignment) ; //quality string
-        for (int i = 0; i < l; i++) {
-            uint16_t base = uint16_t(seq_nt16_str[bam_seqi(q, i)]) ;
-            (*reads)[u]->push_back(base) ;
-            DEBUG(if (i == 30) { break ; })
-            //if (i == 30) { break ;}
-        }
-        (*reads)[u]->push_back(u + uint16_t(255 + 1)) ;
-        n += 1 ;
-        u += 1 ;
-        DEBUG(if (n == 10) { break ; })
-        if (n == 100) {
-            //break ;
-            n = 0 ;
-            time_t s ;
-            time(&s) ;
-            cout.precision(10) ;
-            if (s - t != 0) {
-                cout << std::left << "processed " << setw(12) << u << " reads, " ;
-                cout << " took: " << setw(7) << std::fixed << s - t ;
-                cout << " reads per second: " << u / (s - t) << "\r" ;
-            }
-        }
-    }
-    cout << endl ;
-    bam_destroy1(alignment) ;
-    sam_close(bam_file) ;
-    cout << "Extracted " << reads->size() << " reads.." << std::endl ;
-    return reads ;
-}
-
 cst_t* create_suffix_tree(std::string sample) {
     //return nullptr ;
     std::vector<read_type*>* reads = process_bam(sample) ;
@@ -123,44 +58,18 @@ cst_t* create_suffix_tree(std::string sample) {
     int l = 0 ;
     int n = 0 ;
     int s = 0 ;
-    std::vector<char*>* int_reads = new std::vector<char*>() ;
+    cout << "Assembling master read.." << endl ;
+    read_type* master_read = new read_type() ;
     for (auto it = reads->begin(); it != reads->end(); it++) { //iterate over reads
-        std::vector<string> tmp ;
         l = 0 ;
         for (auto itt = (*it)->begin(); itt != (*it)->end(); itt++) { //iterate over characters in each read
-            std::string b = std::to_string(*itt) ;
-            tmp.push_back(b) ;
-            l += b.length() + 1 ; // add one for space
+            master_read->push_back(*itt) ;
         }
-        i = 0 ;
-        char* read = (char*) malloc(sizeof(char) * (l + 1)) ;
-        for (auto itt = tmp.begin(); itt != tmp.end(); itt++) {
-            strncpy(read + i, (*itt).c_str(), (*itt).length()) ; 
-            read[i + (*itt).length()] = ' ' ;
-            i += (*itt).length() + 1 ;
-        }
-        read[l] = '\0' ;
-        DEBUG(cout << "|" << read << "|" << endl ;)
-        n += 1 ;
-        int_reads->push_back(read) ;
     }
-    cout << "Assembling master read.." << endl ;
-    s = 0 ;
-    for (auto it = int_reads->begin(); it != int_reads->end(); it++) {
-        s += strlen(*it) ;
-    }
-    cout << "Master read size: " << s << " bytes.." << endl ;
-    char* master_read = (char*) malloc(sizeof(char) * (s)) ; // NUll terminator overwrites last space
-    i = 0 ;
-    for (auto it = int_reads->begin(); it != int_reads->end(); it++) {
-        strcpy(master_read + i, *it) ;
-        i += strlen(*it) ;
-    }
-    master_read[s - 1] = '\0' ;
+    cout << "Master read size: " << master_read->size() << " bytes.." << endl ;
     cout << "Assembling tree.." << endl ;
     cst_t* cst = new cst_t() ;
-    construct_im(*cst, (const char*)master_read, 'd') ;
-    //csXprintf(cout, "%2I %3S %:4T", *cst);
+    construct_im(*cst, master_read, 'd') ;
     return cst ;
 }
 
@@ -348,6 +257,9 @@ void* calculate_child_diff_t(void* args) {
 }
 
 void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
+    read_type* read = new read_type({71, 67, 67, 84, 84, 67, 84, 67, 84, 84, 67, 65, 84, 71, 71, 65, 71, 65, 84, 67, 67, 84, 67, 65, 71, 67, 84, 65, 84, 71, 65, 256}) ;
+    cst_t* cst = new cst_t() ;
+    construct_im(*cst, (const char*) master_read, 'd') ;
     pthread_t threads[NUM_THREADS] ;
     struct thread_data* t_data[NUM_THREADS] ;
     std::vector<read_type*>* reads = process_bam(child) ;
