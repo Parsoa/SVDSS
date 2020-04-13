@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <map>
 
 #include <zlib.h>
 
@@ -16,57 +17,34 @@ using namespace sdsl;
 
 typedef csa_wt<wt_huff<rrr_vector<127> >, 512, 1024> FMI;
 
-// // Very naive way to convert a string to a binary string
-// // TODO: do better
-// string encode_3bits(const string &text) {
-//   string text_3b (3*text.size(), '0');
-
-//   map<char, string> encode;
-//   encode['A'] = "000";
-//   encode['C'] = "001";
-//   encode['G'] = "010";
-//   encode['T'] = "011";
-
-//   int i = 0;
-//   for(const char c : text) {
-//     if(encode.find(c) == encode.end())
-//       text_3b.replace(3*i, 3, "111");
-//     else
-//       text_3b.replace(3*i, 3, encode.at(c));
-//     ++i;
-//   }
-
-//   return text_3b;
-// }
-
-int analyze_kmers(const vector<string> &kmers, const FMI &fm_index, int threads) {
-  vector<int> solutions (threads);
-
-#pragma omp parallel for num_threads(threads)
-  for(uint i=0; i<kmers.size(); ++i) {
-    string kmer = kmers[i];
-    size_t occs = count(fm_index, kmer.begin(), kmer.end());
-    if(occs == 0)
-      ++solutions[omp_get_thread_num()];
+// TODO: do it better (the current version is too naive)
+string reverse_and_complement(const string &S) {
+  string rcS;
+  map<char,char> encode;
+  encode['A'] = 'T';
+  encode['C'] = 'G';
+  encode['G'] = 'C';
+  encode['T'] = 'A';
+  for(int i=S.size()-1; i>=0; --i) {
+    if(encode.find(S[i]) != encode.end())
+      rcS += encode.at(S[i]);
+    else {
+      rcS += S[i];
+      cerr << "Unknown symbol " << S[i] << endl;
+    }
   }
-  int unique_kmers = 0;
-  for(const int s : solutions)
-    unique_kmers+=s;
-  return unique_kmers;
+  return rcS;
 }
 
-/**
- * TODO:
- *      - multi-threading
- *      - reduce the number of copy operations (maybe using cstrings)
- **/
+// TODO multi-threading
+// TODO reduce the number of copy operations
 string concatenate_sample(const string &sample_path) {
   gzFile fp = gzopen(sample_path.c_str(), "r");
   kseq_t *seq = kseq_init(fp);
   int l;
   string text = "";
   while ((l = kseq_read(seq)) >= 0)
-    text += string(seq->seq.s) + "|";
+    text += string(seq->seq.s) + "|" + reverse_and_complement(string(seq->seq.s)) + "|";
   kseq_destroy(seq);
   gzclose(fp);
   return text;
@@ -87,8 +65,20 @@ int index(char *argv[]) {
   } else {
     cerr << "FMI found (" << index_path << ")" << endl;
   }
-
   return 0;
+}
+
+vector<vector<string>> analyze_kmers(const vector<string> &kmers, const FMI &fm_index, int threads) {
+  vector<vector<string>> solutions (threads);
+
+#pragma omp parallel for num_threads(threads)
+  for(uint i=0; i<kmers.size(); ++i) {
+    string kmer = kmers[i];
+    size_t occs = count(fm_index, kmer.begin(), kmer.end());
+    if(occs == 0)
+      solutions[omp_get_thread_num()].push_back(kmer);
+  }
+  return solutions;
 }
 
 int count(char *argv[]) {
@@ -111,26 +101,34 @@ int count(char *argv[]) {
   CKmerAPI kmer_obj(klen);
   string kmer;
   int curr_kmer = 0;
-  int unique_kmers = 0;
   vector<string> kmers;
+
+  cout << tot_kmers << endl;
+
   while(kmer_db.ReadNextKmer(kmer_obj, counter)) {
     ++curr_kmer;
     kmer_obj.to_string(kmer);
     kmers.push_back(kmer);
 
     if(kmers.size() == 10000) {
-      int s = analyze_kmers(kmers, fm_index, threads);
-      unique_kmers += s;
+      vector<vector<string>> unique_kmers = analyze_kmers(kmers, fm_index, threads);
+
+      for(const vector<string> uks : unique_kmers)
+	for(const string uk : uks)
+	  cout << uk << endl;
+
       cerr << curr_kmer << "/" << tot_kmers << "\r" << flush;
       kmers.clear();
     }
   }
   if(!kmers.empty()) {
-    int s = analyze_kmers(kmers, fm_index, threads);
-    unique_kmers += s;
+    vector<vector<string>> unique_kmers = analyze_kmers(kmers, fm_index, threads);
+
+    for(const vector<string> uks : unique_kmers)
+      for(const string uk : uks)
+	cout << uk << endl;
   }
   cerr << curr_kmer << "/" << tot_kmers << endl;
-  cout << unique_kmers << "/" << tot_kmers << endl;
 
   return 0;
 }
@@ -142,6 +140,7 @@ int main(int argc, char *argv[]) {
     retcode = index(argv);
   else if(mode == "count")
     retcode = count(argv);
-
+  else
+    retcode = 1;
   return retcode;
 }
