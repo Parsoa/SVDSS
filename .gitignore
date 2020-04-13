@@ -20,6 +20,7 @@ __pycache__/
 *.FASTQ
 *.fastq
 *.bam
+*.txt
 
 *.ct
 *.out

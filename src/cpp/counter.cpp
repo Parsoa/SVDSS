@@ -32,7 +32,7 @@
 #else
 #  define DEBUG(x)
 #  define NEBUG(x) x
-#  define NUM_THREADS 16
+#  define NUM_THREADS 1
 #endif
 
 
@@ -44,8 +44,10 @@ using namespace sdsl ;
 typedef cst_sct3<csa_bitcompressed<int_alphabet<> > > cst_t ;
 typedef cst_t::string_type string_type ;
 typedef cst_t::char_type char_type ;
-typedef std::vector<uint16_t> read_type ;
-typedef uint16_t base_type ;
+typedef std::vector<uint32_t> read_type ;
+typedef uint32_t base_type ;
+
+base_type terminus = 85 ;
 
 // prototypes
 
@@ -61,25 +63,46 @@ std::mutex cout_mutex ;
 std::vector<read_type*>* process_bam(string bam) {
     samFile *bam_file = hts_open(bam.c_str(), "r") ;
     bam_hdr_t *bam_header = sam_hdr_read(bam_file) ; //read header
+    char **target_name = bam_header->target_name ;
+    int32_t n_targets = bam_header->n_targets ;
+    uint32_t *target_len = bam_header->target_len ;
+    int32_t chr22 = 0 ;
+    for (int i = 0 ; i < n_targets ; i++) {
+        //cout << target_name[i] << endl ;
+        if (strcmp(target_name[i], "chr22") == 0) {
+            chr22 = i ;
+            cout << "chr22: " << i << endl ;
+        }
+    }
     bam1_t *alignment = bam_init1(); //initialize an alignment
+    int e = 0 ;
     int n = 0 ;
-    uint16_t u = 0 ;
+    int r = 0 ;
+    uint32_t u = 0 ;
     uint32_t len = 0 ;
+    uint64_t sum = 0 ;
+    uint64_t sum_v = 0 ;
     char* line ;
+    std::vector<read_type*>* reads = new std::vector<read_type*>() ;
     // Timing
     time_t t ;
     time(&t) ;
     cout << "Processig BAM file" << endl ;
-    std::vector<read_type*>* reads = new std::vector<read_type*>() ;
     //return reads ;
     while (sam_read1(bam_file, bam_header, alignment) > 0){
         uint32_t l = alignment->core.l_qseq ; //length of the read
         char qname[alignment->core.l_qname] ;
         strncpy(qname, (char*) alignment->data, alignment->core.l_qname) ;
+        r += 1 ;
         if (l <= 1) {
+            e += 1 ;
             continue ;
         }
-        if (alignment->core.tid == -1) {
+        if (alignment->core.tid == chr22) {
+            //u += 1 ;
+            sum += l ;
+            //continue ;
+        } else {
             continue ;
         }
         char* contig = bam_header->target_name[alignment->core.tid] ; //contig name (chromosome)
@@ -89,17 +112,17 @@ std::vector<read_type*>* process_bam(string bam) {
         reads->push_back(new read_type()) ;
         uint8_t *q = bam_get_seq(alignment) ; //quality string
         for (int i = 0; i < l; i++) {
-            uint16_t base = uint16_t(seq_nt16_str[bam_seqi(q, i)]) ;
+            uint32_t base = uint32_t(seq_nt16_str[bam_seqi(q, i)]) ;
             (*reads)[u]->push_back(base) ;
             DEBUG(if (i == 30) { break ; })
-            //if (i == 30) { break ;}
         }
-        (*reads)[u]->push_back(u + uint16_t(255 + 1)) ;
+        (*reads)[u]->push_back(terminus) ;
+        terminus += 1 ;
+        sum_v += (*reads)[u]->size() ;
         n += 1 ;
         u += 1 ;
         DEBUG(if (n == 10) { break ; })
         if (n == 100) {
-            //break ;
             n = 0 ;
             time_t s ;
             time(&s) ;
@@ -114,7 +137,7 @@ std::vector<read_type*>* process_bam(string bam) {
     cout << endl ;
     bam_destroy1(alignment) ;
     sam_close(bam_file) ;
-    cout << "Extracted " << reads->size() << " reads.." << std::endl ;
+    cout << "Processed " << r << " reads. Ignored " << e << " reads. Extracted " << reads->size() << " = " << u << " reads, totalling " << sum << " = " << sum_v << " bases. Terminus: " << terminus << std::endl ;
     return reads ;
 }
 
@@ -136,52 +159,129 @@ std::vector<read_type*>* process_bam(string bam) {
 //    construct_im(*cst, master_read, 0) ;
 //    return cst ;
 //}
+//
 
-cst_t* create_suffix_tree(std::string sample) {
-    //return nullptr ;
-    std::vector<read_type*>* reads = process_bam(sample) ;
-    int i = 0 ;
-    int l = 0 ;
-    int n = 0 ;
-    int s = 0 ;
-    std::vector<char*>* int_reads = new std::vector<char*>() ;
+uint64_t encode_reads(std::vector<char*>* int_reads, std::vector<read_type*>* reads) {
+    uint64_t l = 0 ;
+    uint64_t s = 0 ;
+    uint64_t r = 0 ;
     for (auto it = reads->begin(); it != reads->end(); it++) { //iterate over reads
         std::vector<string> tmp ;
+        // calculate string size for read
         l = 0 ;
+        r += (*it)->size() ;
         for (auto itt = (*it)->begin(); itt != (*it)->end(); itt++) { //iterate over characters in each read
             std::string b = std::to_string(*itt) ;
             tmp.push_back(b) ;
             l += b.length() + 1 ; // add one for space
         }
-        i = 0 ;
-        char* read = (char*) malloc(sizeof(char) * (l + 1)) ;
+        uint64_t i = 0 ;
+        char* read = (char*) malloc(sizeof(char) * l) ;
+        //cout << "int size: " << (*it)->size() << ", char size: " << l + 1 << endl ;
         for (auto itt = tmp.begin(); itt != tmp.end(); itt++) {
             strncpy(read + i, (*itt).c_str(), (*itt).length()) ; 
             read[i + (*itt).length()] = ' ' ;
             i += (*itt).length() + 1 ;
         }
-        read[l] = '\0' ;
+        //cout << i << " = " << l << endl ;
+        read[l - 1] = '\0' ;
         DEBUG(cout << "|" << read << "|" << endl ;)
-        n += 1 ;
+        s += l ;
         int_reads->push_back(read) ;
     }
+    return s ;
+}
+
+//cst_t* create_suffix_tree(std::string father, std::string mother) {
+//    std::vector<read_type*>* reads = process_bam(father) ;
+//    uint64_t l = 0 ;
+//    uint64_t s = 0 ;
+//    uint64_t r = 0 ;
+//    std::vector<char*>* int_reads = new std::vector<char*>() ;
+//    for (auto it = reads->begin(); it != reads->end(); it++) { //iterate over reads
+//        std::vector<string> tmp ;
+//        // calculate string size for read
+//        l = 0 ;
+//        r += (*it)->size() ;
+//        for (auto itt = (*it)->begin(); itt != (*it)->end(); itt++) { //iterate over characters in each read
+//            std::string b = std::to_string(*itt) ;
+//            tmp.push_back(b) ;
+//            l += b.length() + 1 ; // add one for space
+//        }
+//        uint64_t i = 0 ;
+//        char* read = (char*) malloc(sizeof(char) * (l + 1)) ;
+//        //cout << "int size: " << (*it)->size() << ", char size: " << l + 1 << endl ;
+//        for (auto itt = tmp.begin(); itt != tmp.end(); itt++) {
+//            strncpy(read + i, (*itt).c_str(), (*itt).length()) ; 
+//            read[i + (*itt).length()] = ' ' ;
+//            i += (*itt).length() + 1 ;
+//        }
+//        //cout << i << " = " << l << endl ;
+//        read[i] = '\0' ;
+//        DEBUG(cout << "|" << read << "|" << endl ;)
+//        s += l ;
+//        int_reads->push_back(read) ;
+//    }
+//    cout << "Total number of bases: " << r << endl ;
+//    cout << "Estimated master read size: " << s << " bytes.." << endl ;
+//    cout << "Assembling master read.." << endl ;
+//    char* master_read = (char*) malloc(sizeof(char) * (s)) ; // NUll terminator overwrites last space
+//    uint64_t i = 0 ;
+//    for (auto it = int_reads->begin(); it != int_reads->end(); it++) {
+//        strcpy(master_read + i, *it) ;
+//        i += strlen(*it) ;
+//    }
+//    std::ofstream of("master_read.txt") ;
+//    cout << "Dumping master sequences..." << endl ;
+//    of << master_read ;
+//    of.close() ;
+//    master_read[s - 1] = '\0' ; // NULL terminator overwrites the last space
+//    cout << "Assembling tree.." << endl ;
+//    cst_t* cst = new cst_t() ;
+//    construct_im(*cst, (const char*)master_read, 'd') ;
+//    return cst ;
+//}
+
+void memory_usage() {
+    double vm_usage = 0.0;
+    double resident_set = 0.0;
+    unsigned long vsize ;
+    long rss ;
+    std::string ignore ;
+    std::ifstream ifs("/proc/self/stat", std::ios_base::in) ;
+    ifs >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore
+        >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore
+        >> ignore >> ignore >> vsize >> rss ;
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024 ; // in case x86-64 is configured to use 2MB pages
+    vm_usage = vsize / 1024.0 ;
+    resident_set = rss * page_size_kb ;
+    cout << "VM: " << vm_usage << "; RSS: " << resident_set << endl ;
+}
+
+cst_t* create_suffix_tree(std::string father, std::string mother) {
+    std::vector<read_type*>* reads_father = process_bam(father) ;
+    std::vector<read_type*>* reads_mother = process_bam(mother) ;
+    std::vector<char*>* int_reads = new std::vector<char*>() ;
+    uint64_t s = 0 ;
+    s += encode_reads(int_reads, reads_father) ;
+    s += encode_reads(int_reads, reads_mother) ;
+    cout << "Estimated master read size: " << s << " bytes.." << endl ;
     cout << "Assembling master read.." << endl ;
-    s = 0 ;
-    for (auto it = int_reads->begin(); it != int_reads->end(); it++) {
-        s += strlen(*it) ;
-    }
-    cout << "Master read size: " << s << " bytes.." << endl ;
     char* master_read = (char*) malloc(sizeof(char) * (s)) ; // NUll terminator overwrites last space
-    i = 0 ;
+    uint64_t i = 0 ;
     for (auto it = int_reads->begin(); it != int_reads->end(); it++) {
         strcpy(master_read + i, *it) ;
         i += strlen(*it) ;
     }
-    master_read[s - 1] = '\0' ;
+    master_read[s - 1] = '\0' ; // NULL terminator overwrites the last space
     cout << "Assembling tree.." << endl ;
     cst_t* cst = new cst_t() ;
     construct_im(*cst, (const char*)master_read, 'd') ;
-    //csXprintf(cout, "%2I %3S %:4T", *cst);
+    memory_usage() ;
+    //delete int_reads ;
+    //delete reads_father ;
+    //delete reads_mother ;
+    //free(master_read) ;
     return cst ;
 }
 
@@ -271,8 +371,6 @@ void* calculate_child_diff_t(void* args) {
     std::vector<read_type*>* reads = t_data->reads ;
     std::unordered_map<std::string, int>* mismatched_strings = new std::unordered_map<std::string, int>() ;
     for (auto it = reads->begin(); it != reads->end(); it++) {
-    //while(true) {
-        //auto it = reads->begin() ;
         u += 1 ;
         DEBUG(cout << "------- matching -------" << endl ;)
         if (u % NUM_THREADS != index) {
@@ -282,60 +380,65 @@ void* calculate_child_diff_t(void* args) {
         int offset = 0 ;
         int l = (*it)->size() - 1 ; // ignore the terminator
         DEBUG(cout << "read length " << l << endl ;)
-        while (true) {
+        offset = search_sequence_backward(father, *it, (*it)->begin(), (*it)->end() - 1 - 1 - q + 1) ; // end() is one past the terminator, subtract two to get to the last base pair
+        if (offset != -1) {
             DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
-            DEBUG(cout << "continue at offset " << q << endl ;)
-            offset = search_sequence_backward(father, *it, (*it)->begin(), (*it)->end() - 1 - 1 - q + 1) ; // end() is one past the terminator, subtract two to get to the last base pair
-            if (offset != -1) {
-                DEBUG(cout << "binary search for longest mismatch at offset " << offset << ", " << (*it)->at(l - q - offset) << endl ;)
-                // (end of read) - (offset into the read) - (change since last offset) + (adjustment) 
-                int pivot = (l - 1) - q - offset + 1 ;
-                int end_limit = pivot;
-                int begin_limit = pivot ;
-                //
-                int end = pivot ;
-                int begin = pivot ;
+            // (end of read) - (offset into the read) - (change since last offset) + (adjustment) 
+            int pivot = (l - 1) - q - offset + 1 ;
+            //
+            int end = l - 1 ;
+            int begin = pivot ;
+            int prev_end = end ;
+            while (begin >= 0) {
+                DEBUG(cout << "== end: " << end << ", begin: " << begin << endl ;)
                 // fix the end
-                while (end <= l - 1) {
-                    begin = pivot ;
+                while (end > begin) {
                     DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
-                    DEBUG(cout << "interval [" << begin << ", " << end << "]" << endl ;)
+                    DEBUG(cout << "-E interval [" << begin << ", " << end << "]" << endl ;)
                     int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
                     if (m == 0) {
-                        DEBUG(cout << "added" << endl ;)
-                        if (end > pivot) {
-                            end_limit = end ;
-                            mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), end - begin + 1)) ;
-                            break ;
-                        }
+                        prev_end = end ;
+                    } else {
+                        DEBUG(cout << "## fixed end at " << prev_end << endl ;)
+                        mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + prev_end + 1), prev_end - begin + 1)) ;
+                        break ;
                     }
-                    end += 1 ;
-                }
-                while (end > pivot) {
                     end -= 1 ;
-                    begin = begin_limit ;
-                    while (begin >= 0) {
-                        DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
-                        DEBUG(cout << "interval [" << begin << ", " << end << "]" << endl ;)
-                        int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
-                        if (m == 0) {
-                            DEBUG(cout << "added" << endl ;)
-                            if (begin < pivot) {
-                                begin_limit = begin ;
-                                mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), end - begin + 1)) ;
-                                break ;
-                            }
-                        }
-                        begin -= 1 ;
-                    }
                 }
-            } else {
-                break ;
+                begin -= 1 ;
+                // fix the beginning
+                while (begin >= 0) {
+                    DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
+                    DEBUG(cout << "-B interval [" << begin << ", " << end << "]" << endl ;)
+                    int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
+                    if (m == 0) {
+                        DEBUG(cout << "@@ fixed begin at " << begin << endl ;)
+                        //mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + end + 1), end - begin + 1)) ;
+                        //end - = 1 ;
+                        //begin -= 1 ;
+                        break ;
+                    }
+                    begin -= 1 ;
+                }
+                // repeat until we reach the beginning of the sequence
             }
-            q += offset ;
-            if (q >= l - 1) {
-                break ;
+            end -= 1 ;
+            begin = 0 ;
+            while (end > begin) {
+                DEBUG(std::this_thread::sleep_for (std::chrono::seconds(1));)
+                DEBUG(cout << "-F interval [" << begin << ", " << end << "]" << endl ;)
+                int m = search_sequence(father, *it, (*it)->begin() + begin, (*it)->begin() + end + 1) ;
+                if (m == 0) {
+                    prev_end = end ;
+                } else {
+                    mismatched_strings->emplace(std::make_pair(hash_string(*it, (*it)->begin() + begin, (*it)->begin() + prev_end + 1), prev_end - begin + 1)) ;
+                    break ;
+
+                }
+                end -= 1 ;
             }
+        } else {
+            break ;
         }
         n += 1 ;
         if (n == 100) {
@@ -368,9 +471,10 @@ void* calculate_child_diff_t(void* args) {
     pthread_exit(NULL) ;
 }
 
-void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
+void calculate_child_diff(cst_t* cst, std::string child) {
     pthread_t threads[NUM_THREADS] ;
     struct thread_data* t_data[NUM_THREADS] ;
+    cout << "Loading child data..." << endl ;
     std::vector<read_type*>* reads = process_bam(child) ;
     cout << "======================== STATUS ============================ " << endl ;
     for (int t = 0; t < NUM_THREADS; t++) {
@@ -380,8 +484,8 @@ void calculate_child_diff(cst_t* father, cst_t* mother, std::string child) {
     for (int t = 0; t < NUM_THREADS; t++) {
         t_data[t] = new thread_data() ;
         t_data[t]->index = t ;
-        t_data[t]->father = father ;
-        t_data[t]->mother = mother ;
+        t_data[t]->father = cst ;
+        t_data[t]->mother = cst ;
         t_data[t]->child = child ;
         t_data[t]->reads = reads ;
         int rc = pthread_create(&threads[t], NULL, calculate_child_diff_t, (void *) t_data[t]) ;
@@ -438,9 +542,10 @@ int main(int argc, char** argv) {
     string father = argv[1] ; 
     string mother = argv[2] ;
     cout << "Creating father suffix tree.." << endl ;
-    cst_t* father_cst = create_suffix_tree(father) ;
-    cout << "Creating mother suffix tree.." << endl ;
+    //cst_t* father_cst = create_suffix_tree(father) ;
+    //cout << "Creating mother suffix tree.." << endl ;
     //cst_t* mother_cst = create_suffix_tree(mother) ;
-    calculate_child_diff(father_cst, father_cst, child) ;
+    cst_t* parent_cst = create_suffix_tree(father, mother) ;
+    calculate_child_diff(parent_cst, child) ;
     //calculate_child_diff(father_cst, father_cst, father) ;
 }
