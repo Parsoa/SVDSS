@@ -1,6 +1,6 @@
-[submodule "src/approach11/sdsl-lite"]
-	path = src/approach11/sdsl-lite
-	url = https://github.com/simongog/sdsl-lite.git
-[submodule "src/approach11/KMC"]
-	path = src/approach11/KMC
+[submodule "src/kmer_analysis/KMC"]
+	path = src/kmer_analysis/KMC
 	url = https://github.com/refresh-bio/KMC.git
+[submodule "src/kmer_analysis/sdsl-lite"]
+	path = src/kmer_analysis/sdsl-lite
+	url = https://github.com/simongog/sdsl-lite.git
