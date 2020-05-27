@@ -1,0 +1,10 @@
+*.a
+*.o
+.*.swp
+*.fa
+*.fa.gz
+*.fq
+*.fq.gz
+*.fmd
+*.mag
+*.mag.gz

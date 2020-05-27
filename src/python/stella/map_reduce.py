@@ -19,7 +19,6 @@ from shutil import copyfile
 from stella import (
     bed,
     config,
-    counttable,
 )
 
 from stella.debug import *
@@ -59,10 +58,10 @@ class Job(object):
             self.distribute_workload()
             self.wait_for_children()
         else:
-            system_print_high('Resuming from reduce...')
+            print('Resuming from reduce...')
         output = self.reduce()
         end = time.clock()
-        system_print_high('Stage ' + self._name + ' finished. Execution time', end - start)
+        print('Stage ' + self._name + ' finished. Execution time', end - start)
         return output
 
     def load_inputs(self):
@@ -89,7 +88,7 @@ class Job(object):
             if not index in self.batch:
                 self.batch[index] = {}
             self.batch[index][track] = tracks[track]
-            system_print('assigned ', track, ' to ', index)
+            print('assigned ', track, ' to ', index)
             n = n + 1
             self.num_threads = min(c.threads, n)
 
@@ -102,8 +101,8 @@ class Job(object):
                 exit()
             else:
                 self.children[pid] = index
-                system_print('spawned child', '{:2d}'.format(index), ':', pid)
-        system_print('done distributing workload')
+                print('spawned child', '{:2d}'.format(index), ':', pid)
+        print('done distributing workload')
 
     def run_batch(self, batch):
         c = config.Configuration()
@@ -124,7 +123,7 @@ class Job(object):
             t = time.time()
             p = float(n) / len(batch)
             eta = (1.0 - p) * ((1.0 / p) * (t - start)) / 3600
-            system_print('{:2d}'.format(self.index), 'progress:', '{:7.5f}'.format(p), 'ETA:', '{:8.6f}'.format(eta))
+            print('{:2d}'.format(self.index), 'progress:', '{:7.5f}'.format(p), 'ETA:', '{:8.6f}'.format(eta))
             if n % 1000 == 0:
                 gc.collect()
         for track in remove:
@@ -151,10 +150,10 @@ class Job(object):
             index = self.children[pid]
             self.children.pop(pid, None)
             if os.path.isfile(os.path.join(self.get_current_job_directory(), 'batch_' + str(index) + '.json')):
-                system_print_high('pid', '{:5d}'.format(pid) + ', index', '{:2d}'.format(index), 'finished,', '{:2d}'.format(len(self.children)), 'remaining')
+                print('pid', '{:5d}'.format(pid) + ', index', '{:2d}'.format(index), 'finished,', '{:2d}'.format(len(self.children)), 'remaining')
             else:
-                system_print_high('pid', '{:5d}'.format(pid) + ', index', '{:2d}'.format(index), 'finished didn\'t produce output,', len(self.children), 'remaining')
-        system_print_high('All forks done, merging output...')
+                print('pid', '{:5d}'.format(pid) + ', index', '{:2d}'.format(index), 'finished didn\'t produce output,', len(self.children), 'remaining')
+        print('All forks done, merging output...')
 
     def reduce(self):
         c = config.Configuration()
@@ -170,14 +169,28 @@ class Job(object):
         return output
 
     def load_output(self):
-        for i in range(0, self.num_threads):
-            system_print('reading batch', i)
-            yield self.load_output_batch(i)
+        i = 0
+        while True:
+            print(cyan('Reading batch', i))
+            batch = self.load_output_batch(i)
+            i += 1
+            if not batch:
+                break
+            yield batch
 
     def load_output_batch(self, index):
         path = os.path.join(self.get_current_job_directory(), 'batch_' + str(index) + '.json')
         if not os.path.isfile(path):
-            system_print_error('didn\'t find batch', index)
+            print(red('Didn\'t find batch ' + str(index) + ', stopping.'))
+            return {}
+        with open(path, 'r') as json_file:
+            output = json.load(json_file)
+            return output
+
+    def load_previous_output_batch(self, index):
+        path = os.path.join(self.get_previous_job_directory(), 'batch_' + str(index) + '.json')
+        if not os.path.isfile(path):
+            print(red('Didn\'t find batch ' + str(index) + ', stopping.'))
             return {}
         with open(path, 'r') as json_file:
             output = json.load(json_file)
@@ -193,13 +206,6 @@ class Job(object):
             return bed.load_tracks_from_file_as_dict(os.path.join(self.get_simulation_directory(), name))
         else:
             return bed.load_tracks_from_file_as_dict(c.bed)
-
-    def load_reference_counts_provider(self):
-        c = config.Configuration()
-        self.reference_counts_provider = counttable.JellyfishCountsProvider(c.jellyfish)
-
-    def unload_reference_counts_provider(self):
-        del self.reference_counts_provider
 
     # ============================================================================================================================ #
     # filesystem helpers
@@ -229,61 +235,25 @@ class Job(object):
 
 # ============================================================================================================================ #
 # ============================================================================================================================ #
-# Base class for every job that is a direct part of the genotyping process
+# ============================================================================================================================ #
 # ============================================================================================================================ #
 # ============================================================================================================================ #
 
-class GenomeDependentJob(Job):
+class SingleCoreJob(Job):
 
-    def get_current_job_directory(self):
+    def execute(self):
+        start = time.clock() 
         c = config.Configuration()
-        if c.simulation:
-            s = Job.get_current_job_directory(self)
-            print(yellow(s))
-            return s
+        self.create_output_directories()
+        if not self.resume_from_reduce: 
+            self.load_inputs()
         else:
-            return os.path.abspath(os.path.join(self.get_output_directory(), self._name))
-
-# ============================================================================================================================ #
-# ============================================================================================================================ #
-# ============================================================================================================================ #
-# ============================================================================================================================ #
-# ============================================================================================================================ #
-
-class TrackExportHelper(Job):
-
-    # ============================================================================================================================ #
-    # Launcher
-    # ============================================================================================================================ #
-
-    _name = 'TrackExportHelper'
-    _category = 'genotyping'
-    _previous_job = None
-
-    @staticmethod
-    def launch(**kwargs):
-        job = TrackExportHelper(**kwargs)
-        job.execute()
-
-    # ============================================================================================================================ #
-    # MapReduce overrides
-    # ============================================================================================================================ #
-
-    def load_inputs(self):
-        c = config.Configuration()
-        self.resume_from_reduce = False
-        self.round_robin(self.tracks)
-
-    def transform(self, track, track_name):
-        with open(os.path.join(self.get_current_job_directory(), track_name + '.json'), 'w') as json_file:
-            json.dump(track, json_file, indent = 4)
-        return None
-
-    def get_current_job_directory(self):
-        return self.current_job_directory
-
-    def output_batch(self, batch):
-        pass
+            print(cyan('Resuming from reduce...'))
+        output = self.reduce()
+        end = time.clock()
+        print(cyan('Stage ' + self._name + ' finished. Execution time', end - start))
+        return output
 
     def reduce(self):
-        pass
+        return None
+

@@ -33,3 +33,5 @@ test/
 .vscode/
 src/cpp/*.o
 src/cpp/*.out
+
+!requirements.txt

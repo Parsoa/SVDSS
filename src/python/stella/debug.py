@@ -36,9 +36,12 @@ def debug_breakpoint():
 def debug_log(*args):
     c = config.Configuration()
     if c.debug:
-        print(magenta('BEGIN DEBUG *********************************************************************************************'))
         print(*args)
-        print(magenta('END DEBUG ***********************************************************************************************'))
+
+def debug_sleep(t):
+    c = config.Configuration()
+    if c.debug:
+        time.sleep(t)
 
 def debug_terminate():
     c = config.Configuration()

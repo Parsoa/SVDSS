@@ -1,0 +1,651 @@
+.TH fermi 1 "22 August 2012" "fermi-r744" "Bioinformatics tools"
+
+.SH NAME
+.PP
+fermi - FERragina-Manzini Index for DNA sequences
+
+.SH SYNOPSIS
+.PP
+run-fermi.pl -Pt8 end1.fq end2.fq > assemble.mak
+.PP
+make -f assemble.mak -j 8
+
+.SH DESCRIPTION
+.PP
+Fermi is a de novo assembler with a particular focus on assembling Illumina
+short sequence reads from a mammal-sized genome. In addition to the role of a
+typical assembler, fermi also aims to preserve heterozygotes which are often
+collapsed by other assemblers. Its ultimate goal is to find a minimal set of
+unitigs to represent all the information in raw reads. Fermi follows the
+overlap-layout-consensus paradigm and uses the FM-DNA-index (FMD-index) as the
+key data structure. It is inspired by the string graph assembler (Simpson and
+Durbin, 2010 and 2012) and has a similar workflow.
+
+.SH QUICK START
+.sp
+\
+
+.SS Requirements and installation
+Fermi is designed for running on a multi-core x86_64 machine with large shared
+memory.  The peak memory is linear in the size of the genome and sublinear in
+the coverage.  It takes approximately 90GB peak memory and 3 days to assemble a
+mammalian genome at 35-fold coverage and needs working disk space roughly
+three times as large as the original gzip'd FASTQ.
+
+Fermi is writen in C and can be compiled by gcc or clang. The only library
+dependency is
+.BR zlib .
+Fermi can be compiled by invoking 
+.B make
+in the source code directory. After compilation, one may copy file
+.B run-fermi.pl
+and
+.B fermi
+to
+.BR PATH .
+This finishes the installation.
+
+.SS Running fermi
+The easiest way to run fermi is to use the
+.B run-fermi.pl
+script. This script takes multiple single-end or paired-end FASTQ files as input
+and outputs a Makefile. The actual assembly is done by calling
+.BR make .
+For single-end data, the final output is an overlap graph; for paired-end data,
+the final output is scaftigs (i.e. unitigs linked with paired-end information
+without gaps), but the graph topology is not kept. As an example, the following
+command line assembles paired-end reads in files
+.IR reads*.fq.gz
+across 16 CPUs, requring a minimum 50bp overlap:
+
+  run-fermi.pl -Pt16 -e ./fermi -k50 reads*.fq.gz > fmdef.mak
+  make -f fmdef.mak -j16
+
+For the input files, the
+.RI 2 i -th
+file is paired with the
+.RI 2( i +1)-th
+file. After assembly, scaftigs will be stored in fmdef.p5.fq.gz. This file is
+in a FASTQ-like format. The `quality' line keeps the number of non-redundant
+reads covering each scaftig position. The suffixes of other useful intermediate
+files are explained as follows, in the order that they are generated:
+
+.TP 11
+.B .raw.fmd
+FMD-index of the raw reads.
+.TP
+.B .ec.fq.gz
+Error corrected reads. Reads containing unique k-mers are not discarded.
+.TP
+.B .ec.fmd
+FMD-index of the error corrected reads with reads containing unique k-mers
+dropped. It is recommended to keep this index as generating this file typically
+takes about 75% of total run time and many following steps depends on it.
+.TP
+.B .ec.rank
+Rank of each read sequence in the FMD-index.
+.TP
+.B .p0.mag.gz
+Initial overlap graph in the MAG format. Briefly, MAG is a variant of FASTQ
+format with the `quality' line replaced by per-base coverage computed from
+non-duplicate reads.  In MAG, each unitig is labeled by two integers. On the
+FASTQ header line, the second number gives the number of reads contained in the
+unitig. The following two fields keep the left and right neighbors of the
+unitig and the length of exact overlaps.
+.TP
+.B .p1.mag.gz
+Overlap graph after trimming singleton tips and reducing excessive neighbors
+(for the sake of efficiency). It is recommended to keep this file for fine
+tuning the assembly with the
+.B clean
+command.
+.TP
+.B .p2.mag.gz
+Overlap graph after tip trimming and aggressive bubble popping with most heterozygotes
+are removed. For single-end data, this is the final output file.
+.TP
+.B .p4.fa.gz
+Initial scaftigs.
+.TP
+.B .p5.fq.gz
+The final scaftigs. In this file, unitigs in `.p4.fa.gz' are split at regions
+without bridging read pairs.
+.RE
+
+.SS Performance
+.PP
+Fermi works well for HiSeq data, comparable to the mainstream assemblers such
+as SOAPdenovo, SGA and ALLPATHS-LG. Based on limited evaluations, fermi may
+produce longer N50 with a similar level of large-scale misassembly. However,
+fermi may produce more misassemblies towards the end (within ~150bp) of
+scaftigs. On one data set, it also has higher large-scale misassembly rate
+before the last pair-breaking step, though most of the additional errors
+can be removed after pair-breaking. In all, fermi yields assembly of similar
+quality to the top de novo assemblers. It may be better in some aspects or for
+some data sets, but worse in others.
+
+During error correction, fermi rarely removes heterozygotes. For the NA12878
+35X data set, the error correction only significantly affects 0.2% of SNPs. Unitigs
+also preserve most information in read and because assembly takes the advantage
+of nearby information. Unitigs are more sensitive to longer short INDELs and
+some SNPs. Unitigs also retain the phasing information for SNP pairs with
+distance within the read length.
+
+.SS Limitations
+.PP
+As of now, fermi is designed and extensively tested for 100bp Illumina
+paired-end data from a single short-insert library or libraries of similar
+insert sizes. It is able to use the pairing information for the unitig
+construction, but it does not generate scaffolds and is unable to take
+advantage of reads from jumping libraries. Thus users may need a third-party
+scaffolder to construct scaffolds and/or to take advantage of reads with
+long-insert. In addition, fermi does not work with long reads having a high
+indel sequencing error rate, though it has the potential to be adapted to such
+data in future.
+
+.SH COMMANDS AND OPTIONS
+.sp
+\ 
+.SS Quick assembly with run-fermi.pl
+.B run-fermi.pl
+.RB [ \-PDBc ]
+.RB [ \-e
+.IR fermiExe ]
+.RB [ \-t
+.IR nCPUs ]
+.RB [ \-p
+.IR prefix ]
+.RB [ \-k
+.IR ovlpLen ]
+.RB [ \-l
+.IR maxLen ]
+.I in1.fq.gz
+.RI [ in2.fq.gz ]
+[...]
+.B >
+.I assemble.mak
+
+Generate a Makefile for assembling input reads. To actually perform the assembly,
+one should use
+.RB ` make
+-f
+.I assemble.mak
+-j
+.IR nCPUs ',
+where
+.I nCPUs
+is the option used for generating the Makefile.
+
+.B OPTIONS:
+.TP 10
+.B -c
+The input is collated/interleaved paired-end FASTQs where the
+.RI 2 i -th
+and
+.RI 2( i +1)-th
+reads in each input file constitute a read pair.
+.TP
+.B -P
+The input is separated paired-end FASTQ pairs where the
+.IR i -th
+read in the
+.RI 2 j -th
+input file and the
+.IR i -th
+read in the
+.RI 2( j +1)-th
+file constitute a read pair.
+.TP
+.B -B
+Use the SAIS algorithm to build the FMD-index. The default is BCR. The BCR
+algorithm is much faster for reads up to 150-200bp. For longer sequences, the
+original algorithm is better. See also `FURTHER NOTES' about the BWT
+construction algorithms.
+.TP
+.B -D
+Halve the number of split files when building the index. This is faster but
+increases the memory usage. This option is only effective with
+.BR -B .
+.TP
+.BI -e \ FILE
+Path of the
+.B fermi
+executable [fermi]
+.TP
+.BI -p \ STR
+Prefix of output files [fmdef]
+.TP
+.BI -t \ INT
+Maximum number of CPUs. Must be a number no less than 2. [2]
+.TP
+.BI -l \ INT
+After error correction, trim reads down to
+.I INT
+bp. [inf]
+.TP
+.BI -k \ INT
+Minimum overlap when constructing unitigs (see also
+.BR unitig ).
+[50]
+
+.SS Assembly related commands
+
+.TP 10
+.B build
+.B fermi build
+.RB [ \-f ]
+.RB [ \-i
+.IR in.fmd ]
+.RB [ \-b
+.IR sbits ]
+.RB [ \-o
+.IR out.fmd ]
+.RB [ \-s
+.IR blkSize ]
+.I in.fa
+
+Construct the FM-index for file
+.I in.fa
+or append the constructed index to an existing FM-index
+.IR in.fmd .
+For a small input file, all the sequences will be loaded into memory and the
+index is constructed altogether. For a large file, this command will load
+.I blkSize
+symbols in turn, construct BWT for them and then append to the existing index
+using an algorithm similar to the
+.B merge
+command. For a large file, the memory consumption is about
+.RI ( S + blkSize *13),
+where
+.I S
+is the size of the final FM-index.
+
+
+.TP
+.B merge
+.B fermi merge
+.RB [ \-f ]
+.RB [ \-o
+.IR out.fmd ]
+.RB [ \-t
+.IR nThreads ]
+.I in0.fmd in1.fmd
+.RI [ ... ]
+
+Merge multiple FM-indexes. This step takes about
+.RI ( N /8+ S )
+bytes of memory, where
+.I N
+is the total length of the concatenated sequence and
+.I S
+is the size of the final FM-index which is run-length-delta encoded.
+
+
+.TP
+.B ropebwt
+.B fermi ropebwt
+.RB [ \-btFRNOT ]
+.RB [ \-a
+.IR algorithm ]
+.RB [ \-r
+.IR nRuns ]
+.RB [ \-n
+.IR nChild ]
+.RB [ \-o
+.IR outFile ]
+.RB [ \-f
+.IR tmpFile ]
+.RB [ \-v
+.IR verbose ]
+.I in.fa
+
+Construct the BWT for sequences in file
+.I in.fa
+using the BCR or the BPR algorithm.
+
+
+.TP
+.B correct
+.B fermi correct
+.RB [ \-K ]
+.RB [ \-k
+.IR kMerSize ]
+.RB [ \-O
+.IR minOcc ]
+.RB [ \-t
+.IR nThreads ]
+.RB [ \-C
+.IR maxCorr ]
+.I in.fmd in.fa
+
+Collect the k-mer count from
+.I in.fmd
+and use the collected informtion to fix sequencing errors in
+.IR in.fa .
+
+
+.TP
+.B seqrank
+.B fermi seqrank
+.RB [ \-t
+.IR nThreads ]
+>
+.I out.rank
+
+Compute the rank of each sequence and output a binary file to be used with
+.BR unitig .
+
+
+.TP
+.B unitig
+.B fermi unitig
+.RB [ \-l
+.IR minOvlp ]
+.RB [ \-t
+.IR nThreads ]
+.RB [ \-r
+.IR rankFile ]
+.I in.fmd
+
+Construct the unitig graph from
+.I in.fmd
+by unambiguously and maximally extending each read.
+
+.B OPTIONS:
+.RS
+.TP 10
+.BI \-l \ INT
+Length of the minimum overlap [30]
+.TP
+.BI \-t \ INT
+Number of threads [1]
+.TP
+.BI \-r \ FILE
+The output file generated by
+.BR seqrank .
+The
+.I FILE
+here must be generated from
+.IR in.fmd .
+This option speeds up the graph construction at the cost of a larger memory footprint. Although
+generating
+.I FILE
+also takes time, this file is required by several other commands.
+[null]
+.RE
+
+
+.TP
+.B clean
+.B fermi clean
+.RB [ \-CSAOF ]
+.RB [ \-N
+.IR maxNei ]
+.RB [ \-d
+.IR minRatio1 ]
+.RB [ \-l
+.IR minTipLen ]
+.RB [ \-o
+.IR minOvlp ]
+.RB [ \-R
+.IR minRatio2 ]
+.RB [ \-n
+.IR nIters ]
+.RB [ \-w
+.IR minBblCov ]
+.RB [ \-r
+.IR minBblRatio ]
+.I in.mag
+
+Clean unitig graph
+.I in.mag
+by conservative tip removal.
+Option
+.B -C
+further enables more aggressive tip removal, weak overlap cut and bubble popping.
+
+.B OPTIONS:
+.RS
+.TP 10
+.BI -N \ INT
+During graph reading, read maximum
+.I INT
+neighbors per vertex. Shorter overlaps will be dropped. This option helps to reduce the memory caused by highly repetitive sequences. [512]
+.TP
+.BI -d \ FLOAT
+During graph reading, drop an overlap if it is shorter than
+.I FLOAT
+times the second longest overlap. This option also helps to reduce the memory. [0.70]
+.TP
+.BR -l \ INT
+Keep tips whose length no shorter than
+.I INT
+[300]
+.TP
+.B -O
+Read the graph without any modification.
+.TP
+.B -F
+If during graph reading the graph is not modified, skip graph amendation. Without this option,
+the
+.B clean
+command tries to fix inconsistent overlaps, which may be errors in the input or the result from
+conservation tip removal. This step is quite slow.
+.TP
+.B -C
+Enable more aggressive graph cleaning. When this option is absent, only singletons orphans and tips will be removed. The following
+options are only effective when this option is in use.
+.TP
+.BR -e \ INT
+Keep tips supported by no less than
+.I INT
+reads [4]
+.TP
+.BR -i \ INT
+Remove an internal vertex if it is shorter than
+.B -l
+and supported by less than
+.I INT
+reads [3]
+.TP
+.BR -o \ INT
+Drop an overlap shorter than
+.I INT
+[60]
+.TP
+.BR -o \ FLOAT
+Drop an overlap if it is shorter than
+.I FLOAT
+times the longest overlap [0.80]
+.TP
+.BR -n \ INT
+Apply tip removal and overlap cutting for
+.I INT
+rounds [3]
+.TP
+.BR -w \ FLOAT
+Keep a bubble if one side of the bubble having average coverage higher than
+.I FLOAT
+[10.0]
+.TP
+.BR -r \ FLOAT
+Keep a bubble if the coverage of the weak side of the bubble is more than
+.I FLOAT
+times the total coverage of the bubble.
+[0.15]
+.TP
+.B -S
+Skip bubble simplification, which converts complex bubbles to simple ones.
+.TP
+.B -A
+Enable even more aggressive bubble popping. Without this option, the
+.B clean
+command tries to preserve heterozygotes, but applying the option will get
+most heterozygotes removed. The option also more aggressively removes
+tips that are caused by undetected overlaps.
+.RE
+
+
+
+.SS Sequence processing commands
+
+.TP 10
+.B pe2cofq
+.B fermi pe2cofq
+.I in1.fastq in2.fastq
+.B >
+.I collated.fastq
+
+Collate
+.I in1.fastq
+and
+.I in2.fastq
+produced from a paired-end run where the
+.IR i -th
+sequence in
+.I in1.fastq
+and the
+.IR i -th
+sequence in
+.I in2.fastq
+constitute a read pair.
+
+
+.TP
+.B trimseq
+.B fermi trimseq
+.RB [ \-N ]
+.RB [ \-q
+.IR minQual ]
+.RB [ \-l
+.IR minLen ]
+.I in.fastq
+
+Trim both low-quality ends of a read and possibly drop reads with low quality.
+For collated paired-end FASTQ files, if a read is dropped, its mate (judged from the read name) will also be dropped.
+
+.B OPTIONS:
+.RS
+.TP 10
+.B \-N
+Keep reads containing ambiguous bases after trimming. Such reads are dropped by default.
+.TP
+.BI \-q \ INT
+Minimum base quality. For 3'-end trimming, reads are trimmed down to
+.RI argmax_x{sum_{i=x}^l( INT -q_i)}
+where q_i is the base quality of the
+.IR i -th
+base. 5'-end trimming is similar. [3]
+.TP
+.BI \-l \ INT
+Discard a read if after trimming the read length is below
+.I INT
+[20]
+.RE
+
+.SS Other commands
+
+.TP 10
+.B unpack
+.B fermi unpack
+.RB [ \-M ]
+.RB [ \-i
+.IR index ]
+.I in.fmd
+
+Extract multiple or all sequences stored in the FM-index.
+
+
+.TP
+.B chkbwt
+.B fermi chkbwt
+.RB [ \-MP ]
+.I in.fmd
+
+Check the rank function or print the BWT in the text form.
+
+
+.TP
+.B exact
+.B fermi exact
+.RB [ \-sM ]
+.I in.fmd in.fa
+
+Find the super-maximal exact matches against the FM-index.
+
+
+.SH FURTHER NOTES
+.sp
+\ 
+
+.SS Constructing BWT
+.PP
+Fermi implements four algorithms for constructing BWT: SAIS, SAIS-merge, BPR
+and BCR. They all work with sequences with multiple sentinels. Each algorithm
+has its own strength and weakness.
+
+SAIS is the original algorithm used by fermi. It is modified from Yuta Mori's
+reimplementation of the single-sentinel SAIS algorithm by introducing
+comparisons between sentinels. This algorithm needs to construct the suffix
+array and is thus memory demanding given many sequences. The SAIS algorithm is
+implemented in file `ksa.c'.
+
+SAIS-merge is built on top of SAIS. It uses SAIS to construct the suffix array
+for a part of sequences and then merges the partial suffix array to the
+existing FM-index. Given many short sequences, the memory footprint is roughly
+linear in the entropy of the sequences. The
+.B build
+command uses the SAIS-merge algorithm. SAIS-merge is still memory demanding
+given a very long sequence (e.g. a human chromosome) as it has to call SAIS
+for the whole sequence.
+
+The BPR algorithm works by inserting each symbol to the partial FM-index
+represented as a B+-rope. It is the simplest yet works efficiently for all
+types of input sequences. On a single thread, BPR is marginally faster than
+SAIS-merge. However, as BPR is cache demanding, launching multiple BPR
+processes will make them compete cache with each other and greatly impact the
+performance. BPR is largely inspired by BCR.
+
+SAIS, SAIS-merge and BPR all run on a single thread. Parallelization is
+achieved by building BWT for part of sequences and merging them together with
+the
+.B merge
+commanda. Using atomic CPU instructions implemented in the x86-64 CPUs, merging
+can be parallelized lock-free.
+
+BCR, or the Bauer-Cox-Rosone algorithm, is a distinct algorithm designed for
+many short sequences. It is much faster than the others given Illumina short
+reads. However, the time complexity of BCR is quadratic in the length of the
+longest sequence. It becomes very slow for long reads.
+
+Fermi improves the original BCR algorithm in several aspects. Firstly, fermi
+builds the FM-index largely in RAM. This increases the memory usage, but is
+much preferred when fast disk I/O is not available. Secondly, fermi uses radix
+sort to greatly speed up the construction. Thirdly, fermi multi-threads the
+computing bottleneck. This typically halves the wall-clock time. With these
+improvements, fermi is able to construct the BWT for 35-fold human reads in RAM
+without the extra merging step. For 100bp reads, fermi-BCR is the fastest BWT
+construction algorithm to date.
+
+
+.SS Fermi and SGA
+.PP
+Fermi is fundamentally influenced by the string graph assembler (SGA; Simpson
+and Durbin, 2010 and 2012) written by Jared Simpson. Although initially I was
+planning something quite different, most of my ideas turned out to be wrong or
+impractical once I started to implement them. In the end, fermi takes a very
+similar overall approach to SGA.  On the other hand, fermi is entirely a fresh
+implementation. The FM-index data structure, the BWT construction algorithm,
+the error correction strategy, the overlap graph construction procedure are all
+different from those
+implemented in SGA.
+
+
+.SH AUTHOR
+.PP
+Heng Li <lh3@me.com>
+
+.SH SEE ALSO
+.PP
+Fermi git repository: <https://github.com/lh3/fermi>
+General Q&A site of the author: <http://lh3.userecho.com>

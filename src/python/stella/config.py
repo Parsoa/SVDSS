@@ -13,7 +13,6 @@ class Configuration:
         def __init__(self, args):
             for arg in args:
                 for attr, value in arg.__dict__.items():
-                    print(attr, value)
                     setattr(self, attr, value)
             if self.debug:
                 self.threads = 1
@@ -52,6 +51,8 @@ def parse_args():
     parser.add_argument("--bed", nargs = '+', default = None)
     # path to a BAM files, for jobs that need one as input
     parser.add_argument("--bam", default = None)
+    # path to bwt
+    parser.add_argument("--bwt", default = None)
     # whether we are running on CGC or not 
     parser.add_argument("--cgc", action = 'store_true')
     # gap size, should be odd
@@ -111,6 +112,7 @@ def parse_args():
     subparsers = main.add_subparsers(dest = 'command')
     ################## Extractor arguments
     extract_parser = subparsers.add_parser('index', parents = [parser])
+    simulate_parser = subparsers.add_parser('simulate', parents = [parser])
     ################## End of arguments
     args = main.parse_args()
     return args

@@ -92,6 +92,43 @@ class BedTrack:
 # BED Tracks
 # ============================================================================================================================ #
 
+# sorts a dictionary of tracks into a list
+def sort_tracks(tracks):
+    if isinstance(tracks, dict):
+        _tracks = [tracks[track] for track in tracks]
+    else:
+        _tracks = tracks
+    return sorted(_tracks, key = lambda x: (x.chrom, x.begin, x.end))
+    #return sorted(sorted(_tracks, key = lambda x: x.begin), key = lambda y: y.chrom)
+
+def filter_overlapping_tracks(tracks, svtype):
+    i = 0
+    remove = []
+    tracks = sort_tracks(tracks)
+    while i < len(tracks):
+        for j in range(i + 1, len(tracks)):
+            if tracks[j].chrom != tracks[i].chrom:
+                i = j
+                break
+            if svtype == 'DEL':
+                if tracks[j].begin <= tracks[i].end:
+                    remove.append(j)
+                    print(str(tracks[j]), 'overlaps', blue(str(tracks[i])))
+                    continue
+            if svtype == 'INS':
+                if tracks[j].begin - tracks[i].end < 100:
+                    remove.append(j)
+                    print(str(tracks[j]), 'is too close to', blue(str(tracks[i])))
+                    continue
+            i = j
+        if j == len(tracks) - 1:
+            break
+    n = 0
+    for index in sorted(remove):
+        tracks.pop(index - n)
+        n = n + 1
+    return tracks
+
 def track_from_name(name):
     tokens = name.split('_')
     return BedTrack(tokens[0], int(tokens[1]), int(tokens[2]))
