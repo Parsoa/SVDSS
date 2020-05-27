@@ -163,13 +163,13 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         //    solutions[S] = 0 ;
         //}
         //solutions[S] = solutions[S] + 1 ;
-        DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
+        //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         // prepare for next round
-        // overlapping version:
         if (begin == 0) {
             break ;
         }
-        begin = end - 1 ;
+        // overlapping version:
+        // begin = end - 1 ;
     }
     //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
     delete[] seq ;
@@ -297,6 +297,17 @@ int search_f3(int argc, char *argv[]) {
         }
         cerr << "Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
     }
+    int y = 0 ;
+    for (const auto &batch : batches[(p + 1) % 2]) {
+        y += batch.size() ;
+        for (const auto fastq_entry : batch) {
+            if (search_solutions.find(fastq_entry) == search_solutions.end()) {
+                search_solutions[fastq_entry] = 0 ;
+            }
+            search_solutions[fastq_entry] += 1 ;
+        }
+    }
+    cerr << "Merged. " << search_solutions.size() << " unique sequences." << endl ;
     cerr << "Dumping output.." << endl ;
     //nlohmann::json payload ;
     std::ofstream o("solution.fastq") ;
