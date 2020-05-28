@@ -24,6 +24,9 @@ __pycache__/
 
 *.fdmi
 
+main
+debug
+
 *.ct
 *.out
 *.log

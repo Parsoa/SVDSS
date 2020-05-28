@@ -13,17 +13,13 @@
 
 #include <zlib.h>
 
-#include "rld.h"
+#include "rld0.h"
 #include "kseq.h"
-#include "fermi.h"
 #include "json.hpp"
 
 KSEQ_INIT(gzFile, gzread)
 
 using namespace std;
-
-extern "C" int main_build(int argc, char *argv[]);
-extern "C" void seq_char2nt6(int l, unsigned char *s);
 
 #ifdef DEBUG_MODE
 #  define DEBUG(x) x
@@ -32,6 +28,29 @@ extern "C" void seq_char2nt6(int l, unsigned char *s);
 #  define DEBUG(x)
 #  define NEBUG(x) x
 #endif
+
+/** From fermi ***********/
+
+#define fm6_comp(a) ((a) >= 1 && (a) <= 4? 5 - (a) : (a))
+
+#define fm6_set_intv(e, c, ik) ((ik).x[0] = (e)->cnt[(int)(c)], (ik).x[2] = (e)->cnt[(int)(c)+1] - (e)->cnt[(int)(c)], (ik).x[1] = (e)->cnt[fm6_comp(c)], (ik).info = 0)
+
+static unsigned char seq_nt6_table[128] = {0, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+					   5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+					   5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+					   5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+					   5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
+					   5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+					   5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
+					   5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5};
+
+void seq_char2nt6(int l, unsigned char *s) {
+  int i;
+  for (i = 0; i < l; ++i)
+    s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5;
+}
+
+/*************************/
 
 static const vector<string> int2char ({"$", "A", "C", "G", "T", "N"});
 
@@ -65,17 +84,17 @@ fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l) {
     return fastq_entry_t(fqe.head, S, Q, s, l) ;
 }
 
-string interval2str(fmintv_t sai) {
+string interval2str(rldintv_t sai) {
     return "[" + to_string(sai.x[0]) + "," + to_string(sai.x[1]) + "," + to_string(sai.x[2]) + "]";
 }
 
 bool backward_search(rld_t *index, const uint8_t *P, int p2) {
-    fmintv_t sai ; // fmintv_t is the struct used to store a SA interval.
+    rldintv_t sai ; // rldintv_t is the struct used to store a SA interval.
     fm6_set_intv(index, P[p2], sai) ;
     while(sai.x[2] != 0 && p2 > 0) {
         --p2;
-        fmintv_t osai[6] ;
-        fm6_extend(index, &sai, osai, 1) ; //1: backward, 0: forward
+        rldintv_t osai[6] ;
+        rld_extend(index, &sai, osai, 1) ; //1: backward, 0: forward
         sai = osai[P[p2]] ;
     }
     return sai.x[2] != 0 ;
@@ -115,7 +134,7 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
     strcpy(seq, fqe.seq.c_str()) ; // seq
     uint8_t *P = (uint8_t*) seq ; 
     seq_char2nt6(l, P) ; // convert to integers
-    fmintv_t sai ;
+    rldintv_t sai ;
 
     int begin = l - 1 ;
     while (begin >= 0) {
@@ -127,8 +146,8 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         while (sai.x[2] != 0 && begin > 0) {
             begin-- ;
             bmatches++ ;
-            fmintv_t osai[6] ; // output SA intervals (one for each symbol between 0 and 5)
-            fm6_extend(index, &sai, osai, 1) ;
+            rldintv_t osai[6] ; // output SA intervals (one for each symbol between 0 and 5)
+            rld_extend(index, &sai, osai, 1) ;
             sai = osai[P[begin]] ;
             DEBUG(cerr << "- BE with " << int2char[P[begin]] << " (" << begin << "): " << interval2str(sai) << endl ;)
         }
@@ -145,8 +164,8 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         while(sai.x[2] != 0) {
             end++ ;
             fmatches++ ;
-            fmintv_t osai[6] ;
-            fm6_extend(index, &sai, osai, 0) ;
+            rldintv_t osai[6] ;
+            rld_extend(index, &sai, osai, 0) ;
             sai = osai[P[end] >= 1 && P[end] <= 4 ? 5 - P[end] : P[end]];
             DEBUG(cerr << "- FE with " << int2char[P[end]] << " (" <<  end << "): " << interval2str(sai) << endl ;)
         }
@@ -169,7 +188,7 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
             break ;
         }
         // overlapping version:
-        // begin = end - 1 ;
+        begin = end - 1 ;
     }
     //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
     delete[] seq ;
@@ -447,7 +466,9 @@ int main(int argc, char *argv[]) {
     int retcode = 0 ;
     DEBUG(cerr << "DEBUG MODE" << endl ;)
     if(mode == "index") {
-        retcode = main_build(argc - 1, argv + 1) ;
+	// FIXME: implement the method or use the one in the ropebwt2 main.cpp
+	cerr << "Use ropebwt2" << endl;
+        retcode = 1; // main_build(argc - 1, argv + 1) ;
     } else if(mode == "sf3") {
         retcode = search_f3(argc - 1, argv + 1) ;
     } else if(mode == "cf3") {
