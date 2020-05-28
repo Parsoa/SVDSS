@@ -22,6 +22,8 @@ __pycache__/
 *.bam
 *.txt
 
+*.fdmi
+
 *.ct
 *.out
 *.log
