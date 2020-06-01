@@ -13,7 +13,9 @@
 
 #include <zlib.h>
 
+#include "rle.h"
 #include "rld0.h"
+#include "mrope.h"
 #include "kseq.h"
 #include "json.hpp"
 
@@ -461,14 +463,152 @@ int check_f3(int argc, char* argv[]) {
     return 0 ;
 }
 
+
+/** From ropebwt2 ********/
+
+static inline int kputsn(const char *p, int l, kstring_t *s) {
+  if (s->l + l + 1 >= s->m) {
+    char *tmp;
+    s->m = s->l + l + 2;
+    kroundup32(s->m);
+    if ((tmp = (char*)realloc(s->s, s->m))) s->s = tmp;
+    else return EOF;
+  }
+  memcpy(s->s + s->l, p, l);
+  s->l += l;
+  s->s[s->l] = 0;
+  return l;
+}
+
+/*************************/
+
+
+/** Code adapted from ropebwt2 (main_ropebwt2 in main.c) **/
+int main_index(int argc, char* argv[]) {
+	char *fpath = argv[1];
+
+	uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1; // batch size for multi-string indexing
+
+	int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES, so = MR_SO_RCLO;
+	mrope_t *mr = mr_init(max_nodes, block_len, so);
+
+	int thr_min = 100; // switch to single thread when < 100 strings remain in a batch
+	mr_thr_min(mr, thr_min);
+
+	kstring_t buf = { 0, 0, 0 }; // buffer, will contain the concatenation
+
+	gzFile fp = gzopen(fpath, "rb");;
+	kseq_t *ks = kseq_init(fp);
+	int l;
+	uint8_t *s;
+	int i;
+	while ((l = kseq_read(ks)) >= 0) {
+		s = (uint8_t*)ks->seq.s;
+
+		// change encoding
+		for (i = 0; i < l; ++i)
+			s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5;
+
+		// --- hard mask the sequence ---
+		// if (ks->qual.l && min_q > 0)
+		//   for (i = 0; i < l; ++i)
+		// 	s[i] = ks->qual.s[i] - 33 >= min_q? s[i] : 5;
+
+		// --- skip sequences containing ambiguous bases ---
+		// if (flag & FLAG_NON) {
+		//   for (i = 0; i < l; ++i)
+		// 	if (s[i] == 5) break;
+		//   if (i < l) continue;
+		// }
+
+		// --- cut at ambiguous bases and discard segment with length <INT
+		// + cut one base if forward==reverse ---
+		// if (flag & FLAG_CUTN) {
+		//   int b, k;
+		//   for (k = b = i = 0; i <= l; ++i) {
+		// 	if (i == l || s[i] == 5) {
+		// 	  int tmp_l = i - b;
+		// 	  if (tmp_l >= min_cut_len) {
+		// 	    if ((flag & FLAG_ODD) && is_rev_same(tmp_l, &s[k - tmp_l])) --k;
+		// 	    s[k++] = 0;
+		// 	  } else k -= tmp_l; // skip this segment
+		// 	  b = i + 1;
+		// 	} else s[k++] = s[i];
+		//   }
+		//   if (--k == 0) continue;
+		//   ks->seq.l = l = k;
+		// }
+		// if ((flag & FLAG_ODD) && is_rev_same(l, s)) {
+		//   ks->seq.s[--l] = 0;
+		//   ks->seq.l = l;
+		// }
+
+		// Reverse the sequence
+		for (i = 0; i < l>>1; ++i) {
+			int tmp = s[l-1-i];
+			s[l-1-i] = s[i];
+			s[i] = tmp;
+		}
+
+		// Add forward to buffer
+		kputsn((char*)ks->seq.s, ks->seq.l + 1, &buf);
+
+		// Add reverse to buffer
+		for (i = 0; i < l>>1; ++i) {
+			int tmp = s[l-1-i];
+			tmp = (tmp >= 1 && tmp <= 4)? 5 - tmp : tmp;
+			s[l-1-i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i];
+			s[i] = tmp;
+		}
+		if (l&1) s[i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i];
+		kputsn((char*)ks->seq.s, ks->seq.l + 1, &buf);
+
+		if(buf.l >= m) {
+			mr_insert_multi(mr, buf.l, (uint8_t*)buf.s, 1);
+			buf.l = 0;
+		}
+	}
+
+	if(buf.l) // last batch
+		mr_insert_multi(mr, buf.l, (uint8_t*)buf.s, 1);
+
+	free(buf.s);
+	kseq_destroy(ks);
+	gzclose(fp);
+
+	// dump to stdout in FMD format
+	mritr_t itr;
+	const uint8_t *block;
+	rld_t *e = 0;
+	rlditr_t di;
+	e = rld_init(6, 3);
+	rld_itr_init(e, &di, 0);
+	mr_itr_first(mr, &itr, 1);
+	while ((block = mr_itr_next_block(&itr)) != 0) {
+		const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
+		while (q < end) {
+			int c = 0;
+			int64_t l;
+			rle_dec1(q, c, l);
+			rld_enc(e, &di, l, c);
+		}
+	}
+	rld_enc_finish(e, &di);
+	rld_dump(e, "-");
+
+	mr_destroy(mr);
+
+	return 0;
+}
+
+/**********************************************************/
+
 int main(int argc, char *argv[]) {
     string mode = argv[1] ;
     int retcode = 0 ;
     DEBUG(cerr << "DEBUG MODE" << endl ;)
     if(mode == "index") {
-	// FIXME: implement the method or use the one in the ropebwt2 main.cpp
-	cerr << "Use ropebwt2" << endl;
-        retcode = 1; // main_build(argc - 1, argv + 1) ;
+	retcode = main_index(argc - 1, argv + 1);
     } else if(mode == "sf3") {
         retcode = search_f3(argc - 1, argv + 1) ;
     } else if(mode == "cf3") {
