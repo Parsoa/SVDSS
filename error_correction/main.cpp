@@ -65,11 +65,7 @@ int main(int argc, char* argv[]) {
   uint8_t min = atoi(argv[3]);
 
   pelapsed(__func__, "Initializing BF");
-  // In the current implementation, the BF is created
-  // on the stack and to increase its size, we have to
-  // increase the stack size (ulimit -s)
-  // TODO move BF on the heap (?)
-  BF<((uint32_t)0b1 << 16), 3> bf;
+  BF<((uint32_t)0b1 << 31), 3> *bf = new BF<((uint32_t)0b1 << 31), 3>();
 
   pelapsed(__func__, "Filling BF");
   CKMCFile kmer_db;
@@ -87,7 +83,7 @@ int main(int argc, char* argv[]) {
     if(counter < min) continue;
     kmer_obj.to_string(kmer);
     enc_kmer = encode(kmer, k);
-    if(enc_kmer != (uint64_t)-1) bf.add(enc_kmer);
+    if(enc_kmer != (uint64_t)-1) bf->add(enc_kmer);
   }
 
   pelapsed(__func__, "Splitting reads");
@@ -104,13 +100,13 @@ int main(int argc, char* argv[]) {
       if(starts.size() == ends.size()) {
 	// Looking for a start: if the k-mer is not in the BF, we
 	// consider the next one, otherwise, we store a start
-	if(enc_kmer != (uint64_t)-1 && bf.test(enc_kmer))
+	if(enc_kmer != (uint64_t)-1 && bf->test(enc_kmer))
 	  starts.push_back(i);
       } else {
 	// Looking for an end: if the k-mer is in the BF, we consider
 	// the next one, otherwise, we store an end and we skip k-1
 	// kmers
-	if(enc_kmer == (uint64_t)-1 || !bf.test(enc_kmer)) {
+	if(enc_kmer == (uint64_t)-1 || !bf->test(enc_kmer)) {
 	  i+=k-1;
 	  ends.push_back(i);
 	}
@@ -131,6 +127,8 @@ int main(int argc, char* argv[]) {
     starts.clear();
     ends.clear();
   }
+
+  delete bf;
 
   kseq_destroy(seq);
   gzclose(fp);
