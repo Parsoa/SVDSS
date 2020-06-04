@@ -9,7 +9,7 @@
 
 using namespace std;
 
-template <uint32_t size, uint8_t nhashes>
+template <uint64_t size, uint8_t nhashes>
 class BF {
 public:
   BF() : _seeds(nhashes, 0) {
@@ -32,7 +32,7 @@ public:
       _bv.set(h%_size);
     }
   }
-  
+
   bool test(const uint64_t S) const {
     bool res = 1;
     for(const uint seed : _seeds) {
@@ -48,7 +48,7 @@ private:
   const BF &operator=(const BF &&other) { return *this; }
 
   bitset<size> _bv;
-  uint32_t _size;
+  uint64_t _size;
   vector<int32_t> _seeds;
 };
 

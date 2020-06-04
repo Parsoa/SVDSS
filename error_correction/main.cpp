@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
   uint8_t min = atoi(argv[3]);
 
   pelapsed(__func__, "Initializing BF");
-  BF<((uint32_t)0b1 << 31), 3> *bf = new BF<((uint32_t)0b1 << 31), 3>();
+  BF<((uint64_t)0b1 << 33), 3> *bf = new BF<((uint64_t)0b1 << 33), 3>();
 
   pelapsed(__func__, "Filling BF");
   CKMCFile kmer_db;
