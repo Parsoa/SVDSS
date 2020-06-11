@@ -22,7 +22,9 @@ __pycache__/
 *.bam
 *.txt
 
-*.fdmi
+*.bin
+*.fmd
+*.fmdi
 
 main
 debug
