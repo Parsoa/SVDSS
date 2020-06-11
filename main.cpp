@@ -485,20 +485,54 @@ static inline int kputsn(const char *p, int l, kstring_t *s) {
 
 /** Code adapted from ropebwt2 (main_ropebwt2 in main.c) **/
 int main_index(int argc, char* argv[]) {
-	char *fpath = argv[1];
-
-	uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1; // batch size for multi-string indexing
-
+    // hardcoded parameters
+    uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1; // batch size for multi-string indexing
 	int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES, so = MR_SO_RCLO;
-	mrope_t *mr = mr_init(max_nodes, block_len, so);
+    int thr_min = 100; // switch to single thread when < 100 strings remain in a batch
 
-	int thr_min = 100; // switch to single thread when < 100 strings remain in a batch
+    // the index
+    mrope_t *mr = 0;
+
+    // cmd line arguments
+    bool binary_output = false;
+    int c;
+    while ((c = getopt (argc, argv, "a:bh")) != -1)
+    switch (c) {
+        case 'a':
+            // append to existing index - we restore the index (it must be in binary FMR format)
+            FILE *fp;
+			if ((fp = fopen(optarg, "rb")) == 0) {
+                cerr << "fail to open file " << optarg << endl;
+				return 1;
+			}
+			mr = mr_restore(fp);
+			fclose(fp);
+            break;
+        case 'b':
+            binary_output = true;
+            break;
+        case 'h':
+            cerr << "Usage: main index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
+            return 0;
+        case '?':
+            return 1;
+        default:
+            return 1;
+    }
+    if(optind == argc) {
+        cerr << "Usage: main index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
+        return 1;
+    }
+	char *fpath = argv[optind]; // input sample
+
+    // Initialize mr if not restored
+    if (mr == 0) mr = mr_init(max_nodes, block_len, so);
 	mr_thr_min(mr, thr_min);
 
-	kstring_t buf = { 0, 0, 0 }; // buffer, will contain the concatenation
-
-	gzFile fp = gzopen(fpath, "rb");;
+    // Parsing the input sample
+	gzFile fp = gzopen(fpath, "rb");
 	kseq_t *ks = kseq_init(fp);
+    kstring_t buf = { 0, 0, 0 }; // buffer, will contain the concatenation
 	int l;
 	uint8_t *s;
 	int i;
@@ -576,25 +610,31 @@ int main_index(int argc, char* argv[]) {
 	kseq_destroy(ks);
 	gzclose(fp);
 
-	// dump to stdout in FMD format
-	mritr_t itr;
-	const uint8_t *block;
-	rld_t *e = 0;
-	rlditr_t di;
-	e = rld_init(6, 3);
-	rld_itr_init(e, &di, 0);
-	mr_itr_first(mr, &itr, 1);
-	while ((block = mr_itr_next_block(&itr)) != 0) {
-		const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
-		while (q < end) {
-			int c = 0;
-			int64_t l;
-			rle_dec1(q, c, l);
-			rld_enc(e, &di, l, c);
-		}
-	}
-	rld_enc_finish(e, &di);
-	rld_dump(e, "-");
+    // dump index to stdout
+    if(binary_output)
+        // binary FMR format
+        mr_dump(mr, stdout);
+    else {
+        // FMD format
+        mritr_t itr;
+        const uint8_t *block;
+        rld_t *e = 0;
+        rlditr_t di;
+        e = rld_init(6, 3);
+        rld_itr_init(e, &di, 0);
+        mr_itr_first(mr, &itr, 1);
+        while ((block = mr_itr_next_block(&itr)) != 0) {
+            const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
+            while (q < end) {
+                int c = 0;
+                int64_t l;
+                rle_dec1(q, c, l);
+                rld_enc(e, &di, l, c);
+            }
+        }
+        rld_enc_finish(e, &di);
+        rld_dump(e, "-");
+    }
 
 	mr_destroy(mr);
 
