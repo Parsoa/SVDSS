@@ -100,7 +100,7 @@ def parse_args():
     # if selecting kmers for genotyping 
     parser.add_argument("--select", action = 'store_true')
     # which chromosomes to consider
-    parser.add_argument("--chromosomes", default = None) 
+    parser.add_argument("--chromosomes", nargs = '*') 
     # mother
     parser.add_argument("--mother", default = None)
     # father
@@ -111,6 +111,7 @@ def parse_args():
     main = argparse.ArgumentParser(prog = 'stella', add_help = False)
     subparsers = main.add_subparsers(dest = 'command')
     ################## Extractor arguments
+    scan_parser = subparsers.add_parser('scan', parents = [parser])
     extract_parser = subparsers.add_parser('index', parents = [parser])
     simulate_parser = subparsers.add_parser('simulate', parents = [parser])
     ################## End of arguments

@@ -38,7 +38,7 @@ def extract_chromosomes(chromosomes):
                 while True:
                     line = ref.readline().strip()
                     if line.startswith('>') or len(line) == 0:
-                        print('Extracted ' + chrom + ' with', len(sequence), 'bases.')
+                        system_print('Extracted ' + chrom + ' with', len(sequence), 'bases.')
                         yield sequence, chrom
                         sequence = ''
                         found = True
@@ -73,6 +73,7 @@ def extract_whole_genome():
         a.append('chrY')
     else:
         a = [d for d in c.chromosomes]
+    print(a)
     for seq, chrom in extract_chromosomes(a):
         chroms[chrom] = seq
     whole_genome_extracted = True

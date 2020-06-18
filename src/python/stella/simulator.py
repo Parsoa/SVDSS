@@ -155,7 +155,7 @@ class Simulation(map_reduce.Job):
         c = config.Configuration()
         if chrom != 'chrx' and chrom != 'chry':
             strand_1 = self.apply_events_to_chromosome(chrom, 'father')
-            strand_2 = self.apply_events_to_chromosome(chrom, 'mother')
+            #strand_2 = self.apply_events_to_chromosome(chrom, 'mother')
         if chrom == 'chrx':
             print(red('Simulating chrX'))
             if self.name == 'father':
@@ -169,8 +169,8 @@ class Simulation(map_reduce.Job):
                 strand_2 = self.apply_events_to_chromosome('chrx', 'mother')
         if chrom == 'chry':
             exit()
-        self.export_diploid_chromosome_fasta(chrom, [strand_1, strand_2])
-        self.export_fastq(seq, chrom + '_diploid')
+        #self.export_diploid_chromosome_fasta(chrom, [strand_1, strand_2])
+        #self.export_fastq(chrom + '_diploid')
         exit()
 
     def apply_events_to_chromosome(self, chrom, haplotype):
@@ -179,8 +179,10 @@ class Simulation(map_reduce.Job):
         for track in self.track_index[chrom.lower()]:
             seq += self.chroms[chrom][previous:track.begin]
             if track['allele_' + haplotype] == 1:
+                print('applying', track, 'on', chrom) 
                 if track.svtype == 'INS':
-                    seq += track.seq
+                    print('Inserting: ', track.seq.upper())
+                    seq += track.seq.upper()
                 if track.svtype == 'DEL':
                     pass
             else: # not present on this allele
@@ -190,21 +192,27 @@ class Simulation(map_reduce.Job):
         return seq
 
     def export_diploid_chromosome_fasta(self, chrom, strands):
-        print('Exporting FASTA file:', green(chrom + '.fa')) 
+        print('Exporting FASTA file:', green(chrom + '_diploid.fa')) 
         c = config.Configuration()
         with open(os.path.join(self.get_current_job_directory(), chrom + '_diploid.fa'), 'w') as fasta_file:
-            for i in range(0, 2):
+            #for i in range(0, 2):
+            for i in range(0, 1):
                 seq = strands[i]
-                fasta_file.write('>' + chrom + '_' + str(i + 1) + '\n')
-                fasta_file.write(seq.strip())
-                fasta_file.write('\n')
+                #fasta_file.write('>' + chrom + '_' + str(i + 1) + '\n')
+                fasta_file.write('>' + chrom + '\n')
+                l = len(seq)
+                k = 0
+                while l >= 100:
+                    fasta_file.write(seq[k: k + 100])
+                    fasta_file.write('\n')
+                    k += 100
+                    l -= 100
 
-    def export_fastq(self, seq, name):
+    def export_fastq(self, name):
         c = config.Configuration()
         FNULL = open(os.devnull, 'w')
-        num_reads = len(seq) * c.coverage / 100
         fasta = os.path.join(self.get_current_job_directory(), name + '.fa')
-        command = "pbsim --data-type CCS --depth 30 --sample-fastq /share/hormozdiarilab/Codes/Stella/data/PUR-HiFi/HG00731/HG00731_hifi_r54329U.consolidated.sorted.bam --prefix {} --length-max 20000 --length-min 2000 {}".format(name, fasta)
+        command = "pbsim --data-type CCS --depth 30 --sample-fastq /share/hormozdiarilab/Codes/Fulminata/data/Samples/HG00731/HG00731_20190925_EEE_m54329U_190528_231241.Q20.fastq --prefix {} --length-max 20000 --length-min 2000 {}".format(name, fasta)
         print(command)
         if self.name == 'child':
             output = subprocess.call(command, shell = True, stdout = FNULL, stderr = subprocess.STDOUT, cwd = self.get_current_job_directory())
@@ -247,31 +255,59 @@ class ChildSimulation(Simulation):
         self.export_bed(self.present, 'present')
         self.extract_chromosomes()
         self.index_tracks()
-        #self.round_robin(self.chroms)
+        self.round_robin({'chr21': self.chroms['chr21']})
+
+    def apply_events_to_chromosome(self, chrom, haplotype):
+        seq = self.chroms[chrom][self.track.begin - 10000: self.track.begin]
+        if self.track.svtype == 'INS':
+            seq += self.track.seq
+        if self.track.svtype == 'DEL':
+            track.end = track.begin + abs(int(track.svlen))
+            pass
+        seq += self.chroms[chrom][self.track.end: self.track.end + 10000]
+        return seq
+
+# ============================================================================================================================ #
+# ============================================================================================================================ #
+# Required arguments:
+# --seed: random seed to use
+# ============================================================================================================================ #
+# ============================================================================================================================ #
+
+class LociSimulator(Simulation):
+
+    def load_inputs(self):
+        c = config.Configuration()
+        self.export_bed(self.present, 'present')
+        self.extract_chromosomes()
         self.round_robin({'chr21': self.chroms['chr21']})
 
     def apply_events_to_chromosome(self, chrom, haplotype):
         seq = ''
         previous = 0
-        for track in self.track_index[chrom.lower()]:
-            seq += self.chroms[chrom][previous:track.begin]
-            if track['allele_' + haplotype] == 1:
-                track.begin = len(seq)
-                if track.svtype == 'INS':
-                    seq += track.seq
-                    track.end = track.begin + 1
-                if track.svtype == 'DEL':
-                    track.end = track.begin + abs(int(track.svlen))
-            else: # not present on this allele
-                track.begin = len(seq)
-                seq += self.chroms[chrom][track.begin: track.end]
-                if track.svtype == 'INS':
-                    track.end = track.begin + 1
-                if track.svtype == 'DEL':
-                    track.end = track.begin + abs(int(track.svlen))
-            previous = track.end
+        seq += self.chroms[chrom][previous:track.begin]
+        previous = track.end
+        if track['allele_' + haplotype] == 1:
+            print('applying ', track, ' to chr21')
+            track.begin = len(seq)
+            if track.svtype == 'INS':
+                seq += track.seq
+                track.end = track.begin + 1
+            if track.svtype == 'DEL':
+                track.end = track.begin + abs(int(track.svlen))
+                pass
+        else: # not present on this allele
+            track.begin = len(seq)
+            print('not applying ', track, ' to chr21')
+            seq += self.chroms[chrom][track.begin: track.end]
+            if track.svtype == 'INS':
+                track.end = track.begin + 1
+                pass
+            if track.svtype == 'DEL':
+                track.end = track.begin + abs(int(track.svlen))
+                pass
         seq += self.chroms[chrom][previous:]
-        self.export_bed(self.present, 'present')
+        self.export_bed(self.present, 'actual')
         return seq
 
 # ============================================================================================================================ #
@@ -344,4 +380,5 @@ class TrioSimulator(map_reduce.Job):
                     tracks.append(t)
         job = ChildSimulation(name = 'child', present = tracks)
         tracks = job.execute()
+        exit()
 

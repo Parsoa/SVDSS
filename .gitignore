@@ -5,6 +5,8 @@ venv/
 venv2/
 venv3/
 binaries/
+src/cpp/fmd/
+src/cpp/csa/
 
 *.pyc
 
@@ -42,3 +44,8 @@ src/cpp/*.o
 src/cpp/*.out
 
 !requirements.txt
+!example/mother.fq
+!example/father.fq
+!example/child.fq
+!example/child_specific.overlapping.fq
+!example/child_specific.non_overlapping.fq

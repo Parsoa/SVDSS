@@ -46,6 +46,7 @@ class Job(object):
         self.batch = {}
         self.children = {}
         self.resume_from_reduce = c.reduce
+        self.num_threads = 0
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -80,7 +81,6 @@ class Job(object):
         c = config.Configuration()
         n = 0
         self.batch = {}
-        self.num_threads = 0
         for track in tracks:
             if filter_func(tracks[track]):
                 continue

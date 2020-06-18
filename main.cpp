@@ -17,7 +17,6 @@
 #include "rld0.h"
 #include "mrope.h"
 #include "kseq.h"
-#include "json.hpp"
 
 KSEQ_INIT(gzFile, gzread)
 
@@ -31,25 +30,27 @@ using namespace std;
 #  define NEBUG(x) x
 #endif
 
-/** From fermi ***********/
+    /** From fermi ***********/
 
 #define fm6_comp(a) ((a) >= 1 && (a) <= 4? 5 - (a) : (a))
 
 #define fm6_set_intv(e, c, ik) ((ik).x[0] = (e)->cnt[(int)(c)], (ik).x[2] = (e)->cnt[(int)(c)+1] - (e)->cnt[(int)(c)], (ik).x[1] = (e)->cnt[fm6_comp(c)], (ik).info = 0)
 
-static unsigned char seq_nt6_table[128] = {0, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-					   5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-					   5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-					   5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-					   5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
-					   5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-					   5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
-					   5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5};
+static unsigned char seq_nt6_table[128] = {
+    0, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
+    5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5
+} ;
 
 void seq_char2nt6(int l, unsigned char *s) {
-  int i;
-  for (i = 0; i < l; ++i)
-    s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5;
+    int i;
+    for (i = 0; i < l; ++i)
+        s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5;
 }
 
 /*************************/
@@ -144,7 +145,7 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         int bmatches = 0 ;
         fm6_set_intv(index, P[begin], sai) ;
         DEBUG(cerr << "BS from " << int2char[P[begin]] << " (" << begin << "): " << interval2str(sai) << endl ;)
-        bmatches = 0 ;
+            bmatches = 0 ;
         while (sai.x[2] != 0 && begin > 0) {
             begin-- ;
             bmatches++ ;
@@ -158,8 +159,8 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
             break ;
         }
         DEBUG(cerr << "Mismatch " << int2char[P[begin]] << " (" <<  begin << "). bmatches: " << to_string(bmatches) << endl ;)
-        // Forward search: 
-        int end = begin ;
+            // Forward search: 
+            int end = begin ;
         int fmatches = 0 ;
         fm6_set_intv(index, P[end], sai) ;
         DEBUG(cerr << "FS from " << int2char[P[end]] << " (" << end << "): " << interval2str(sai) << endl ;)
@@ -199,14 +200,7 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
 gzFile fastq_file ;
 kseq_t* fastq_iterator ;
 vector<vector<vector<fastq_entry_t>>> fastq_entries ;
-
-//auto fqe_hash = [](const fastq_entry_t& n) { return std::hash<string>()(n.seq); } ;
-//auto fqe_equal = [](const fastq_entry_t& l, const fastq_entry_t& r) { return l.seq == r.seq; } ;
-//unordered_map<fastq_entry_t, int, decltype(fqe_hash), decltype(fqe_equal)> search_solutions(8, hash, equal) ;
-
-unordered_map<fastq_entry_t, int> search_solutions ;
-//unordered_map<string, int> search_solutions ;
-//vector<fastq_entry_t> search_solutions ;
+vector<unordered_map<fastq_entry_t, int>> search_solutions ;
 
 bool load_batch_fastq(int threads, int batch_size, int p) {
     for (int i = 0; i < threads; i++) {
@@ -235,6 +229,22 @@ vector<fastq_entry_t> process_batch_fastq(rld_t* index, vector<fastq_entry_t> fa
     return solutions ;
 }
 
+int current_batch = 0 ;
+void* output_batch(void* args) {
+    string path = "solution_batch_" + std::to_string(current_batch - 1) + ".fastq" ;
+    std::ofstream o(path) ;
+    for (const auto it : search_solutions[current_batch - 1]) {
+        fastq_entry_t fastq_entry = it.first ;
+        o << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
+            << fastq_entry.start + fastq_entry.len - 1 << ":" << it.second << endl
+            << fastq_entry.seq << endl
+            << "+" << endl
+            << fastq_entry.qual << endl ;
+    }
+    search_solutions[current_batch - 1].clear() ;
+    pthread_exit(NULL) ;
+}
+
 int search_f3(int argc, char *argv[]) {
     // parse arguments
     char *index_path = argv[1] ;
@@ -244,6 +254,8 @@ int search_f3(int argc, char *argv[]) {
     fastq_iterator = kseq_init(fastq_file) ;
     int threads = atoi(argv[3]) ;
     // load first batch
+    unordered_map<fastq_entry_t, int> s ;
+    search_solutions.push_back(s) ;
     vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
         batches.push_back(vector<vector<fastq_entry_t>>(threads)) ; // previous and current output
@@ -280,39 +292,33 @@ int search_f3(int argc, char *argv[]) {
                     for (const auto &batch : batches[(p + 1) % 2]) {
                         y += batch.size() ;
                         for (const auto fastq_entry : batch) {
-                            if (search_solutions.find(fastq_entry) == search_solutions.end()) {
-                                search_solutions[fastq_entry] = 0 ;
+                            if (search_solutions[current_batch].find(fastq_entry) == search_solutions[current_batch].end()) {
+                                search_solutions[current_batch][fastq_entry] = 0 ;
                             }
-                            search_solutions[fastq_entry] += 1 ;
-                            //if (search_solutions.find(fastq_entry.seq) == search_solutions.end()) {
-                            //    search_solutions[fastq_entry.seq] = 0 ;
-                            //}
-                            //search_solutions[fastq_entry.seq] += 1 ;
-
-                            //cout << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
-                            //    << fastq_entry.start + fastq_entry.len - 1 << endl
-                            //    << fastq_entry.seq << endl
-                            //    << "+" << endl
-                            //    << fastq_entry.qual << endl ;
+                            search_solutions[current_batch][fastq_entry] += 1 ;
                         }
                     }
-                    //cerr << y << " total sequences." << endl ;
+                    cerr << y << " total sequences." << endl ;
                 }
                 cerr << "Merged. " << search_solutions.size() << " unique sequences." << endl ;
             } else {
                 // process current batch
                 batches[p][i - 2] = process_batch_fastq(index, fastq_entries[p][i - 2]) ;
-                //cerr << "Thread " << i - 2 << " done." << endl ;
             }
+        }
+        if (search_solutions[current_batch].size() >= 10000000) {
+            cerr << "Memory limit reached, dumping output batch " << current_batch << ".." << endl ;
+            current_batch += 1 ;
+            unordered_map<fastq_entry_t, int> s ;
+            search_solutions.push_back(s) ;
+            pthread_t output_thread ;
+            int r = pthread_create(&output_thread, NULL, output_batch, nullptr) ;
         }
         p += 1 ;
         p %= 2 ;
         b += 1 ;
         time_t s ;
         time(&s) ;
-        //if (b == 3) {
-        //    break ;
-        //}
         if (s - t == 0) {
             s += 1 ;
         }
@@ -322,36 +328,40 @@ int search_f3(int argc, char *argv[]) {
     for (const auto &batch : batches[(p + 1) % 2]) {
         y += batch.size() ;
         for (const auto fastq_entry : batch) {
-            if (search_solutions.find(fastq_entry) == search_solutions.end()) {
-                search_solutions[fastq_entry] = 0 ;
+            if (search_solutions[current_batch].find(fastq_entry) == search_solutions[current_batch].end()) {
+                search_solutions[current_batch][fastq_entry] = 0 ;
             }
-            search_solutions[fastq_entry] += 1 ;
+            search_solutions[current_batch][fastq_entry] += 1 ;
         }
     }
-    cerr << "Merged. " << search_solutions.size() << " unique sequences." << endl ;
-    cerr << "Dumping output.." << endl ;
-    //nlohmann::json payload ;
-    std::ofstream o("solution.fastq") ;
-    //nlohmann::json j(search_solutions) ;
-    //o << j.dump(4) << std::endl ;
-    for (const auto it : search_solutions) {
-        fastq_entry_t fastq_entry = it.first ;
-        //if (it.second > 2) {
-            //assert(it.second > 2) ;
-            o << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
-                << fastq_entry.start + fastq_entry.len - 1 << ":" << it.second << endl
-                << fastq_entry.seq << endl
-                << "+" << endl
-                << fastq_entry.qual << endl ;
-        //}
-        //o << "@css:" << endl
-        //    << it.first << endl
-        //    << "+" << endl
-        //    << it.first << endl ;
-    }
+    current_batch += 1 ;
+    output_batch(nullptr) ;
     kseq_destroy(fastq_iterator) ;
     gzclose(fastq_file) ;
     return u ;
+}
+
+// ============================================================================= \\
+// ============================================================================= \\
+// ============================================================================= \\
+
+int query(int argc, char *argv[]) {
+    // parse arguments
+    cout << "Single query mode.." << endl ;
+    char *index_path = argv[1] ;
+    rld_t *index = rld_restore(index_path) ;
+    char *query_seq = argv[2] ;
+    //
+    vector<fastq_entry_t> solutions ;
+    fastq_entry_t fastq_entry("Query", std::string(query_seq), std::string(query_seq)) ;
+    ping_pong_search(index, fastq_entry, solutions) ;
+    //
+    for (const auto fastq_entry : solutions) {
+        cout << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
+            << fastq_entry.start + fastq_entry.len - 1 << endl 
+            << fastq_entry.seq << endl ;
+    }
+    return 0 ;
 }
 
 // ============================================================================= \\
@@ -454,34 +464,28 @@ int check_f3(int argc, char* argv[]) {
     //        cout << n << " " << final_solution.size() << endl ;
     //    }
     //}
-    cerr << "Dumping output.." << endl ;
-    nlohmann::json payload ;
-    string p = "solution.json" ;
-    std::ofstream o(p) ;
-    nlohmann::json j(final_solution) ;
-    o << j.dump(4) << std::endl ;
     return 0 ;
 }
 
+// ============================================================================= \\
+// ============================================================================= \\
+// ============================================================================= \\
 
 /** From ropebwt2 ********/
 
 static inline int kputsn(const char *p, int l, kstring_t *s) {
-  if (s->l + l + 1 >= s->m) {
-    char *tmp;
-    s->m = s->l + l + 2;
-    kroundup32(s->m);
-    if ((tmp = (char*)realloc(s->s, s->m))) s->s = tmp;
-    else return EOF;
-  }
-  memcpy(s->s + s->l, p, l);
-  s->l += l;
-  s->s[s->l] = 0;
-  return l;
+    if (s->l + l + 1 >= s->m) {
+        char *tmp;
+        s->m = s->l + l + 2;
+        kroundup32(s->m);
+        if ((tmp = (char*)realloc(s->s, s->m))) s->s = tmp;
+        else return EOF;
+    }
+    memcpy(s->s + s->l, p, l);
+    s->l += l;
+    s->s[s->l] = 0;
+    return l;
 }
-
-/*************************/
-
 
 /** Code adapted from ropebwt2 (main_ropebwt2 in main.c) **/
 int main_index(int argc, char* argv[]) {
@@ -647,14 +651,16 @@ int main(int argc, char *argv[]) {
     string mode = argv[1] ;
     int retcode = 0 ;
     DEBUG(cerr << "DEBUG MODE" << endl ;)
-    if(mode == "index") {
-	retcode = main_index(argc - 1, argv + 1);
-    } else if(mode == "sf3") {
-        retcode = search_f3(argc - 1, argv + 1) ;
-    } else if(mode == "cf3") {
-        retcode = check_f3(argc-1, argv+1) ;
-    } else {
-        retcode = 1 ;
-    }
+        if(mode == "index") {
+            retcode = main_index(argc - 1, argv + 1);
+        } else if (mode == "sf3") {
+            retcode = search_f3(argc - 1, argv + 1) ;
+        } else if (mode == "cf3") {
+            retcode = check_f3(argc - 1, argv + 1) ;
+        } else if (mode == "query") {
+            retcode = query(argc - 1, argv + 1) ;
+        } else {
+            retcode = 1 ;
+        }
     return retcode ;
 }

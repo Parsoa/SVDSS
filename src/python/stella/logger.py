@@ -11,7 +11,7 @@ colorama.init()
 # STDIO Wrappers/Helpers
 # ============================================================================================================================ #
 
-LOG_LEVEL = 1
+LOG_LEVEL = 0
 
 def colorize(*vargs):
     s = ''.join(functools.reduce(lambda x, y: x + str(y) + ' ', vargs))
