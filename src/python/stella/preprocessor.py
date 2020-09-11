@@ -68,7 +68,7 @@ class TrackPreprocessorJob(map_reduce.Job):
                 _tracks = bed.filter_overlapping_tracks(_tracks, svtype)
                 print('Merged.', len(_tracks), 'tracks remaining.')
                 merged_tracks += _tracks
-        tracks = bed.sort_tracks(merged_tracks)
+        tracks = bed.filter_overlapping_tracks(bed.sort_tracks(merged_tracks), 'ALL')
         tracks = {track.id: track for track in tracks if track.svtype in TrackPreprocessorJob.SUPPORTED_SVTYPES}
         print('Removed overlapping tracks.', len(tracks), 'non-overlapping tracks.')
         return tracks

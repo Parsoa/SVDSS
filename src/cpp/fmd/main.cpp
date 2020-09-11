@@ -13,14 +13,16 @@
 
 #include <zlib.h>
 
-#include "rle.h"
-#include "rld0.h"
-#include "mrope.h"
+#include "rld.h"
 #include "kseq.h"
+#include "fermi.h"
 
 KSEQ_INIT(gzFile, gzread)
 
-    using namespace std;
+using namespace std;
+
+extern "C" int main_build(int argc, char *argv[]);
+extern "C" void seq_char2nt6(int l, unsigned char *s);
 
 #ifdef DEBUG_MODE
 #  define DEBUG(x) x
@@ -29,31 +31,6 @@ KSEQ_INIT(gzFile, gzread)
 #  define DEBUG(x)
 #  define NEBUG(x) x
 #endif
-
-/** From fermi ***********/
-
-#define fm6_comp(a) ((a) >= 1 && (a) <= 4? 5 - (a) : (a))
-
-#define fm6_set_intv(e, c, ik) ((ik).x[0] = (e)->cnt[(int)(c)], (ik).x[2] = (e)->cnt[(int)(c)+1] - (e)->cnt[(int)(c)], (ik).x[1] = (e)->cnt[fm6_comp(c)], (ik).info = 0)
-
-static unsigned char seq_nt6_table[128] = {
-    0, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 1, 5, 2,  5, 5, 5, 3,  5, 5, 5, 5,  5, 5, 5, 5,
-    5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5
-} ;
-
-void seq_char2nt6(int l, unsigned char *s) {
-    int i;
-    for (i = 0; i < l; ++i)
-        s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5;
-}
-
-/*************************/
 
 static const vector<string> int2char ({"$", "A", "C", "G", "T", "N"});
 
@@ -87,17 +64,17 @@ fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l) {
     return fastq_entry_t(fqe.head, S, Q, s, l) ;
 }
 
-string interval2str(rldintv_t sai) {
+string interval2str(fmintv_t sai) {
     return "[" + to_string(sai.x[0]) + "," + to_string(sai.x[1]) + "," + to_string(sai.x[2]) + "]";
 }
 
 bool backward_search(rld_t *index, const uint8_t *P, int p2) {
-    rldintv_t sai ; // rldintv_t is the struct used to store a SA interval.
+    fmintv_t sai ; // fmintv_t is the struct used to store a SA interval.
     fm6_set_intv(index, P[p2], sai) ;
     while(sai.x[2] != 0 && p2 > 0) {
         --p2;
-        rldintv_t osai[6] ;
-        rld_extend(index, &sai, osai, 1) ; //1: backward, 0: forward
+        fmintv_t osai[6] ;
+        fm6_extend(index, &sai, osai, 1) ; //1: backward, 0: forward
         sai = osai[P[p2]] ;
     }
     return sai.x[2] != 0 ;
@@ -137,7 +114,7 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
     strcpy(seq, fqe.seq.c_str()) ; // seq
     uint8_t *P = (uint8_t*) seq ; 
     seq_char2nt6(l, P) ; // convert to integers
-    rldintv_t sai ;
+    fmintv_t sai ;
 
     int begin = l - 1 ;
     while (begin >= 0) {
@@ -145,12 +122,12 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         int bmatches = 0 ;
         fm6_set_intv(index, P[begin], sai) ;
         DEBUG(cerr << "BS from " << int2char[P[begin]] << " (" << begin << "): " << interval2str(sai) << endl ;)
-            bmatches = 0 ;
+        bmatches = 0 ;
         while (sai.x[2] != 0 && begin > 0) {
             begin-- ;
             bmatches++ ;
-            rldintv_t osai[6] ; // output SA intervals (one for each symbol between 0 and 5)
-            rld_extend(index, &sai, osai, 1) ;
+            fmintv_t osai[6] ; // output SA intervals (one for each symbol between 0 and 5)
+            fm6_extend(index, &sai, osai, 1) ;
             sai = osai[P[begin]] ;
             DEBUG(cerr << "- BE with " << int2char[P[begin]] << " (" << begin << "): " << interval2str(sai) << endl ;)
         }
@@ -159,19 +136,19 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
             break ;
         }
         DEBUG(cerr << "Mismatch " << int2char[P[begin]] << " (" <<  begin << "). bmatches: " << to_string(bmatches) << endl ;)
-            // Forward search: 
-            int end = begin ;
+        // Forward search: 
+        int end = begin ;
         int fmatches = 0 ;
         fm6_set_intv(index, P[end], sai) ;
         DEBUG(cerr << "FS from " << int2char[P[end]] << " (" << end << "): " << interval2str(sai) << endl ;)
-            while(sai.x[2] != 0) {
-                end++ ;
-                fmatches++ ;
-                rldintv_t osai[6] ;
-                rld_extend(index, &sai, osai, 0) ;
-                sai = osai[P[end] >= 1 && P[end] <= 4 ? 5 - P[end] : P[end]];
-                DEBUG(cerr << "- FE with " << int2char[P[end]] << " (" <<  end << "): " << interval2str(sai) << endl ;)
-            }
+        while(sai.x[2] != 0) {
+            end++ ;
+            fmatches++ ;
+            fmintv_t osai[6] ;
+            fm6_extend(index, &sai, osai, 0) ;
+            sai = osai[P[end] >= 1 && P[end] <= 4 ? 5 - P[end] : P[end]];
+            DEBUG(cerr << "- FE with " << int2char[P[end]] << " (" <<  end << "): " << interval2str(sai) << endl ;)
+        }
         DEBUG(cerr << "Mismatch " << int2char[P[end]] << " (" << end << "). fmatches: " << fmatches << endl ;)
         // add solution
         DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
@@ -191,7 +168,7 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
             break ;
         }
         // overlapping version:
-        //begin = end - 1 ;
+        // begin = end - 1 ;
     }
     //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
     delete[] seq ;
@@ -200,7 +177,14 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
 gzFile fastq_file ;
 kseq_t* fastq_iterator ;
 vector<vector<vector<fastq_entry_t>>> fastq_entries ;
-vector<unordered_map<fastq_entry_t, int>> search_solutions ;
+
+//auto fqe_hash = [](const fastq_entry_t& n) { return std::hash<string>()(n.seq); } ;
+//auto fqe_equal = [](const fastq_entry_t& l, const fastq_entry_t& r) { return l.seq == r.seq; } ;
+//unordered_map<fastq_entry_t, int, decltype(fqe_hash), decltype(fqe_equal)> search_solutions(8, hash, equal) ;
+
+unordered_map<fastq_entry_t, int> search_solutions ;
+//unordered_map<string, int> search_solutions ;
+//vector<fastq_entry_t> search_solutions ;
 
 bool load_batch_fastq(int threads, int batch_size, int p) {
     for (int i = 0; i < threads; i++) {
@@ -229,40 +213,15 @@ vector<fastq_entry_t> process_batch_fastq(rld_t* index, vector<fastq_entry_t> fa
     return solutions ;
 }
 
-int current_batch = 0 ;
-struct OutputBatchArgs {
-    int batch ;
-} ;
-
-void output_batch(void* args) {
-    int batch = ((OutputBatchArgs*) args)->batch ;
-    string path = "solution_batch_" + std::to_string(batch - 1) + ".fastq" ;
-    std::ofstream o(path) ;
-    for (const auto it : search_solutions[batch - 1]) {
-        fastq_entry_t fastq_entry = it.first ;
-        o << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
-            << fastq_entry.start + fastq_entry.len - 1 << ":" << it.second << endl
-            << fastq_entry.seq << endl
-            << "+" << endl
-            << fastq_entry.qual << endl ;
-    }
-    search_solutions[batch - 1].clear() ;
-    //pthread_exit(NULL) ;
-}
-
 int search_f3(int argc, char *argv[]) {
     // parse arguments
     char *index_path = argv[1] ;
-    cout << "Restroing index.." << endl ;
     rld_t *index = rld_restore(index_path) ;
-    cout << "Done." << endl ;
     char *sample_path = argv[2] ;
     fastq_file = gzopen(sample_path, "r") ;
     fastq_iterator = kseq_init(fastq_file) ;
     int threads = atoi(argv[3]) ;
     // load first batch
-    unordered_map<fastq_entry_t, int> s ;
-    search_solutions.push_back(s) ;
     vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
         batches.push_back(vector<vector<fastq_entry_t>>(threads)) ; // previous and current output
@@ -299,34 +258,39 @@ int search_f3(int argc, char *argv[]) {
                     for (const auto &batch : batches[(p + 1) % 2]) {
                         y += batch.size() ;
                         for (const auto fastq_entry : batch) {
-                            if (search_solutions[current_batch].find(fastq_entry) == search_solutions[current_batch].end()) {
-                                search_solutions[current_batch][fastq_entry] = 0 ;
+                            if (search_solutions.find(fastq_entry) == search_solutions.end()) {
+                                search_solutions[fastq_entry] = 0 ;
                             }
-                            search_solutions[current_batch][fastq_entry] += 1 ;
+                            search_solutions[fastq_entry] += 1 ;
+                            //if (search_solutions.find(fastq_entry.seq) == search_solutions.end()) {
+                            //    search_solutions[fastq_entry.seq] = 0 ;
+                            //}
+                            //search_solutions[fastq_entry.seq] += 1 ;
+
+                            //cout << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
+                            //    << fastq_entry.start + fastq_entry.len - 1 << endl
+                            //    << fastq_entry.seq << endl
+                            //    << "+" << endl
+                            //    << fastq_entry.qual << endl ;
                         }
                     }
-                    cerr << y << " total sequences." << endl ;
+                    //cerr << y << " total sequences." << endl ;
                 }
-                cerr << "Merged. " << search_solutions[current_batch].size() << " unique sequences." << endl ;
+                cerr << "Merged. " << search_solutions.size() << " unique sequences." << endl ;
             } else {
                 // process current batch
                 batches[p][i - 2] = process_batch_fastq(index, fastq_entries[p][i - 2]) ;
+                //cerr << "Thread " << i - 2 << " done." << endl ;
             }
-        }
-        if (search_solutions[current_batch].size() >= 10000000) {
-            cerr << "Memory limit reached, dumping output batch " << current_batch << ".." << endl ;
-            current_batch += 1 ;
-            unordered_map<fastq_entry_t, int> s ;
-            search_solutions.push_back(s) ;
-            OutputBatchArgs* b_args = new OutputBatchArgs() ;
-            b_args->batch = current_batch ;
-            output_batch((void*) b_args) ;
         }
         p += 1 ;
         p %= 2 ;
         b += 1 ;
         time_t s ;
         time(&s) ;
+        //if (b == 3) {
+        //    break ;
+        //}
         if (s - t == 0) {
             s += 1 ;
         }
@@ -336,44 +300,26 @@ int search_f3(int argc, char *argv[]) {
     for (const auto &batch : batches[(p + 1) % 2]) {
         y += batch.size() ;
         for (const auto fastq_entry : batch) {
-            if (search_solutions[current_batch].find(fastq_entry) == search_solutions[current_batch].end()) {
-                search_solutions[current_batch][fastq_entry] = 0 ;
+            if (search_solutions.find(fastq_entry) == search_solutions.end()) {
+                search_solutions[fastq_entry] = 0 ;
             }
-            search_solutions[current_batch][fastq_entry] += 1 ;
+            search_solutions[fastq_entry] += 1 ;
         }
     }
-    // last batch
-    current_batch += 1 ;
-    OutputBatchArgs* b_args = new OutputBatchArgs() ;
-    b_args->batch = current_batch ;
-    output_batch((void*) b_args) ;
-    // cleanup
+    cerr << "Merged. " << search_solutions.size() << " unique sequences." << endl ;
+    cerr << "Dumping output.." << endl ;
+    std::ofstream o("solution.fastq") ;
+    for (const auto it : search_solutions) {
+        fastq_entry_t fastq_entry = it.first ;
+        o << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
+            << fastq_entry.start + fastq_entry.len - 1 << ":" << it.second << endl
+            << fastq_entry.seq << endl
+            << "+" << endl
+            << fastq_entry.qual << endl ;
+    }
     kseq_destroy(fastq_iterator) ;
     gzclose(fastq_file) ;
     return u ;
-}
-
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
-
-int query(int argc, char *argv[]) {
-    // parse arguments
-    cout << "Single query mode.." << endl ;
-    char *index_path = argv[1] ;
-    rld_t *index = rld_restore(index_path) ;
-    char *query_seq = argv[2] ;
-    //
-    vector<fastq_entry_t> solutions ;
-    fastq_entry_t fastq_entry("Query", std::string(query_seq), std::string(query_seq)) ;
-    ping_pong_search(index, fastq_entry, solutions) ;
-    //
-    for (const auto fastq_entry : solutions) {
-        cout << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
-            << fastq_entry.start + fastq_entry.len - 1 << endl 
-            << fastq_entry.seq << endl ;
-    }
-    return 0 ;
 }
 
 // ============================================================================= \\
@@ -479,200 +425,18 @@ int check_f3(int argc, char* argv[]) {
     return 0 ;
 }
 
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
-
-/** From ropebwt2 ********/
-
-static inline int kputsn(const char *p, int l, kstring_t *s) {
-    if (s->l + l + 1 >= s->m) {
-        char *tmp;
-        s->m = s->l + l + 2;
-        kroundup32(s->m);
-        if ((tmp = (char*)realloc(s->s, s->m))) s->s = tmp;
-        else return EOF;
-    }
-    memcpy(s->s + s->l, p, l);
-    s->l += l;
-    s->s[s->l] = 0;
-    return l;
-}
-
-/** Code adapted from ropebwt2 (main_ropebwt2 in main.c) **/
-int main_index(int argc, char* argv[]) {
-    // hardcoded parameters
-    uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1; // batch size for multi-string indexing
-    int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES, so = MR_SO_RCLO;
-    int thr_min = 100; // switch to single thread when < 100 strings remain in a batch
-
-    // the index
-    mrope_t *mr = 0;
-
-    // cmd line arguments
-    bool binary_output = false;
-    int c;
-    while ((c = getopt (argc, argv, "a:bh")) != -1)
-        switch (c) {
-            case 'a':
-                // append to existing index - we restore the index (it must be in binary FMR format)
-                FILE *fp;
-                if ((fp = fopen(optarg, "rb")) == 0) {
-                    cerr << "fail to open file " << optarg << endl;
-                    return 1;
-                }
-                mr = mr_restore(fp);
-                fclose(fp);
-                break;
-            case 'b':
-                binary_output = true;
-                break;
-            case 'h':
-                cerr << "Usage: main index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
-                return 0;
-            case '?':
-                return 1;
-            default:
-                return 1;
-        }
-    if(optind == argc) {
-        cerr << "Usage: main index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
-        return 1;
-    }
-    char *fpath = argv[optind]; // input sample
-
-    // Initialize mr if not restored
-    if (mr == 0) mr = mr_init(max_nodes, block_len, so);
-    mr_thr_min(mr, thr_min);
-
-    // Parsing the input sample
-    gzFile fp = gzopen(fpath, "rb");
-    kseq_t *ks = kseq_init(fp);
-    kstring_t buf = { 0, 0, 0 }; // buffer, will contain the concatenation
-    int l;
-    uint8_t *s;
-    int i;
-    while ((l = kseq_read(ks)) >= 0) {
-        s = (uint8_t*)ks->seq.s;
-
-        // change encoding
-        for (i = 0; i < l; ++i)
-            s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5;
-
-        // --- hard mask the sequence ---
-        // if (ks->qual.l && min_q > 0)
-        //   for (i = 0; i < l; ++i)
-        // 	s[i] = ks->qual.s[i] - 33 >= min_q? s[i] : 5;
-
-        // --- skip sequences containing ambiguous bases ---
-        // if (flag & FLAG_NON) {
-        //   for (i = 0; i < l; ++i)
-        // 	if (s[i] == 5) break;
-        //   if (i < l) continue;
-        // }
-
-        // --- cut at ambiguous bases and discard segment with length <INT
-        // + cut one base if forward==reverse ---
-        // if (flag & FLAG_CUTN) {
-        //   int b, k;
-        //   for (k = b = i = 0; i <= l; ++i) {
-        // 	if (i == l || s[i] == 5) {
-        // 	  int tmp_l = i - b;
-        // 	  if (tmp_l >= min_cut_len) {
-        // 	    if ((flag & FLAG_ODD) && is_rev_same(tmp_l, &s[k - tmp_l])) --k;
-        // 	    s[k++] = 0;
-        // 	  } else k -= tmp_l; // skip this segment
-        // 	  b = i + 1;
-        // 	} else s[k++] = s[i];
-        //   }
-        //   if (--k == 0) continue;
-        //   ks->seq.l = l = k;
-        // }
-        // if ((flag & FLAG_ODD) && is_rev_same(l, s)) {
-        //   ks->seq.s[--l] = 0;
-        //   ks->seq.l = l;
-        // }
-
-        // Reverse the sequence
-        for (i = 0; i < l>>1; ++i) {
-            int tmp = s[l-1-i];
-            s[l-1-i] = s[i];
-            s[i] = tmp;
-        }
-
-        // Add forward to buffer
-        kputsn((char*)ks->seq.s, ks->seq.l + 1, &buf);
-
-        // Add reverse to buffer
-        for (i = 0; i < l>>1; ++i) {
-            int tmp = s[l-1-i];
-            tmp = (tmp >= 1 && tmp <= 4)? 5 - tmp : tmp;
-            s[l-1-i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i];
-            s[i] = tmp;
-        }
-        if (l&1) s[i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i];
-        kputsn((char*)ks->seq.s, ks->seq.l + 1, &buf);
-
-        if(buf.l >= m) {
-            mr_insert_multi(mr, buf.l, (uint8_t*)buf.s, 1);
-            buf.l = 0;
-        }
-    }
-
-    if(buf.l) // last batch
-        mr_insert_multi(mr, buf.l, (uint8_t*)buf.s, 1);
-
-    free(buf.s);
-    kseq_destroy(ks);
-    gzclose(fp);
-
-    // dump index to stdout
-    if(binary_output)
-        // binary FMR format
-        mr_dump(mr, stdout);
-    else {
-        // FMD format
-        mritr_t itr;
-        const uint8_t *block;
-        rld_t *e = 0;
-        rlditr_t di;
-        e = rld_init(6, 3);
-        rld_itr_init(e, &di, 0);
-        mr_itr_first(mr, &itr, 1);
-        while ((block = mr_itr_next_block(&itr)) != 0) {
-            const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
-            while (q < end) {
-                int c = 0;
-                int64_t l;
-                rle_dec1(q, c, l);
-                rld_enc(e, &di, l, c);
-            }
-        }
-        rld_enc_finish(e, &di);
-        rld_dump(e, "-");
-    }
-
-    mr_destroy(mr);
-
-    return 0;
-}
-
-/**********************************************************/
-
 int main(int argc, char *argv[]) {
     string mode = argv[1] ;
     int retcode = 0 ;
     DEBUG(cerr << "DEBUG MODE" << endl ;)
-        if(mode == "index") {
-            retcode = main_index(argc - 1, argv + 1);
-        } else if (mode == "sf3") {
-            retcode = search_f3(argc - 1, argv + 1) ;
-        } else if (mode == "cf3") {
-            retcode = check_f3(argc - 1, argv + 1) ;
-        } else if (mode == "query") {
-            retcode = query(argc - 1, argv + 1) ;
-        } else {
-            retcode = 1 ;
-        }
+    if(mode == "index") {
+        retcode = main_build(argc - 1, argv + 1) ;
+    } else if(mode == "sf3") {
+        retcode = search_f3(argc - 1, argv + 1) ;
+    } else if(mode == "cf3") {
+        retcode = check_f3(argc-1, argv+1) ;
+    } else {
+        retcode = 1 ;
+    }
     return retcode ;
 }
