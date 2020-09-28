@@ -669,6 +669,7 @@ int main(int argc, char *argv[]) {
             retcode = main_index(argc - 1, argv + 1);
         } else if (mode == "sf3") {
             retcode = search_f3(argc - 1, argv + 1) ;
+	    retcode = 0;
         } else if (mode == "cf3") {
             retcode = check_f3(argc - 1, argv + 1) ;
         } else if (mode == "query") {
