@@ -192,6 +192,8 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         }
         // overlapping version:
         //begin = end - 1 ;
+	// non-overlapping version:
+        --begin;
     }
     //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
     delete[] seq ;
