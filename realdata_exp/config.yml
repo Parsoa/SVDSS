@@ -1,0 +1,9 @@
+root: /data/hifi/snakeroot
+samples:
+  - NA19240
+  - HG00733
+assemblies:
+  - HG00733_hgsvc_pbsq2-ccs_1000-pereg.h1-un.racon-p2.fasta
+  - HG00733_hgsvc_pbsq2-ccs_1000-pereg.h1-un.racon-p2.fasta
+ref: hg38.chroms.fa
+vcf: CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.all_variants.genotypes.vcf.gz
