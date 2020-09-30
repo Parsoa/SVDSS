@@ -1,37 +1,41 @@
 import sys
 
 from Bio import SeqIO
+import pysam
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def plot_lengths():
-    # each line is the length of a read
-    # eg sed -n '2~4p' <fastq> | awk '{print length}'
-    fpath1 = sys.argv[1]
-    fpath2 = sys.argv[2]
+def plot_samplelengths():
+    fq_path1 = sys.argv[1]
+    fq_path2 = sys.argv[2]
+    out_path = sys.argv[3]
 
     data1 = []
-    for line in open(fpath1):
-        data1.append(int(line))
+    for record in SeqIO.parse(fq_path1, "fastq"):
+        l = len(record)
+        data1.append(l)
 
     data2 = []
-    for line in open(fpath2):
-        data2.append(int(line))
+    for record in SeqIO.parse(fq_path2, "fastq"):
+        l = len(record)
+        data2.append(l)
 
     data = {"Sample" : ["HG00733"]*len(data1) + ["NA19240"]*len(data2),
             "Lengths" : data1 + data2}
     df = pd.DataFrame(data = data)
-    
-    sns.displot(df, x="Lengths", hue="Sample", fill=True)
-    plt.savefig("samples.len.png")
-    # plt.show()
 
+    dplot = sns.displot(df, x="Lengths", hue="Sample", fill=True, legend=False)
+    dplot.ax.legend(labels=["HG00733", "NA19240"], loc=2)
+
+    plt.savefig(out_path)
+    # plt.show()
 
 def plot_correlation():
     fq_path = sys.argv[1]
+    out_path = sys.argv[2]
 
     data_occ = {}
     for record in SeqIO.parse(fq_path, "fastq"):
@@ -66,8 +70,115 @@ def plot_correlation():
             minA.append(data["Abundance"][i])
     axins.scatter(minL, minA, color="seagreen", alpha=1, linewidths = 1, edgecolors="white")
     p.ax_joint.indicate_inset_zoom(axins, edgecolor="grey", ls="--")
-    plt.savefig("corr.zoom.png")
+    plt.savefig(out_path)
+    # plt.show()
+
+def plot_nal_by_err():
+    bampath1 = sys.argv[1]
+    bampath2 = sys.argv[2]
+    fq_path = sys.argv[3]
+    out_path = sys.argv[4]
+
+    tot_strings = 0
+    for record in SeqIO.parse(fq_path, "fastq"):
+        tot_strings += 1
+    print("Tot strings: ", tot_strings)
+
+    data1 = []
+    bamfile1 = pysam.AlignmentFile(bampath1, "rb")
+    for al in bamfile1.fetch():
+        good_bases = al.get_cigar_stats()[0][7]
+        bad_bases = al.query_length - good_bases
+        data1.append(bad_bases)
+    print("bam1 limits: ", min(data1), max(data1))
+
+    data2 = []
+    bamfile2 = pysam.AlignmentFile(bampath2, "rb")
+    for al in bamfile2.fetch():
+        good_bases = al.get_cigar_stats()[0][7]
+        bad_bases = al.query_length - good_bases
+        data2.append(bad_bases)
+    print("bam2 limits: ", min(data2), max(data2))
+
+    nbins = 7
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey = True, tight_layout=True, figsize=(13, 7))
+
+    ax1.axhline(tot_strings, 0, 100, linewidth=1, color='r', label="Total specific")
+    ax1.hist(data1, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", alpha=0.75, cumulative = True, histtype="step", label="Cumulative count")
+    ax1.hist(data1, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", histtype="stepfilled", label="Count")
+    ax1.set_title("HG00733")
+    ax1.set_ylabel("# Primary Alignments")
+
+    ax2.axhline(tot_strings, 0, 100, linewidth=1, color='r', label="Total specific")
+    ax2.hist(data2, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", alpha=0.75, cumulative = True, histtype="step", label="Cumulative count")
+    ax2.hist(data2, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", histtype="stepfilled", label="Count")
+    ax2.set_title("NA19240")
+
+    fig.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+    plt.xticks()
+    plt.xlabel("# Errors")
+
+    ax2.legend(loc=4, fancybox=True, shadow=True)
+    plt.savefig(out_path)
+    # plt.show()
+
+def plot_covering():
+    bed_path_1 = sys.argv[1]
+    bed_path_2 = sys.argv[2]
+    out_path = sys.argv[3]
+
+    covering = {}
+    not_covering = {}
+    
+    for line in open(bed_path_1):
+        line = line.strip('\n').split('\t')
+        idx, iden, count = line[3], int(line[4]), int(line[-1])
+        if count == 0:
+            not_covering[idx] = iden
+        else:
+            covering[idx] = iden
+
+    for line in open(bed_path_2):
+        line = line.strip('\n').split('\t')
+        idx, iden, count = line[3], int(line[4]), int(line[-1])
+        if count == 0:
+            if idx in covering:
+                pass
+            elif idx in not_covering:
+                not_covering[idx] = max(iden, not_covering[idx])
+            else:
+                not_covering[idx] = iden
+        else:
+            if idx in covering:
+                covering[idx] = max(iden, covering[idx])
+            elif idx in not_covering:
+                not_covering.pop(idx)
+                covering[idx] = iden
+            else:
+                covering[idx] = iden
+
+    fig, ax1 = plt.subplots(1, 1, tight_layout=True)
+    nbins = 7
+    ax1.hist([list(covering.values()), list(not_covering.values())],
+             bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left",
+             histtype="bar", cumulative=False,
+             color=["seagreen", "darkorchid"], label=["Covering", "Not covering"])
+
+    ax1.set_xlabel("# Errors")
+    ax1.set_ylabel("# Primary Alignments")
+
+    plt.legend(loc=1)
+    plt.savefig(out_path)
     # plt.show()
 
 if __name__ == "__main__":
-    plot_correlation()
+    mode = sys.argv.pop(1)
+    if mode == "lsamples":
+        plot_samplelengths()
+    elif mode == "corr":
+        plot_correlation()
+    elif mode == "albyerr":
+        plot_nal_by_err()
+    elif mode == "covplot":
+        plot_covering()

@@ -53,7 +53,7 @@ def main():
         epos2 = pos2 + len(alt2)
         offset2 += len(alt2)-len(ref)
         if print2_flag:
-            out2.write(f"{chrom}\t{pos2}\t{epos2}\t{idx}\t{ref}\t{alt2}\t{len(alt2)-len(ref)}\t{gt2}\n")
+            out2.write(f"{chrom}_2\t{pos2}\t{epos2}\t{idx}\t{ref}\t{alt2}\t{len(alt2)-len(ref)}\t{gt2}\n")
 
         idx+=1
 
