@@ -65,10 +65,12 @@ def plot_correlation():
     minL = []
     minA = []
     for i in range(0,len(data["Length"])):
-        if data["Length"][i] <= 500:
+        if data["Abundance"][i] >= 5 and data["Length"][i] <= 500:
             minL.append(data["Length"][i])
             minA.append(data["Abundance"][i])
     axins.scatter(minL, minA, color="seagreen", alpha=1, linewidths = 1, edgecolors="white")
+    axins.set_xlim(0, 500)
+    axins.set_ylim(0, max(data["Abundance"])+100)
     p.ax_joint.indicate_inset_zoom(axins, edgecolor="grey", ls="--")
     plt.savefig(out_path)
     # plt.show()

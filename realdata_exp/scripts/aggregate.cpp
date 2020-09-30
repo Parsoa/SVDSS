@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
   ifstream in_file;
   string line;
   int i, nl, p, count;
-  for(i=0; i<2048; ++i) { // hardcoded
+  for(i=0; i<2048; ++i) { // FIXME hardcoded
     in_file.open(dir_path + "/solution_batch_" + to_string(i) + ".fastq");
     if(!in_file.is_open()) {
       in_file.close();
@@ -33,6 +33,8 @@ int main(int argc, char *argv[]) {
     }
     in_file.close();
   }
+
+  cerr << "Tot specific strings (ab>=1): " << seqs.size() << endl;
 
   i = 0;
   for(auto it = seqs.begin(); it != seqs.end(); ++it) {

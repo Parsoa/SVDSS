@@ -188,7 +188,7 @@ rule filter:
 
 rule plot_correlation:
     input:
-        pjoin(root, pp, f"sspecific.minab_{min_ab}.maxl_{max_l}.fq")
+        pjoin(root, pp, "sspecific.fq")
     output:
         pjoin(root, pp, "sspecific.correlation.png")
     threads: 1
