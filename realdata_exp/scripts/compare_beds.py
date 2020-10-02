@@ -1,9 +1,36 @@
 import sys
 
-import numpy as np
-import matplotlib.pyplot as plt
+def recall():
+    bed_path_1 = sys.argv[1]
+    bed_path_2 = sys.argv[2]
 
-def main():
+    variants = {}
+    for line in open(bed_path_1):
+        line = line.strip('\n').split('\t')
+        idx, l, count = line[3], int(line[6]), int(line[-1])
+        variants[idx] = (count, -1, l)
+
+    for line in open(bed_path_2):
+        line = line.strip('\n').split('\t')
+        idx, l, count = line[3], int(line[6]), int(line[-1])
+        if idx in variants:
+            variants[idx] = (variants[idx][0], count, l)
+        else:
+            variants[idx] = (-1, count, l)
+
+    for idx, (c1,c2,l) in variants.items():
+        ov = 0
+        if c1 <= 0 and c2 <= 0:
+            ov = 0
+        elif c1 > 0 and c2 > 0:
+            ov = 3
+        elif c1 > 0 and c2 <= 0:
+            ov = 1
+        elif c1 <= 0 and c2 > 0:
+            ov = 2
+        print(idx, l, ov)
+
+def main(): # precision
     bed_path_1 = sys.argv[1]
     bed_path_2 = sys.argv[2]
 

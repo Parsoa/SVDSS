@@ -119,7 +119,7 @@ def plot_nal_by_err():
     fig.add_subplot(111, frame_on=False)
     plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
     plt.xticks()
-    plt.xlabel("# Errors")
+    plt.xlabel("# Base Differences")
 
     ax2.legend(loc=4, fancybox=True, shadow=True)
     plt.savefig(out_path)
@@ -167,12 +167,39 @@ def plot_covering():
              histtype="bar", cumulative=False,
              color=["seagreen", "darkorchid"], label=["Covering", "Not covering"])
 
-    ax1.set_xlabel("# Errors")
+    ax1.set_xlabel("# Base Differences")
     ax1.set_ylabel("# Primary Alignments")
 
     plt.legend(loc=1)
     plt.savefig(out_path)
     # plt.show()
+
+def plot_pmatches_len():
+    bampath = sys.argv[1]
+    out_path = sys.argv[2]
+
+    data = []
+    bamfile = pysam.AlignmentFile(bampath, "rb")
+    for al in bamfile.fetch():
+        good_bases = al.get_cigar_stats()[0][7]
+        bad_bases = al.query_length - good_bases
+        if bad_bases == 0:
+            data.append(al.query_length)
+    print("Limits: ", min(data), max(data))
+
+    #fig, ax1 = plt.subplots(1, 1, tight_layout=True)
+    #ax1.hist(lens, bins = np.arange(0,501)-0.5)
+    #ax1.set_xlim(0,510)
+    #ax1.set_xlabel("Length")
+    #ax1.set_ylabel("Count")
+
+    nbins = 501
+    fig, ax1 = plt.subplots(1, 1, sharey = True)
+
+    ax1.hist(data, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen")
+    ax1.set_xlabel("Length")
+    ax1.set_ylabel("# specific strings")
+    plt.savefig(out_path)
 
 if __name__ == "__main__":
     mode = sys.argv.pop(1)
@@ -184,3 +211,5 @@ if __name__ == "__main__":
         plot_nal_by_err()
     elif mode == "covplot":
         plot_covering()
+    elif mode == "pmatches":
+        plot_pmatches_len()

@@ -46,28 +46,5 @@ def plot_sample_len():
 #     # plt.savefig("tps_by_len.png")
 
 
-def histo_len():
-    fpath = sys.argv[1]
-
-    lens = []
-    min_l = float("inf")
-    max_l = 0
-    for line in open(fpath):
-        idx, abund, l = line.split(',')
-        l = int(l)
-        lens.append(l)
-
-    fig, ax1 = plt.subplots(1, 1, tight_layout=True)
-    ax1.hist(lens, bins = np.arange(0,501)-0.5)
-
-    ax1.set_xlim(0,510)
-    ax1.set_xlabel("Length")
-    ax1.set_ylabel("Count")
-
-    plt.savefig("histo.len.png")
-
-
-
 if __name__ == "__main__":
-    # plot_sample_len()
-    histo_len()
+    pass

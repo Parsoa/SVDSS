@@ -220,7 +220,7 @@ rule bbmap_index_1:
         out= pjoin(root, step1, "{sample}_assembly.bbmapindex.log")
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh -Xmx150g threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
         """
 
 rule bbmap_align_1:
@@ -235,7 +235,7 @@ rule bbmap_align_1:
         out = pjoin(root, step1, "sspecific.minab_{min_ab}.maxl_{max_l}.{sample}.log")
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh -Xmx150g threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
         """
 
 rule plot_step1:
@@ -288,7 +288,7 @@ rule bbmap_index_2:
         out= pjoin(root, step2, "{sample}_haplotypes.bbmapindex.log")
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh -Xmx150g threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
         """
 
 rule bbmap_align_2:
@@ -303,7 +303,7 @@ rule bbmap_align_2:
         out = pjoin(root, step2, "sspecific.minab_{min_ab}.maxl_{max_l}.{sample}.log")
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh -Xmx150g threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
         """
 
 rule vcf2haplobeds:
