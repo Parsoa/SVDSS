@@ -30,7 +30,7 @@ def recall():
             ov = 2
         print(idx, l, ov)
 
-def main(): # precision
+def precision():
     bed_path_1 = sys.argv[1]
     bed_path_2 = sys.argv[2]
 
@@ -68,4 +68,8 @@ def main(): # precision
     print(none, both, only1, only2, total, sep=',')
 
 if __name__ == "__main__":
-    main()
+    mode = sys.argv.pop(1)
+    if mode == "pre":
+        precision()
+    elif mode == "rec":
+        recall()

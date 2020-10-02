@@ -35,3 +35,8 @@ Compile scripts:
 g++ -std=c++11 -O3 -o aggregate aggregate.cpp -lz
 g++ -std=c++11 -O3 -o filter filter.cpp -lz
 ```
+
+RepeatMasker:
+```
+python3 scripts/plot.py repmask <fa> <rm.out> <png>
+```

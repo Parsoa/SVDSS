@@ -201,6 +201,79 @@ def plot_pmatches_len():
     ax1.set_ylabel("# specific strings")
     plt.savefig(out_path)
 
+def recbylen():
+    fpath = sys.argv[1]
+    out_path = sys.argv[2]
+
+    data = {}
+    for line in open(fpath):
+        idx, l, ov = line.strip('\n').split(' ')
+        l, ov = int(l), int(ov)
+        if l not in data:
+            data[l] = [0,0]
+        data[l][0] += ov > 0
+        data[l][1] += 1
+
+    Xs = sorted(data.keys())
+    Ys1 = [data[x][0]/data[x][1] for x in Xs]
+
+    total = []
+    for l,(_,tot) in data.items():
+        total += [l]*(tot+1)
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex = True, tight_layout=True) #, figsize=(13, 7))
+
+    sns.scatterplot(x = Xs, y = Ys1, hue = Ys1, ax = ax1, legend = False,
+                    palette = sns.dark_palette("seagreen", as_cmap=True), linewidth=0, alpha = 1, s=10)
+
+    sns.histplot(total, bins=250, log_scale = (False,True), color = "seagreen", element="poly")
+    ax2.invert_yaxis()
+
+    ax1.set_ylabel("Recall")
+    ax2.set_xlabel("Variation size")
+    ax2.set_ylabel("Count (log)")
+
+    plt.savefig(out_path)
+    # plt.show()
+
+def repmask():
+    fa_path = sys.argv[1]
+    rm_path = sys.argv[2]
+    out_path = sys.argv[3]
+    min_l = int(sys.argv[4]) if len(sys.argv) == 4 else 0
+
+    lens = {}
+    for record in SeqIO.parse(fa_path, "fasta"):
+        lens[record.id] = len(record)
+
+    rtypes = ["SINE", "LINE", "Satellite", "Simple_repeat", "Low_complexity", "Other"]
+    data = {"rtype":[], "len":[]}
+    used_ridx = set()
+    for line in open(rm_path, 'r'):
+        line = line.split()
+        if len(line) == 0 or line[0] == "SW" or line[0] == "score":
+            continue
+        ridx, rtype = line[4], line[10].split('/')[0]
+        if rtype not in rtypes:
+            rtype = "Other"
+        if lens[ridx] >= min_l:
+            data["rtype"].append(rtype)
+            data["len"].append(lens[ridx])
+            used_ridx.add(ridx)
+
+    for ridx in lens:
+        if ridx not in used_ridx:
+            if lens[ridx] >= min_l:
+                data["rtype"].append("None")
+                data["len"].append(lens[ridx])
+
+    df = pd.DataFrame(data)
+
+    dplot = sns.histplot(data=df, x="len", hue="rtype", multiple="stack")
+
+    plt.savefig(out_path)
+    # plt.show()
+
 if __name__ == "__main__":
     mode = sys.argv.pop(1)
     if mode == "lsamples":
@@ -213,3 +286,7 @@ if __name__ == "__main__":
         plot_covering()
     elif mode == "pmatches":
         plot_pmatches_len()
+    elif mode == "recbylen":
+        recbylen()
+    elif mode == "repmask":
+        repmask()

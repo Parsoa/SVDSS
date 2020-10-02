@@ -39,10 +39,10 @@ rule run:
         pjoin(root, pp, "sspecific.correlation.png"),
         # STEP 1
         pjoin(root, step1, "al_by_errors.png"),
+        pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.pmatches.fa")
         # STEP 2
-        rec = pjoin(root, step2, "recall.csv"),
-        prec = pjoin(root, step2, "precision.csv"),
-        png = pjoin(root, step2, "covering_plot.png")
+        pjoin(root, step2, "recbylen.png"),
+        pjoin(root, step2, "covering_plot.png")
 
 ### utils ###
 rule fa2fq:
@@ -251,6 +251,20 @@ rule plot_step1:
         python3 scripts/plot.py albyerr {input.bam1} {input.bam2} {input.fq} {output.png}
         """
 
+rule extract_pmatches:
+    input:
+        sam = pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.sam")
+    output:
+        fa = pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.pmatches.fa")
+    params:
+        sam = pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.pmatches.sam")
+    threads: 1
+    shell:
+        """
+        grep "^@" {input.sam} > {params.sam}
+        grep -v "^@" {input.sam} | grep "YI:f:100" >> {params.sam}
+        samtools fasta {params.sam} > {output.fa}
+        """
 
 ### STEP 2: mapping to haplotypes + checking overlaps with known variants ###
 rule build_haplotype:
@@ -341,20 +355,26 @@ rule intersect_beds:
         """
 
 rule analyze_step2:
+    # TODO split in multiple rules
     input:
         i1 = pjoin(root, step2, "bedintersect", "bed1_vs_bam.c.bed"),
         i2 = pjoin(root, step2, "bedintersect", "bed2_vs_bam.c.bed"),
         i3 = pjoin(root, step2, "bedintersect", "bam_vs_bed1.c.bed"),
         i4 = pjoin(root, step2, "bedintersect", "bam_vs_bed2.c.bed")
     output:
+        png1 = pjoin(root, step2, "recbylen.png"),
+        png2 = pjoin(root, step2, "covering_plot.png")
+    params:
+        reclist = pjoin(root, step2, "recall.list.txt"),
         rec = pjoin(root, step2, "recall.csv"),
         prec = pjoin(root, step2, "precision.csv"),
-        png = pjoin(root, step2, "covering_plot.png")
+        lvalue = 250
     threads: 1
     shell:
         """
-        python3 scripts/compare_beds.py {input.i1} {input.i2} > {output.rec}
-        python3 scripts/compare_beds.py {input.i3} {input.i4} > {output.prec}
-        python3 scripts/plot.py covplot {input.i3} {input.i4} {output.png}
+        python3 scripts/compare_beds.py rec {input.i1} {input.i2} > {params.reclist}
+        python3 scripts/compute_recall.py {output.rec} {params.lvalue} > {params.rec}
+        python3 scripts/compare_beds.py pre {input.i3} {input.i4} > {params.prec}
+        python3 scripts/plot.py recbylen {params.rec} {output.png1}
+        python3 scripts/plot.py covplot {input.i3} {input.i4} {output.png2}
         """
-        
