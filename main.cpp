@@ -159,19 +159,19 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
             break ;
         }
         DEBUG(cerr << "Mismatch " << int2char[P[begin]] << " (" <<  begin << "). bmatches: " << to_string(bmatches) << endl ;)
-            // Forward search: 
-            int end = begin ;
+        // Forward search: 
+        int end = begin ;
         int fmatches = 0 ;
         fm6_set_intv(index, P[end], sai) ;
         DEBUG(cerr << "FS from " << int2char[P[end]] << " (" << end << "): " << interval2str(sai) << endl ;)
-            while(sai.x[2] != 0) {
-                end++ ;
-                fmatches++ ;
-                rldintv_t osai[6] ;
-                rld_extend(index, &sai, osai, 0) ;
-                sai = osai[P[end] >= 1 && P[end] <= 4 ? 5 - P[end] : P[end]];
-                DEBUG(cerr << "- FE with " << int2char[P[end]] << " (" <<  end << "): " << interval2str(sai) << endl ;)
-            }
+        while(sai.x[2] != 0) {
+            end++ ;
+            fmatches++ ;
+            rldintv_t osai[6] ;
+            rld_extend(index, &sai, osai, 0) ;
+            sai = osai[P[end] >= 1 && P[end] <= 4 ? 5 - P[end] : P[end]];
+            DEBUG(cerr << "- FE with " << int2char[P[end]] << " (" <<  end << "): " << interval2str(sai) << endl ;)
+        }
         DEBUG(cerr << "Mismatch " << int2char[P[end]] << " (" << end << "). fmatches: " << fmatches << endl ;)
         // add solution
         DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
@@ -185,7 +185,7 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         //    solutions[S] = 0 ;
         //}
         //solutions[S] = solutions[S] + 1 ;
-        //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
+        DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         // prepare for next round
         if (begin == 0) {
             break ;
@@ -193,7 +193,7 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         // overlapping version:
         //begin = end - 1 ;
     }
-    //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
+    DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
     delete[] seq ;
 }
 
@@ -260,6 +260,7 @@ int search_f3(int argc, char *argv[]) {
     fastq_file = gzopen(sample_path, "r") ;
     fastq_iterator = kseq_init(fastq_file) ;
     int threads = atoi(argv[3]) ;
+    DEBUG(threads = 1; )
     // load first batch
     unordered_map<fastq_entry_t, int> s ;
     search_solutions.push_back(s) ;
@@ -663,16 +664,16 @@ int main(int argc, char *argv[]) {
     string mode = argv[1] ;
     int retcode = 0 ;
     DEBUG(cerr << "DEBUG MODE" << endl ;)
-        if(mode == "index") {
-            retcode = main_index(argc - 1, argv + 1);
-        } else if (mode == "sf3") {
-            retcode = search_f3(argc - 1, argv + 1) ;
-        } else if (mode == "cf3") {
-            retcode = check_f3(argc - 1, argv + 1) ;
-        } else if (mode == "query") {
-            retcode = query(argc - 1, argv + 1) ;
-        } else {
-            retcode = 1 ;
-        }
+    if(mode == "index") {
+        retcode = main_index(argc - 1, argv + 1);
+    } else if (mode == "sf3") {
+        retcode = search_f3(argc - 1, argv + 1) ;
+    } else if (mode == "cf3") {
+        retcode = check_f3(argc - 1, argv + 1) ;
+    } else if (mode == "query") {
+        retcode = query(argc - 1, argv + 1) ;
+    } else {
+        retcode = 1 ;
+    }
     return retcode ;
 }

@@ -44,7 +44,9 @@ void Scanner::load_sequences() {
             string name = tokens[0].substr(0, p - 1) ;
             int count = std::stoi(tokens[0].substr(p + 1, tokens[0].length() - (p + 1))) ;
             if (count > 5) {
-                _sequences[j][tokens[3]] = count ;
+                if (tokens[3].length() >= 10 && tokens[3].length() <= 40) {
+                    _sequences[j][tokens[3]] = count ;
+                }
             }
             //cout << "#" << tokens[3] << "#" ;
         }

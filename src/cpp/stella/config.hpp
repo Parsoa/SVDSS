@@ -21,6 +21,7 @@ public:
     int batch_size = 1000 ;
 
     std::string bed ;
+    std::string type ;
     std::string workdir ;
     std::string reference ;
 

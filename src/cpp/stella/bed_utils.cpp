@@ -18,7 +18,7 @@ bool track_comparator(Track a, Track b) {
 }
 
 string Track::get_name() const {
-    return chrom + "_" + std::to_string(begin) + "_" + std::to_string(end) ;
+    return svtype + "@" + chrom + "_" + std::to_string(begin) + "_" + std::to_string(end) ;
 }
 
 std::vector<Track> load_tracks_from_file(string path) {

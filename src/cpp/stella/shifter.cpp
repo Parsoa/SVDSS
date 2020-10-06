@@ -48,14 +48,14 @@ void Shifter::load_tracks() {
             offset[0] = 0 ;
             offset[1] = 0 ;
             chrom = tokens[0] ;
-            cout << chrom << endl ;
+            //cout << chrom << endl ;
             end = 0 ;
         }
         begin = std::stoi(tokens[1]) ;
         if (begin < end) {
-            cout << "Overlap:" << endl ;
-            cout << line << endl ;
-            cout << previous << endl ;
+            //cout << "Overlap:" << endl ;
+            //cout << line << endl ;
+            //cout << previous << endl ;
         }
         end = std::stoi(tokens[2]) ;
         track.chrom = tokens[0] ;
@@ -91,7 +91,6 @@ void Shifter::load_tracks() {
         }
         previous = line ;
     }
-    cout << n << endl ;
     cout << "Loaded " << tracks.size() << " tracks." << endl ;
 }
 

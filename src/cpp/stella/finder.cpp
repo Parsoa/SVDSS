@@ -26,7 +26,8 @@ void Finder::load_sequences() {
     for (int j = 0; j < c->batch_size; j++) {
         string s_j = std::to_string(j) ;
         string index = j < 10 ? "00" + s_j : j < 100 ? "0" + s_j : s_j ;
-        string path = c->workdir + "/solution/solution.mmp.mapped.batch_" + index + ".txt" ;
+        string path = c->workdir + "/" + c->type + "/solution.mapped.batch_" + index + ".txt" ;
+        //string path = c->workdir + "/solution_bbm/solution.bbm.mapped.batch_" + index + ".txt" ;
         ifstream txt_file(path) ;
         string line ;
         while (std::getline(txt_file, line)) {
@@ -57,31 +58,44 @@ void Finder::dump_sequences() {
     auto c = Configuration::getInstance() ;
     auto shifter = Shifter() ;
     shifter.load_tracks() ;
-    ofstream seq_file(c->workdir + "/mapped_seqs.bed") ;
-    ofstream track_file(c->workdir + "/mapped_tracks.bed") ;
-    ofstream coord_file(c->workdir + "/mapped_coordinates.bed") ;
-    ofstream fastq_file(c->workdir + "/mapped_coordinates.fastq") ;
+
+    ofstream mapped_bed(c->workdir + "/" + c->type + "_mapped.bed") ;
+    ofstream mapped_fasta(c->workdir + "/" + c->type + "_mapped.fasta") ;
+
+    ofstream unmapped_bed(c->workdir + "/" + c->type + "_unmapped.bed") ;
+    ofstream unmapped_fasta(c->workdir + "/" + c->type + "_unmapped.fasta") ;
+    ofstream unmapped_fastq(c->workdir + "/" + c->type + "_unmapped.fastq") ;
+
     unordered_map<Track, int> mapped_tracks ;
+    int m = 0 ;
     for (auto it = sequences.begin(); it != sequences.end(); it++) {
         auto& locus = it->second ;
         auto match = shifter.find(locus.chrom, locus.position, it->first.length()) ;
         if (match != nullptr) {
             auto& track = *match ;
             if (mapped_tracks.find(track) == mapped_tracks.end()) {
+                m += 1 ;
                 mapped_tracks[track] = 0 ;
-                track_file << track.chrom << "\t" << track.begin << "\t" << track.end << "\t" << track.svtype << "\t" << track.svlen << "\t" << it->first << "\t" << locus.count << endl ;
+                mapped_bed << track.chrom << "\t" << track.begin << "\t" << track.end << "\t" << it->first << "\t" << locus.count << "\t" << locus.position << endl ;
+                //
+                mapped_fasta << ">" << locus.chrom << "_" << locus.position << endl ; 
+                mapped_fasta << it->first << endl ;
             }
-            seq_file << it->first << "\t" << locus.count << "\t" << locus.chrom << "\t" << locus.position << "\t" << track.get_name() << endl ;
         } else {
             auto pos = shifter.shift_coordinate(locus.chrom, locus.position) ;
-            coord_file << locus.chrom << "\t" << locus.position << "\t" << pos << "\t" << locus.count << "\t" << it->first << endl ;
-            fastq_file << "@" << locus.chrom << "_" << locus.position << endl ;
-            fastq_file << it->first << endl ;
-            fastq_file << "+" << locus.chrom << "_" << locus.position << endl ;
+            unmapped_bed << locus.chrom << "\t" << locus.position << "\t" << pos << "\t" << locus.count << "\t" << it->first << endl ;
+            // FASTQ file
+            unmapped_fastq << "@" << locus.chrom << "_" << locus.position << endl ;
+            unmapped_fastq << it->first << endl ;
+            unmapped_fastq << "+" << locus.chrom << "_" << locus.position << endl ;
             for (int j = 0; j < it->first.length(); j++) {
-                fastq_file << "I" ;
+                unmapped_fastq << "I" ;
             }
-            fastq_file << endl ;
+            unmapped_fastq << endl ;
+            // FASTA file
+            unmapped_fasta << ">" << locus.chrom << "_" << locus.position << endl ;
+            unmapped_fasta << it->first << endl ;
         }
     }
+    cout << m << endl ;
 }
