@@ -5,6 +5,7 @@ import pysam
 
 import numpy as np
 import pandas as pd
+import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -91,7 +92,9 @@ def plot_nal_by_err():
     for al in bamfile1.fetch():
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
-        data1.append(bad_bases)
+        deletions = al.get_cigar_stats()[0][2]
+        errors = bad_bases + deletions
+        data1.append(errors)
     print("bam1 limits: ", min(data1), max(data1))
 
     data2 = []
@@ -99,7 +102,9 @@ def plot_nal_by_err():
     for al in bamfile2.fetch():
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
-        data2.append(bad_bases)
+        deletions = al.get_cigar_stats()[0][2]
+        errors = bad_bases + deletions
+        data2.append(errors)
     print("bam2 limits: ", min(data2), max(data2))
 
     nbins = 7
@@ -183,15 +188,11 @@ def plot_pmatches_len():
     for al in bamfile.fetch():
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
-        if bad_bases == 0:
+        deletions = al.get_cigar_stats()[0][2]
+        errors = bad_bases + deletions
+        if errors == 0:
             data.append(al.query_length)
     print("Limits: ", min(data), max(data))
-
-    #fig, ax1 = plt.subplots(1, 1, tight_layout=True)
-    #ax1.hist(lens, bins = np.arange(0,501)-0.5)
-    #ax1.set_xlim(0,510)
-    #ax1.set_xlabel("Length")
-    #ax1.set_ylabel("Count")
 
     nbins = 501
     fig, ax1 = plt.subplots(1, 1, sharey = True)
@@ -236,53 +237,126 @@ def recbylen():
     plt.savefig(out_path)
     # plt.show()
 
+def recbylen2():
+    fpath = sys.argv[1]
+    out_path = sys.argv[2]
+
+    data = {}
+    for line in open(fpath):
+        idx, l, ov = line.strip('\n').split(' ')
+        l, ov = int(l), int(ov)
+        if l not in data:
+            data[l] = [0,0]
+        data[l][0] += ov > 0
+        data[l][1] += 1
+
+    Xs = sorted(data.keys())
+    Ys1 = [data[x][0]/data[x][1] for x in Xs]
+
+    found = []
+    for l,(f,_) in data.items():
+        found += [l]*(f+1)
+    
+    total = []
+    for l,(_,tot) in data.items():
+        total += [l]*(tot+1)
+
+    p1 = sns.histplot(total, bins=500, log_scale = (False,True), color = "black", element="poly", label="Not found")
+    p2 = sns.histplot(found, bins=500, log_scale = (False,True), color = "lime", alpha=0.75, element="poly", label="Found")
+
+    p2.set_xlabel("Variation size")
+    p2.set_ylabel("Count (log)")
+
+    plt.legend()
+    # plt.savefig(out_path)
+    plt.show()
+
 def repmask():
+    font = {"size" : 13}
+    matplotlib.rc("font", **font)
+    
     fa_path = sys.argv[1]
     rm_path = sys.argv[2]
     out_path = sys.argv[3]
-    min_l = int(sys.argv[4]) if len(sys.argv) == 4 else 0
+    min_l = int(sys.argv[4]) if len(sys.argv) == 5 else 0
 
     lens = {}
     for record in SeqIO.parse(fa_path, "fasta"):
         lens[record.id] = len(record)
 
-    rtypes = ["SINE", "LINE", "Satellite", "Simple_repeat", "Low_complexity", "Other"]
-    data = {"rtype":[], "len":[]}
+    rtypes = {"SINE" : "SINE",
+              "LINE" : "LINE",
+              "Satellite" : "Satellite",
+              "Simple_repeat" : "Simple Repeat",
+              "Low_complexity" : "Low Complex.",
+              "Other" : "Other"}
+    data = {"Repeat Type" : [], "Specific String Length" : []}
     used_ridx = set()
     for line in open(rm_path, 'r'):
         line = line.split()
+        # print("\t".join(line))
         if len(line) == 0 or line[0] == "SW" or line[0] == "score":
             continue
         ridx, rtype = line[4], line[10].split('/')[0]
         if rtype not in rtypes:
             rtype = "Other"
         if lens[ridx] >= min_l:
-            data["rtype"].append(rtype)
-            data["len"].append(lens[ridx])
+            data["Repeat Type"].append(rtypes[rtype])
+            data["Specific String Length"].append(lens[ridx])
             used_ridx.add(ridx)
 
     for ridx in lens:
         if ridx not in used_ridx:
             if lens[ridx] >= min_l:
-                data["rtype"].append("None")
-                data["len"].append(lens[ridx])
+                data["Repeat Type"].append("None")
+                data["Specific String Length"].append(lens[ridx])
 
     df = pd.DataFrame(data)
 
-    dplot = sns.histplot(data=df, x="len", hue="rtype", multiple="stack")
+    for t in list(rtypes.values()) + ["None"]:
+        print(t, len(df.loc[df["Repeat Type"] == t])/len(df)*100)
+
+    dplot = sns.histplot(data=df, x="Specific String Length", hue="Repeat Type", multiple="stack")
 
     plt.savefig(out_path)
     # plt.show()
 
+def plot_nalignment():
+    bampath = sys.argv[1]
+    out_path = sys.argv[2]
+
+    aligns = {}
+    bamfile = pysam.AlignmentFile(bampath, "rb")
+    for al in bamfile.fetch():
+        if al.query_name not in aligns:
+            aligns[al.query_name] = 0
+        aligns[al.query_name] += 1
+
+    data = {}
+    for v in aligns.values():
+        if v not in data:
+            data[v] = 0
+        data[v] += 1
+
+    Xs = sorted(data.keys())
+    Ys = [data[x] for x in Xs]
+
+    fig, ax = plt.subplots()
+    ax.bar(Xs, Ys)
+    ax.set_title("Alignments to HG00733 contigs")
+    ax.set_xlabel("# alignments")
+    ax.set_ylabel("Count")
+    plt.savefig(out_path)
+
 if __name__ == "__main__":
-    mode = sys.argv.pop(1)
+    mode = sys.argv.pop(1) if len(sys.argv) > 2 else ""
     if mode == "lsamples":
         plot_samplelengths()
     elif mode == "corr":
         plot_correlation()
     elif mode == "albyerr":
         plot_nal_by_err()
-    elif mode == "covplot":
+    elif mode == "cov":
         plot_covering()
     elif mode == "pmatches":
         plot_pmatches_len()
@@ -290,3 +364,15 @@ if __name__ == "__main__":
         recbylen()
     elif mode == "repmask":
         repmask()
+    elif mode == "nal":
+        plot_nalignment()
+    else:
+        print("python3 plot.py")
+        print("\t\tlsamples <fq1> <fq2> <out>")
+        print("\t\tcorr <fq> <out>")
+        print("\t\talbyerr <bam1> <bam2> <fq> <out>")
+        print("\t\tcov <bed1> <bed2> <out>")
+        print("\t\tpmatches <bam> <out>")
+        print("\t\trecbylen <recall.list> <out>")
+        print("\t\trepmask <fa> <rm.out> <out> [min_l]")
+        print("\t\tnal <bam> <out>")
