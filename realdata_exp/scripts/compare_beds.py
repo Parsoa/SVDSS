@@ -72,7 +72,7 @@ def precision():
 def extract_uncovering():
     bed_path_1 = sys.argv[1]
     bed_path_2 = sys.argv[2]
-    fq_path = sys.argv[3]
+    # fq_path = sys.argv[3]
 
     variants = {}
     for line in open(bed_path_1):
@@ -88,14 +88,18 @@ def extract_uncovering():
         else:
             variants[idx] = (-1, count)
 
-    uncovering_idxs = set()
     for idx, (c1,c2) in variants.items():
         if c1 <= 0 and c2 <= 0:
-            uncovering_idxs.add(idx)
+            print(idx)
 
-    for record in SeqIO.parse(fq_path, "fastq"):
-        if record.id in uncovering_idxs:
-            SeqIO.write(record, sys.stdout, "fastq")
+    ### IF FASTQ OUTPUT
+    # uncovering_idxs = set()
+    # for idx, (c1,c2) in variants.items():
+    #     if c1 <= 0 and c2 <= 0:
+    #         uncovering_idxs.add(idx)
+    # for record in SeqIO.parse(fq_path, "fastq"):
+    #     if record.id in uncovering_idxs:
+    #         SeqIO.write(record, sys.stdout, "fastq")
 
 def new_prec():
     bampath1 = sys.argv[1]

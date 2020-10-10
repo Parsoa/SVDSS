@@ -44,9 +44,16 @@ rule run:
         # STEP 1
         pjoin(root, step1, "al_by_errors.png"),
         pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.pmatches.fa"),
+        pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.notpmatches.fa"),
+        pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.nal.png"),
+        pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.nal.png"),
         # STEP 2
         pjoin(root, step2, "recbylen.png"),
-        pjoin(root, step2, "covering_plot.png")
+        pjoin(root, step2, "covering_plot.png"),
+        pjoin(root, step2, f"{sspecific_prefix}.{samples[1]}.nal.png"),
+        pjoin(root, step2, "sspecific_uncovering.al_by_errors.png")
+
+
 
 ### utils ###
 rule fa2fq:
@@ -224,7 +231,7 @@ rule bbmap_index_contigs:
         out= pjoin(root, "{sample}_assembly.bbmapindex.log")
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 ref={input} path={output} &> {log.out}
         """
 
 rule bbmap_align_contigs:
@@ -239,7 +246,7 @@ rule bbmap_align_contigs:
         out = pjoin(root, step1, f"{sspecific_prefix}." + "{sample}.log")
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
         """
 
 rule plot_step1:
@@ -255,32 +262,53 @@ rule plot_step1:
         python3 scripts/plot.py albyerr {input.bam1} {input.bam2} {input.fq} {output.png}
         """
 
-rule extract_pmatches:
+rule plot_nalign_bar_1:
+    input:
+        sam = pjoin(root, step1, f"{sspecific_prefix}." + "{sample}.sam")
+    output:
+        png = pjoin(root, step1, f"{sspecific_prefix}." + "{sample}.nal.png")
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py nal {input.sam} {output.png}
+        """
+
+rule extract_pmatches_NA:
     input:
         sam = pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.sam")
     output:
         fa = pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.pmatches.fa")
-    params:
-        sam = pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.pmatches.sam")
     threads: 1
     shell:
         """
-        grep "^@" {input.sam} > {params.sam}
-        grep -v "^@" {input.sam} | grep "YI:f:100" >> {params.sam}
-        samtools fasta {params.sam} > {output.fa}
+        python3 scripts/extract_al_by_err.py {input.sam} 0 fa > {output.fa}
+        """
+
+rule extract_notpmatches_HG:
+    input:
+        sam = pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.sam")
+    output:
+        fa = pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.notpmatches.fa")
+    threads: 1
+    shell:
+        """
+        python3 scripts/extract_al_by_err.py {input.sam} >0 fa > {output.fa}
         """
 
 ### STEP 2: mapping to haplotypes + checking overlaps with known variants ###
 rule build_haplotype:
     input:
         fa = ref,
-        vcf = kvars
+        vcf = known_vars
     output:
         fa = pjoin(root, f"{samples[1]}." + "hap{h}.fa")
+    params:
+        sample = samples[1],
+        hap = "{h}"
     threads: 1
     shell:
         """
-        bcftools consensus -s {wildcards.sample} -H {wildcards.h} -f {input.fa} {input.vcf} > {output.fa}
+        bcftools consensus -s {params.sample} -H {params.h} -f {input.fa} {input.vcf} > {output.fa}
         """
 
 rule combine_haplotypes:
@@ -306,7 +334,7 @@ rule bbmap_index_haplotypes:
         out= pjoin(root, f"{samples[1]}_haplotypes.bbmapindex.log")
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 ref={input} path={output} &> {log.out}
         """
 
 rule bbmap_align_haplotypes:
@@ -321,12 +349,23 @@ rule bbmap_align_haplotypes:
         out = pjoin(root, step2, f"{sspecific_prefix}.{samples[1]}.log")
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        """
+
+rule plot_nalign_bar_2:
+    input:
+        sam = pjoin(root, step2, f"{sspecific_prefix}.{samples[1]}.sam")
+    output:
+        png = pjoin(root, step2, f"{sspecific_prefix}.{samples[1]}.nal.png")
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py nal {input.sam} {output.png}
         """
 
 rule vcf2haplobeds:
     input:
-        vcf = kvars
+        vcf = known_vars
     output:
         pjoin(root, step2, f"{samples[1]}_uniquevars_1.bed"),
         pjoin(root, step2, f"{samples[1]}_uniquevars_2.bed")
@@ -385,82 +424,53 @@ rule analyze_step2:
 
 
 
-
-
-
-
-
-
 ### ANALYSIS ON SPECIFIC STRINGS DO NOT COVERING A KNOWN VARIATIONS ###
 
 rule extract_uncovering:
     input:
         bed1 = pjoin(root, step2, "bedintersect", "bam_vs_bed1.c.bed"),
-        bed2 = pjoin(root, step2, "bedintersect", "bam_vs_bed2.c.bed"),
-        fq = pjoin(root, pp, f"{sspecific_prefix}.fq")
+        bed2 = pjoin(root, step2, "bedintersect", "bam_vs_bed2.c.bed")
     output:
-        fq = pjoin(root, step2, "uncovering", "sspecific.fq")
+        txt = pjoin(root, step2, "sspecific_uncovering.txt")
     threads: 1
     shell:
         """
-        python3 scripts/compare_beds.py exunc {input.bed1} {input.bed2} {input.fq} > {output.fq}
+        python3 scripts/compare_beds.py exunc {input.bed1} {input.bed2} > {output.txt}
         """
 
-rule bbmap_index_reference:
+rule extract_uncovering_fq:
     input:
-        ref
+        txt = pjoin(root, step2, "sspecific_uncovering.txt")
     output:
-        directory(f"{ref}.bbmapindex")
-    threads: 8
-    log:
-        time = f"{ref}.bbmapindex.time",
-        out= f"{ref}.bbmapindex.log"
+        fq = pjoin(root, step2, "sspecific_uncovering.fake.fq")
+    threads: 1
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
+        while read line ; do ; echo -e ">${{line}}\nA\n+\n~" ; done < {input.txt} > {output.fq}
+        """
+        
+
+rule extract_uncovering_alignment_contigs:
+    input:
+        bam = pjoin(root, step1, f"{sspecific_prefix}." + "{sample}.bam"),
+        txt = pjoin(root, step2, "sspecific_uncovering.txt")
+    output:
+        sam = pjoin(root, step2, "sspecific_uncovering.{sample}.sam")
+    threads: 1
+    shell:
+        """
+        python3 scripts/compare_beds.py exunc {input.bam} {input.txt} > {output.sam}
         """
 
-rule bbmap_uncovering_to_ref:
+rule plot_uncovering_al_by_err:
     input:
-        index = f"{ref}.bbmapindex",
-        fq = pjoin(root, step2, "uncovering", "sspecific.fq")
+        bam1 = pjoin(root, step2, f"sspecific_uncovering.{samples[1]}.sam"),
+        bam2 = pjoin(root, step2, f"sspecific_uncovering.{samples[0]}.sam"),
+        fq = pjoin(root, step2, "sspecific_uncovering.fake.fq")
     output:
-        sam = pjoin(root, step2, "uncovering", "sspecific.ref.sam")
-    threads: 8
-    log:
-        time = pjoin(root, step2, "uncovering", "sspecific.ref.time"),
-        out = pjoin(root, step2, "uncovering", "sspecific.ref.log")
+        png = pjoin(root, step2, "sspecific_uncovering.al_by_errors.png")
+    threads: 1
     shell:
         """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
-        """
-      
-rule bbmap_uncovering_to_contigs:
-    input:
-        index = pjoin(root, "{sample}_assembly.bbmapindex"),
-        fq = pjoin(root, step2, "uncovering", "sspecific.fq")
-    output:
-        sam = pjoin(root, step2, "uncovering", "sspecific.{sample}.contigs.sam")
-    threads: 8
-    log:
-        time = pjoin(root, step2, "uncovering", "sspecific.{sample}.contigs.time"),
-        out = pjoin(root, step2, "uncovering", "sspecific.{sample}.contigs.log")
-    shell:
-        """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
-        """
-
-rule bbmap_uncovering_to_hap:
-    input:
-        index = pjoin(root, f"{samples[1]}_haplotypes.bbmapindex"),
-        fq = pjoin(root, step2, "uncovering", "sspecific.fq")
-    output:
-        sam = pjoin(root, step2, "uncovering", f"sspecific.{samples[1]}.haps.sam")
-    threads: 8
-    log:
-        time = pjoin(root, step2, "uncovering", f"sspecific.{samples[1]}.haps.time"),
-        out = pjoin(root, step2, "uncovering", f"sspecific.{samples[1]}.haps.log")
-    shell:
-        """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        python3 scripts/plot.py albyerr {input.bam1} {input.bam2} {input.fq} {output.png}
         """

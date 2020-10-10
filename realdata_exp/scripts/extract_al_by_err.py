@@ -5,7 +5,14 @@ import pysam
 
 def main():
     bampath = sys.argv[1]
-    nerr = int(sys.argv[2])
+
+    nerr = sys.argv[2]
+    exact = True
+    if nerr.startswith('>'):
+        exact = False
+        nerr = nerr[1:]
+    nerr = int(nerr)
+
     out_fmt = sys.argv[3] if len(sys.argv) == 4 else "sam"
 
     good_als = 0
@@ -16,7 +23,7 @@ def main():
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
-        if bad_bases + deletions == nerr:
+        if (exact and bad_bases + deletions == nerr) or (not exact and bad_bases + deletions > nerr):
             good_als += 1
             if out_fmt == "sam":
                 print(al.tostring(bam))
