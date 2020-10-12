@@ -3,7 +3,7 @@ import sys
 import pysam
 
 """
-"bedtools bamtobed" cannot set the quality to #errors+#clips (it's more convenient for analysis)
+"bedtools bamtobed" cannot set the quality to #errors+#deletions+#clips
 """
 
 def main():
@@ -19,8 +19,10 @@ def main():
 
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
+        deletions = al.get_cigar_stats()[0][2]
 
-        print(ref, al_start, al_end, ridx, bad_bases, strand, sep='\t')
+        errors = bad_bases+deletions
+        print(ref, al_start, al_end, ridx, errors, strand, sep='\t')
 
 if __name__ == "__main__":
     main()
