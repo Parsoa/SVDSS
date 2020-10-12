@@ -119,7 +119,7 @@ string Shifter::shift_coordinate(string chrom, int pos) {
     for (auto it: offsets[chrom]) {
         if (it.first > pos) {
             //return pos + offset ;
-            return std::to_string(pos - offset) + "\t" + std::to_string(it.first) ;
+            return std::to_string(pos - offset) ;
         }
         offset = it.second ;
     }

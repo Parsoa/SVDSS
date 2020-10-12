@@ -49,3 +49,6 @@ src/cpp/*.out
 !example/child.fq
 !example/child_specific.overlapping.fq
 !example/child_specific.non_overlapping.fq
+
+*~
+.snakemake

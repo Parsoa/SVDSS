@@ -1,6 +1,8 @@
+#include <omp.h>
 #include <string>
 #include <cstdlib>
 #include <cstdint>
+#include <sstream>
 #include <fstream>
 #include <iomanip>
 #include <stdio.h>
@@ -49,6 +51,49 @@ int main(int argc, char** argv) {
                 cout << chrom->first << ": Found at " << s - chromosome_seqs[chrom->first] << endl ;
             }
         }
+        exit(0) ;
+    }
+    if (strcmp(argv[1], "bedsearch") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        load_chromosomes(c->reference) ;
+        std::ifstream bed_file(c->bed) ;
+        std::string line ;
+        vector<string> lines ;
+        while (std::getline(bed_file, line)) {
+            istringstream iss(line) ;
+            vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
+            lines.push_back(tokens[3]) ;
+        }
+        vector<int> n ;
+        vector<int> m ;
+        for(int i = 0; i < 48; i++) {
+            n.push_back(0) ;
+            m.push_back(0) ;
+        }
+        cout << "Searching for " << lines.size() << " sequences.." << endl ;
+        #pragma omp parallel for num_threads(48)
+        for (int i = 0; i < lines.size(); i++) {
+            int t = omp_get_thread_num() ;
+            char* s = nullptr ;
+            for (auto chrom = chromosome_seqs.begin(); chrom != chromosome_seqs.end(); chrom++) {
+                s = strstr(chromosome_seqs[chrom->first], lines[i].c_str()) ;
+                if (s != nullptr) {
+                    m[t] += 1 ;
+                    break ;
+                }
+            }
+            n[t] += 1 ;
+            //if (n[t] % 10 == 0) {
+            //    cout << t << " @ " << n[t] << " found " << m[t] << endl ;
+            //}
+        }
+        int _n ;
+        int _m ;
+        for(int i = 0; i < 48; i++) {
+            _n += n[i] ;
+            _m += m[i] ;
+        }
+        cout << "Found " << _m << " out of " << _n << endl ;
         exit(0) ;
     }
     c->parse(argc - 1, argv + 1) ;

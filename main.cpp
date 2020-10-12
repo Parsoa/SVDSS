@@ -192,6 +192,8 @@ void ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& so
         }
         // overlapping version:
         //begin = end - 1 ;
+	// non-overlapping version:
+        --begin;
     }
     DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
     delete[] seq ;
@@ -668,6 +670,7 @@ int main(int argc, char *argv[]) {
         retcode = main_index(argc - 1, argv + 1);
     } else if (mode == "sf3") {
         retcode = search_f3(argc - 1, argv + 1) ;
+        retcode = 0 ;
     } else if (mode == "cf3") {
         retcode = check_f3(argc - 1, argv + 1) ;
     } else if (mode == "query") {

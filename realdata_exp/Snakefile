@@ -1,0 +1,380 @@
+configfile: "config.yml"
+
+import os
+from os.path import join as pjoin
+
+wdir = os.getcwd()
+
+root = config["root"]
+samples = config["samples"]
+ref = pjoin(root, config["ref"])
+kvars = pjoin(root, config["vcf"])
+
+"""
+snakeroot
+|-- CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.all_variants.genotypes.vcf.gz
+|-- CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.all_variants.genotypes.vcf.gz.tbi
+|-- HG00733_assembly1.fa
+|-- HG00733_assembly2.fa
+|-- HG00733.fq
+|-- hg38.chroms.fa
+|-- g38.chroms.fa.fai
+|-- NA19240_assembly1.fa
+|-- NA19240_assembly2.fa
+'-- NA19240.fq
+"""
+
+min_ab = 5
+max_l = 500
+
+pp = "pp"
+step1 = "step1"
+step2 = "step2"
+
+rule run:
+    input:
+        # pre
+        pjoin(root, "samples.len.png"),
+        # pp
+        pjoin(root, pp, "sspecific.correlation.png"),
+        # STEP 1
+        pjoin(root, step1, "al_by_errors.png"),
+        pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.pmatches.fa")
+        # STEP 2
+        pjoin(root, step2, "recbylen.png"),
+        pjoin(root, step2, "covering_plot.png")
+
+### utils ###
+rule fa2fq:
+    input:
+        "{fpath}.fa"
+    output:
+        "{fpath}.fq"
+    threads: 1
+    shell:
+        """
+        reformat.sh in={input} out={output} qfake=93
+        """
+
+rule sam2bam:
+    input:
+        sam = "{fpath}.sam"
+    output:
+        bam = "{fpath}.bam",
+        bai = "{fpath}.bam.bai"
+    threads: 1
+    shell:
+        """
+        samtools view -bS {input.sam} | samtools sort > {output.bam}
+        samtools index {output.bam}
+        """
+
+rule bam2bed:
+    input:
+        "{fpath}.bam"
+    output:
+        "{fpath}.bam.bed"
+    shell:
+        """
+        python3 scripts/bam2bed.py {input} > {output}
+        """
+
+rule plot_samples_len:
+    input:
+        fq1 = pjoin(root, f"{samples[1]}.fq"),
+        fq2 = pjoin(root, f"{samples[0]}.fq")
+    output:
+        pjoin(root, "samples.len.png")
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py lsamples {input.fq1} {input.fq2} {output}
+        """
+
+### PING-PONG (pp) PIPELINE ###
+rule nthits:
+    input:
+        sample = pjoin(root, "{sample}.fq")
+    output:
+        bf = pjoin(root, pp, "{sample}_nt_k31.bf")
+    params:
+        out_prefix = pjoin(root, pp, "{sample}_nt")
+    log:
+        time = pjoin(root, pp, "{sample}_nthits.time"),
+        out = pjoin(root, pp, "{sample}_nthits.log")
+    threads: 8
+    shell:
+        """
+        /usr/bin/time -vo {log.time} nthits -t {threads} -k 31 -c 2 -b 36 --outbloom -p {params.out_prefix} {input.sample} &> {log.out}
+        """
+
+rule ntedits:
+    input:
+        sample = pjoin(root, "{sample}.fq"),
+        bf = pjoin(root, pp, "{sample}_nt_k31.bf")
+    output:
+        out_prefix = pjoin(root, pp, "{sample}_nt_edited.fa")
+    params:
+        out_prefix = pjoin(root, pp, "{sample}_nt")
+    log:
+        time = pjoin(root, pp, "{sample}_ntedit.time"),
+        out = pjoin(root, pp, "{sample}_ntedit.log")
+    threads: 8
+    shell:
+        """
+        /usr/bin/time -vo {log.time} ntedit -t {threads} -f {input.sample} -r {input.bf} -b {params.out_prefix} &> {log.out}
+        """
+
+rule pp_index:
+    input:
+        pjoin(root, pp, f"{samples[0]}_nt_edited.fq")
+    output:
+        pjoin(root, pp, f"{samples[0]}_nt_edited.fq.fmd")
+    params:
+        bin = pjoin(wdir, "..", "main")
+    threads: 4
+    log:
+        time = pjoin(root, pp, f"index.time"),
+        out = pjoin(root, pp, f"index.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} {params.bin} index {input} > {output} 2> {log.out}
+        """
+
+rule pp_search:
+    input:
+        index = pjoin(root, pp, f"{samples[0]}_nt_edited.fq.fmd"),
+        sample = pjoin(root, pp, f"{samples[1]}_nt_edited.fq")
+    output:
+        directory(pjoin(root, pp, "sspecific"))
+    params:
+        bin = pjoin(wdir, "..", "main")
+    threads: 8
+    log:
+        time = pjoin(root, pp, "search.time"),
+        out = pjoin(root, pp, "search.log")
+    shell:
+        """
+        mkdir -p {output}
+        pushd {output}  &> /dev/null
+        /usr/bin/time -vo {log.time} {params.bin} sf3 {input.index} {input.sample} {threads} &> {log.out}
+        popd &> /dev/null
+        """
+
+rule aggregate:
+    input:
+        indir = pjoin(root, pp, "sspecific")
+    output:
+        fq = pjoin(root, pp, "sspecific.fq")
+    threads: 1
+    shell:
+        """
+        ./scripts/aggregate {input.indir} > {output.fq}
+        """
+
+rule filter:
+    input:
+        pjoin(root, pp, "sspecific.fq")
+    output:
+        pjoin(root, pp, "sspecific.minab_{min_ab}.maxl_{max_l}.fq")
+    params:
+        ab = min_ab,
+        l = max_l
+    threads: 1
+    shell:
+        """
+        ./scripts/filter la {input} {params.ab} {params.l} > {output}
+        """
+
+rule plot_correlation:
+    input:
+        pjoin(root, pp, "sspecific.fq")
+    output:
+        pjoin(root, pp, "sspecific.correlation.png")
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py corr {input} {output}
+        """
+        
+### STEP 1: mapping to assemblies ###
+rule combine_assemblies:
+    input:
+        fa1 = pjoin(root, "{sample}_assembly1.fa"),
+        fa2 = pjoin(root, "{sample}_assembly2.fa")
+    output:
+        pjoin(root, step1, "{sample}_assembly.fa")
+    shell:
+        """
+        cat {input.fa1} {input.fa2} | reformat.sh in=stdin.fa out={output} uniquenames=t
+        """
+
+rule bbmap_index_1:
+    input:
+        pjoin(root, step1, "{sample}_assembly.fa")
+    output:
+        directory(pjoin(root, step1, "{sample}_assembly.bbmapindex"))
+    threads: 16
+    log:
+        time = pjoin(root, step1, "{sample}_assembly.bbmapindex.time"),
+        out= pjoin(root, step1, "{sample}_assembly.bbmapindex.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
+        """
+
+rule bbmap_align_1:
+    input:
+        index = pjoin(root, step1, "{sample}_assembly.bbmapindex"),
+        fq = pjoin(root, pp, "sspecific.minab_{min_ab}.maxl_{max_l}.fq")
+    output:
+        sam = pjoin(root, step1, "sspecific.minab_{min_ab}.maxl_{max_l}.{sample}.sam")
+    threads: 16
+    log:
+        time = pjoin(root, step1, "sspecific.minab_{min_ab}.maxl_{max_l}.{sample}.time"),
+        out = pjoin(root, step1, "sspecific.minab_{min_ab}.maxl_{max_l}.{sample}.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        """
+
+rule plot_step1:
+    input:
+        bam1 = pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[1]}.bam"),
+        bam2 = pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.bam"),
+        fq = pjoin(root, pp, f"sspecific.minab_{min_ab}.maxl_{max_l}.fq")
+    output:
+        png = pjoin(root, step1, "al_by_errors.png")
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py albyerr {input.bam1} {input.bam2} {input.fq} {output.png}
+        """
+
+rule extract_pmatches:
+    input:
+        sam = pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.sam")
+    output:
+        fa = pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.pmatches.fa")
+    params:
+        sam = pjoin(root, step1, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[0]}.pmatches.sam")
+    threads: 1
+    shell:
+        """
+        grep "^@" {input.sam} > {params.sam}
+        grep -v "^@" {input.sam} | grep "YI:f:100" >> {params.sam}
+        samtools fasta {params.sam} > {output.fa}
+        """
+
+### STEP 2: mapping to haplotypes + checking overlaps with known variants ###
+rule build_haplotype:
+    input:
+        fa = ref,
+        vcf = kvars
+    output:
+        fa = pjoin(root, step2, "{sample}.hap{h}.fa")
+    threads: 1
+    shell:
+        """
+        bcftools consensus -s {wildcards.sample} -H {wildcards.h} -f {input.fa} {input.vcf} > {output.fa}
+        """
+
+rule combine_haplotypes:
+    input:
+        fa1 = pjoin(root, step2, "{sample}.hap1.fa"),
+        fa2 = pjoin(root, step2, "{sample}.hap2.fa")
+    output:
+        fa = pjoin(root, step2, "{sample}_haplotypes.fa")
+    threads: 1
+    shell:
+        """
+        cat {input.fa1} {input.fa2} | reformat.sh in=stdin.fa out={output} uniquenames=t
+        """
+
+rule bbmap_index_2:
+    input:
+        pjoin(root, step2, "{sample}_haplotypes.fa")
+    output:
+        directory(pjoin(root, step2, "{sample}_haplotypes.bbmapindex"))
+    threads: 16
+    log:
+        time = pjoin(root, step2, "{sample}_haplotypes.bbmapindex.time"),
+        out= pjoin(root, step2, "{sample}_haplotypes.bbmapindex.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ref={input} path={output} &> {log.out}
+        """
+
+rule bbmap_align_2:
+    input:
+        index = pjoin(root, step2, "{sample}_haplotypes.bbmapindex"),
+        fq = pjoin(root, pp, "sspecific.minab_{min_ab}.maxl_{max_l}.fq")
+    output:
+        sam = pjoin(root, step2, "sspecific.minab_{min_ab}.maxl_{max_l}.{sample}.sam")
+    threads: 16
+    log:
+        time = pjoin(root, step2, "sspecific.minab_{min_ab}.maxl_{max_l}.{sample}.time"),
+        out = pjoin(root, step2, "sspecific.minab_{min_ab}.maxl_{max_l}.{sample}.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        """
+
+rule vcf2haplobeds:
+    input:
+        vcf = kvars
+    output:
+        pjoin(root, step2, f"{samples[1]}_uniquevars_1.bed"),
+        pjoin(root, step2, f"{samples[1]}_uniquevars_2.bed")
+    params:
+        sample1 = samples[1],
+        sample2 = samples[0],
+        out_prefix = pjoin(root, step2, f"{samples[1]}_uniquevars")
+    shell:
+        """
+        python3 scripts/vcf2uniquehaplobeds.py {input.vcf} {params.sample1} {params.sample2} {params.out_prefix}
+        """
+
+rule intersect_beds:
+    input:
+        aligns = pjoin(root, step2, f"sspecific.minab_{min_ab}.maxl_{max_l}.{samples[1]}.bam.bed"),
+        vars1 = pjoin(root, step2, f"{samples[1]}_uniquevars_1.bed"),
+        vars2 = pjoin(root, step2, f"{samples[1]}_uniquevars_2.bed")
+    output:
+        o1 = pjoin(root, step2, "bedintersect", "bed1_vs_bam.c.bed"),
+        o2 = pjoin(root, step2, "bedintersect", "bed2_vs_bam.c.bed"),
+        o3 = pjoin(root, step2, "bedintersect", "bam_vs_bed1.c.bed"),
+        o4 = pjoin(root, step2, "bedintersect", "bam_vs_bed2.c.bed")
+    threads: 1
+    shell:
+        """
+        bedtools intersect -c -a {input.vars1} -b {input.aligns} > {output.o1}
+        bedtools intersect -c -a {input.vars2} -b {input.aligns} > {output.o2}
+        bedtools intersect -c -a {input.aligns} -b {input.vars1} > {output.o3}
+        bedtools intersect -c -a {input.aligns} -b {input.vars2} > {output.o4}
+        """
+
+rule analyze_step2:
+    # TODO split in multiple rules
+    input:
+        i1 = pjoin(root, step2, "bedintersect", "bed1_vs_bam.c.bed"),
+        i2 = pjoin(root, step2, "bedintersect", "bed2_vs_bam.c.bed"),
+        i3 = pjoin(root, step2, "bedintersect", "bam_vs_bed1.c.bed"),
+        i4 = pjoin(root, step2, "bedintersect", "bam_vs_bed2.c.bed")
+    output:
+        png1 = pjoin(root, step2, "recbylen.png"),
+        png2 = pjoin(root, step2, "covering_plot.png")
+    params:
+        reclist = pjoin(root, step2, "recall.list.txt"),
+        rec = pjoin(root, step2, "recall.csv"),
+        prec = pjoin(root, step2, "precision.csv"),
+        lvalue = 250
+    threads: 1
+    shell:
+        """
+        python3 scripts/compare_beds.py rec {input.i1} {input.i2} > {params.reclist}
+        python3 scripts/compute_recall.py {output.rec} {params.lvalue} > {params.rec}
+        python3 scripts/compare_beds.py pre {input.i3} {input.i4} > {params.prec}
+        python3 scripts/plot.py recbylen {params.rec} {output.png1}
+        python3 scripts/plot.py covplot {input.i3} {input.i4} {output.png2}
+        """

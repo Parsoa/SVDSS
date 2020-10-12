@@ -3,5 +3,7 @@ colorama
 plotly
 pysam
 numpy
-suffix-trees
-msbwt
+biopython
+pandas
+seaborn
+matplotlib

@@ -1,0 +1,6 @@
+root: /pasteur/projets/policy02/seqbio/luca/recomb2021real_snakeroot
+samples:
+  - NA19240
+  - HG00733
+ref: hg38.chroms.fa
+vcf: CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.all_variants.genotypes.vcf.gz

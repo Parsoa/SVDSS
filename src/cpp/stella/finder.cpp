@@ -61,6 +61,7 @@ void Finder::dump_sequences() {
 
     ofstream mapped_bed(c->workdir + "/" + c->type + "_mapped.bed") ;
     ofstream mapped_fasta(c->workdir + "/" + c->type + "_mapped.fasta") ;
+    ofstream mapped_bed_seqs(c->workdir + "/" + c->type + "_mapped.seqs.bed") ;
 
     ofstream unmapped_bed(c->workdir + "/" + c->type + "_unmapped.bed") ;
     ofstream unmapped_fasta(c->workdir + "/" + c->type + "_unmapped.fasta") ;
@@ -73,17 +74,18 @@ void Finder::dump_sequences() {
         auto match = shifter.find(locus.chrom, locus.position, it->first.length()) ;
         if (match != nullptr) {
             auto& track = *match ;
+            auto pos = shifter.shift_coordinate(locus.chrom, locus.position) ;
             if (mapped_tracks.find(track) == mapped_tracks.end()) {
                 m += 1 ;
                 mapped_tracks[track] = 0 ;
-                mapped_bed << track.chrom << "\t" << track.begin << "\t" << track.end << "\t" << it->first << "\t" << locus.count << "\t" << locus.position << endl ;
-                //
-                mapped_fasta << ">" << locus.chrom << "_" << locus.position << endl ; 
-                mapped_fasta << it->first << endl ;
+                mapped_bed << track.chrom << "\t" << track.begin << "\t" << track.end << "\t" << it->first << "\t" << locus.count << "\t" << locus.position << "\t" << pos << endl ;
             }
+            mapped_fasta << ">" << locus.chrom << "_" << locus.position << endl ; 
+            mapped_fasta << it->first << endl ;
+            mapped_bed_seqs << track.chrom << "\t" << track.begin << "\t" << track.end << "\t" << it->first << "\t" << locus.count << "\t" << locus.position << endl ;
         } else {
             auto pos = shifter.shift_coordinate(locus.chrom, locus.position) ;
-            unmapped_bed << locus.chrom << "\t" << locus.position << "\t" << pos << "\t" << locus.count << "\t" << it->first << endl ;
+            unmapped_bed << locus.chrom << "\t" << locus.position << "\t" << pos << "\t" << it->first << "\t" << locus.count << endl ;
             // FASTQ file
             unmapped_fastq << "@" << locus.chrom << "_" << locus.position << endl ;
             unmapped_fastq << it->first << endl ;
