@@ -37,72 +37,40 @@ sspecific_prefix = f"sspecific.minab_{min_ab}.maxl_{max_l}"
 
 rule run:
     input:
-        # pre
+        # preanalysis
         pjoin(root, "samples.len.png"),
-        # pp
+        # ping-pong (pp) pipeline
         pjoin(root, pp, "sspecific.correlation.png"),
-        # STEP 1
+        # STEP 1 - contigs
         pjoin(root, step1, "al_by_errors.png"),
-        pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.pmatches.fa"),
-        pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.notpmatches.fa"),
-        pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.nal.png"),
-        pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.nal.png"),
-        # STEP 2
-        pjoin(root, step2, "recbylen.png"),
+        pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa"),
+        pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa"),
+        pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.nal.png"),
+        pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.nal.png"),
+        pjoin(root, step1, "new_precision.csv"),
+        # STEP 1.1 - repeatmasker
+        pjoin(root, step1, "repmask_hg.tbl"),
+        pjoin(root, step1, "repmask_hg.png"),
+        pjoin(root, step1, "repmask_na.tbl"),
+        pjoin(root, step1, "repmask_na.png"),
+        # STEP 2 - haplotypes
+        pjoin(root, step2, "recall.csv"),
+        pjoin(root, step2, "precision.csv"),
+        pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.nal.png"),
+        # Step 2b - uncovering
         pjoin(root, step2, "covering_plot.png"),
-        pjoin(root, step2, f"{sspecific_prefix}.{samples[1]}.nal.png"),
-        pjoin(root, step2, "sspecific_uncovering.al_by_errors.png")
+        # General stats
+        pjoin(root, "stats.txt")
+
+
+# pjoin(root, step2, "recbylen.png"),
 
 
 
-### utils ###
-rule fa2fq:
-    input:
-        "{fpath}.fa"
-    output:
-        "{fpath}.fq"
-    threads: 1
-    shell:
-        """
-        reformat.sh in={input} out={output} qfake=93
-        """
 
-rule sam2bam:
-    input:
-        sam = "{fpath}.sam"
-    output:
-        bam = "{fpath}.bam",
-        bai = "{fpath}.bam.bai"
-    threads: 1
-    shell:
-        """
-        samtools view -bS {input.sam} | samtools sort > {output.bam}
-        samtools index {output.bam}
-        """
-
-rule bam2bed:
-    input:
-        "{fpath}.bam"
-    output:
-        "{fpath}.bam.bed"
-    shell:
-        """
-        python3 scripts/bam2bed.py {input} > {output}
-        """
-
-rule plot_samples_len:
-    input:
-        fq1 = pjoin(root, f"{samples[1]}.fq"),
-        fq2 = pjoin(root, f"{samples[0]}.fq")
-    output:
-        pjoin(root, "samples.len.png")
-    threads: 1
-    shell:
-        """
-        python3 scripts/plot.py lsamples {input.fq1} {input.fq2} {output}
-        """
-
+###############################
 ### PING-PONG (pp) PIPELINE ###
+###############################
 rule nthits:
     input:
         sample = pjoin(root, "{sample}.fq")
@@ -177,10 +145,12 @@ rule aggregate:
         indir = pjoin(root, pp, "sspecific")
     output:
         fq = pjoin(root, pp, "sspecific.fq")
+    log:
+        pjoin(root, pp, "aggregate.log")
     threads: 1
     shell:
         """
-        ./scripts/aggregate {input.indir} > {output.fq}
+        ./scripts/aggregate {input.indir} > {output.fq} 2> {log}
         """
 
 rule filter:
@@ -208,7 +178,13 @@ rule plot_correlation:
         python3 scripts/plot.py corr {input} {output}
         """
 
+
+
+
+
+##################################
 ### STEP 1: mapping to contigs ###
+##################################
 rule combine_contigs:
     input:
         fa1 = pjoin(root, "{sample}_assembly1.fa"),
@@ -249,24 +225,34 @@ rule bbmap_align_contigs:
         /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
         """
 
+rule clean_bbmap_1:
+    input:
+        sam = pjoin(root, step1, f"{sspecific_prefix}." + "{sample}.sam")
+    output:
+        sam = pjoin(root, step1, f"{sspecific_prefix}.cleared." + "{sample}.sam")
+    shell:
+        """
+        python3 scripts/remove_bad_ambiguous.py {input.sam} > {output.sam}
+        """
+
 rule plot_step1:
     input:
-        bam1 = pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.bam"),
-        bam2 = pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.bam"),
+        sam1 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+        sam2 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam"),
         fq = pjoin(root, pp, f"{sspecific_prefix}.fq")
     output:
         png = pjoin(root, step1, "al_by_errors.png")
     threads: 1
     shell:
         """
-        python3 scripts/plot.py albyerr {input.bam1} {input.bam2} {input.fq} {output.png}
+        python3 scripts/plot.py albyerr {input.sam1} {input.sam2} {input.fq} {output.png}
         """
 
 rule plot_nalign_bar_1:
     input:
-        sam = pjoin(root, step1, f"{sspecific_prefix}." + "{sample}.sam")
+        sam = pjoin(root, step1, f"{sspecific_prefix}.cleared." + "{sample}.sam")
     output:
-        png = pjoin(root, step1, f"{sspecific_prefix}." + "{sample}.nal.png")
+        png = pjoin(root, step1, f"{sspecific_prefix}.cleared." + "{sample}.nal.png")
     threads: 1
     shell:
         """
@@ -275,9 +261,9 @@ rule plot_nalign_bar_1:
 
 rule extract_pmatches_NA:
     input:
-        sam = pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.sam")
+        sam = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam")
     output:
-        fa = pjoin(root, step1, f"{sspecific_prefix}.{samples[0]}.pmatches.fa")
+        fa = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa")
     threads: 1
     shell:
         """
@@ -286,16 +272,97 @@ rule extract_pmatches_NA:
 
 rule extract_notpmatches_HG:
     input:
-        sam = pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.sam")
+        sam = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.sam")
     output:
-        fa = pjoin(root, step1, f"{sspecific_prefix}.{samples[1]}.notpmatches.fa")
+        fa = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa")
     threads: 1
     shell:
         """
-        python3 scripts/extract_al_by_err.py {input.sam} >0 fa > {output.fa}
+        python3 scripts/extract_al_by_err.py {input.sam} g0 fa > {output.fa}
         """
 
+rule analyze_step1_precision:
+    input:
+        sam1 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+        sam2 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam"),
+        fq = pjoin(root, pp, f"{sspecific_prefix}.fq")
+    output:
+        txt = pjoin(root, step1, "new_precision.csv")
+    threads: 1
+    shell:
+        """
+        python3 scripts/analyze.py newpre {input.sam1} {input.sam2} {input.fq} > {output.txt}
+        """
+
+rule repmask_HG:
+    input:
+        fa = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa")
+    output:
+        pjoin(root, step1, "repmask_hg", f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa.masked"),
+        pjoin(root, step1, "repmask_hg", f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa.out")
+    params:
+        fold = pjoin(root, step1, "repmask_hg")
+    log:
+        out = pjoin(root, step1, "repmask_hg.log")
+    threads: thrs
+    shell:
+        """
+        RepeatMasker -e rmblast -pa {threads} -species human -dir {params.fold} {input.fa} &> {log.out}
+        """
+
+rule plot_repmask_HG:
+    input:
+        fa = pjoin(root, step1, "repmask_hg", f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa.masked"),
+        rm_out = pjoin(root, step1, "repmask_hg", f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa.out")
+    output:
+        tbl = pjoin(root, step1, "repmask_hg.tbl"),
+        png = pjoin(root, step1, "repmask_hg.png")
+    params:
+        minL = 0 # hardcoded
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py repmask {input.fa} {input.rm_out} {output.png} {params.minL} > {output.tbl}
+        """
+
+rule repmask_NA:
+    input:
+        fa = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa")
+    output:
+        pjoin(root, step1, "repmask_na", f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa.masked"),
+        pjoin(root, step1, "repmask_na", f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa.out")
+    params:
+        fold = pjoin(root, step1, "repmask_na")
+    log:
+        out = pjoin(root, step1, "repmask_na.log")
+    threads: thrs
+    shell:
+        """
+        RepeatMasker -e rmblast -pa {threads} -species human -dir {params.fold} {input.fa} &> {log.out}
+        """
+
+rule plot_repmask_NA:
+    input:
+        fa = pjoin(root, step1, "repmask_na", f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa.masked"),
+        rm_out = pjoin(root, step1, "repmask_na", f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa.out")
+    output:
+        tbl = pjoin(root, step1, "repmask_na.tbl"),
+        png = pjoin(root, step1, "repmask_na.png")
+    params:
+        minL = 0 # hardcoded
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py repmask {input.fa} {input.rm_out} {output.png} {params.minL} > {output.tbl}
+        """
+
+
+
+
+
+#############################################################################
 ### STEP 2: mapping to haplotypes + checking overlaps with known variants ###
+#############################################################################
 rule build_haplotype:
     input:
         fa = ref,
@@ -352,11 +419,21 @@ rule bbmap_align_haplotypes:
         /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
         """
 
-rule plot_nalign_bar_2:
+rule clean_bbmap_2:
     input:
         sam = pjoin(root, step2, f"{sspecific_prefix}.{samples[1]}.sam")
     output:
-        png = pjoin(root, step2, f"{sspecific_prefix}.{samples[1]}.nal.png")
+        sam = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam")
+    shell:
+        """
+        python3 scripts/remove_bad_ambiguous.py {input.sam} > {output.sam}
+        """
+
+rule plot_nalign_bar_2:
+    input:
+        sam = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam")
+    output:
+        png = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.nal.png")
     threads: 1
     shell:
         """
@@ -378,16 +455,16 @@ rule vcf2haplobeds:
         python3 scripts/vcf2uniquehaplobeds.py {input.vcf} {params.sample1} {params.sample2} {params.out_prefix}
         """
 
-rule intersect_beds:
+rule intersect_beds_c:
     input:
-        aligns = pjoin(root, step2, f"{sspecific_prefix}.{samples[1]}.bam.bed"),
+        aligns = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam.bed"),
         vars1 = pjoin(root, step2, f"{samples[1]}_uniquevars_1.bed"),
         vars2 = pjoin(root, step2, f"{samples[1]}_uniquevars_2.bed")
     output:
-        o1 = pjoin(root, step2, "bedintersect", "bed1_vs_bam.c.bed"),
-        o2 = pjoin(root, step2, "bedintersect", "bed2_vs_bam.c.bed"),
-        o3 = pjoin(root, step2, "bedintersect", "bam_vs_bed1.c.bed"),
-        o4 = pjoin(root, step2, "bedintersect", "bam_vs_bed2.c.bed")
+        o1 = pjoin(root, step2, "bedintersect", "bed1_vs_sam.c.bed"),
+        o2 = pjoin(root, step2, "bedintersect", "bed2_vs_sam.c.bed"),
+        o3 = pjoin(root, step2, "bedintersect", "sam_vs_bed1.c.bed"),
+        o4 = pjoin(root, step2, "bedintersect", "sam_vs_bed2.c.bed")
     threads: 1
     shell:
         """
@@ -397,80 +474,205 @@ rule intersect_beds:
         bedtools intersect -c -a {input.aligns} -b {input.vars2} > {output.o4}
         """
 
+rule intersect_beds_wb:
+    input:
+        aligns = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam.bed"),
+        vars1 = pjoin(root, step2, f"{samples[1]}_uniquevars_1.bed"),
+        vars2 = pjoin(root, step2, f"{samples[1]}_uniquevars_2.bed")
+    output:
+        o1 = pjoin(root, step2, "bedintersect", "bed1_vs_sam.wao.bed"),
+        o2 = pjoin(root, step2, "bedintersect", "bed2_vs_sam.wao.bed"),
+        o3 = pjoin(root, step2, "bedintersect", "sam_vs_bed1.wao.bed"),
+        o4 = pjoin(root, step2, "bedintersect", "sam_vs_bed2.wao.bed")
+    threads: 1
+    shell:
+        """
+        bedtools intersect -wao -a {input.vars1} -b {input.aligns} > {output.o1}
+        bedtools intersect -wao -a {input.vars2} -b {input.aligns} > {output.o2}
+        bedtools intersect -wao -a {input.aligns} -b {input.vars1} > {output.o3}
+        bedtools intersect -wao -a {input.aligns} -b {input.vars2} > {output.o4}
+        """
+
 rule analyze_step2:
     # TODO split in multiple rules
     input:
-        i1 = pjoin(root, step2, "bedintersect", "bed1_vs_bam.c.bed"),
-        i2 = pjoin(root, step2, "bedintersect", "bed2_vs_bam.c.bed"),
-        i3 = pjoin(root, step2, "bedintersect", "bam_vs_bed1.c.bed"),
-        i4 = pjoin(root, step2, "bedintersect", "bam_vs_bed2.c.bed")
+        i1 = pjoin(root, step2, "bedintersect", "bed1_vs_sam.c.bed"),
+        i2 = pjoin(root, step2, "bedintersect", "bed2_vs_sam.c.bed"),
+        i3 = pjoin(root, step2, "bedintersect", "sam_vs_bed1.c.bed"),
+        i4 = pjoin(root, step2, "bedintersect", "sam_vs_bed2.c.bed")
     output:
-        png1 = pjoin(root, step2, "recbylen.png"),
-        png2 = pjoin(root, step2, "covering_plot.png")
+        rec = pjoin(root, step2, "recall.csv"),
+        prec = pjoin(root, step2, "precision.csv")
+        # png2 = pjoin(root, step2, "recbylen.png")
     params:
         reclist = pjoin(root, step2, "recall.list.txt"),
-        rec = pjoin(root, step2, "recall.csv"),
-        prec = pjoin(root, step2, "precision.csv"),
         lvalue = 250
     threads: 1
     shell:
         """
-        python3 scripts/compare_beds.py rec {input.i1} {input.i2} > {params.reclist}
-        python3 scripts/compute_recall.py {params.reclist} {params.lvalue} > {params.rec}
-        python3 scripts/compare_beds.py pre {input.i3} {input.i4} > {params.prec}
-        python3 scripts/plot.py recbylen {params.reclist} {output.png1}
-        python3 scripts/plot.py cov {input.i3} {input.i4} {output.png2}
+        python3 scripts/analyze.py reclist {input.i1} {input.i2} > {params.reclist}
+        python3 scripts/analyze.py rec {params.reclist} {params.lvalue} > {output.rec}
+        python3 scripts/analyze.py pre {input.i3} {input.i4} > {output.prec}
         """
+# python3 scripts/plot.py recbylen {params.reclist} {output.png1}
 
 
 
-### ANALYSIS ON SPECIFIC STRINGS DO NOT COVERING A KNOWN VARIATIONS ###
 
+
+################################################################
+### Step 2b: specific strings not covering a known variation ###
+################################################################
 rule extract_uncovering:
     input:
-        bed1 = pjoin(root, step2, "bedintersect", "bam_vs_bed1.c.bed"),
-        bed2 = pjoin(root, step2, "bedintersect", "bam_vs_bed2.c.bed")
+        bed1 = pjoin(root, step2, "bedintersect", "sam_vs_bed1.c.bed"),
+        bed2 = pjoin(root, step2, "bedintersect", "sam_vs_bed2.c.bed")
     output:
-        txt = pjoin(root, step2, "sspecific_uncovering.txt")
+        txt = pjoin(root, step2, "uncovering", "sspecific.txt")
     threads: 1
     shell:
         """
-        python3 scripts/compare_beds.py exunc {input.bed1} {input.bed2} > {output.txt}
+        python3 scripts/analyze.py exunc {input.bed1} {input.bed2} > {output.txt}
         """
 
 rule extract_uncovering_fq:
     input:
-        txt = pjoin(root, step2, "sspecific_uncovering.txt")
+        bed1 = pjoin(root, step2, "bedintersect", "sam_vs_bed1.c.bed"),
+        bed2 = pjoin(root, step2, "bedintersect", "sam_vs_bed2.c.bed"),
+        fq = pjoin(root, pp, f"{sspecific_prefix}.fq")
     output:
-        fq = pjoin(root, step2, "sspecific_uncovering.fake.fq")
+        fq = pjoin(root, step2, "uncovering", "sspecific.fq")
     threads: 1
     shell:
         """
-        while read line ; do ; echo -e ">${{line}}\nA\n+\n~" ; done < {input.txt} > {output.fq}
+        python3 scripts/analyze.py exunc {input.bed1} {input.bed2} {input.fq} > {output.fq}
         """
         
 
 rule extract_uncovering_alignment_contigs:
     input:
-        bam = pjoin(root, step1, f"{sspecific_prefix}." + "{sample}.bam"),
-        txt = pjoin(root, step2, "sspecific_uncovering.txt")
+        sam = pjoin(root, step1, f"{sspecific_prefix}.cleared." + "{sample}.sam"),
+        txt = pjoin(root, step2, "uncovering", "sspecific.txt")
     output:
-        sam = pjoin(root, step2, "sspecific_uncovering.{sample}.sam")
+        sam = pjoin(root, step2, "uncovering", "sspecific.{sample}.sam")
     threads: 1
     shell:
         """
-        python3 scripts/compare_beds.py exunc {input.bam} {input.txt} > {output.sam}
+        python3 scripts/extract_subsam.py {input.sam} {input.txt} > {output.sam}
         """
 
 rule plot_uncovering_al_by_err:
     input:
-        bam1 = pjoin(root, step2, f"sspecific_uncovering.{samples[1]}.sam"),
-        bam2 = pjoin(root, step2, f"sspecific_uncovering.{samples[0]}.sam"),
-        fq = pjoin(root, step2, "sspecific_uncovering.fake.fq")
+        i3 = pjoin(root, step2, "bedintersect", "sam_vs_bed1.c.bed"),
+        i4 = pjoin(root, step2, "bedintersect", "sam_vs_bed2.c.bed"),
+        sam1 = pjoin(root, step2, "uncovering", f"sspecific.{samples[1]}.sam"),
+        sam2 = pjoin(root, step2, "uncovering", f"sspecific.{samples[0]}.sam")
     output:
-        png = pjoin(root, step2, "sspecific_uncovering.al_by_errors.png")
+        png = pjoin(root, step2, "covering_plot.png")
     threads: 1
     shell:
         """
-        python3 scripts/plot.py albyerr {input.bam1} {input.bam2} {input.fq} {output.png}
+        python3 scripts/plot.py cov {input.i3} {input.i4} {input.sam1} {input.sam2} {output.png}
+        """
+
+rule bbmap_index_reference:
+    input:
+        pjoin(root, "hg38.chroms.fa")
+    output:
+        directory(pjoin(root, "hg38.chroms.fa.bbmapindex"))
+    threads: thrs
+    log:
+        time = pjoin(root, "hg38.chroms.fa.bbmapindex.time"),
+        out= pjoin(root, "hg38.chroms.fa.bbmapindex.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 ref={input} path={output} &> {log.out}
+        """
+
+rule bbmap_align_uncovering_to_reference:
+    input:
+        index = pjoin(root, "hg38.chroms.fa.bbmapindex"),
+        fq = pjoin(root, step2, "uncovering", "sspecific.fq")
+    output:
+        sam = pjoin(root, step2, "uncovering", "sspecific.sam")
+    threads: thrs
+    log:
+        time = pjoin(root, step2, "uncovering", "sspecific.time"),
+        out = pjoin(root, step2, "uncovering", "sspecific.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        """
+        
+
+
+
+
+#############
+### utils ###
+#############
+rule fa2fq:
+    input:
+        "{fpath}.fa"
+    output:
+        "{fpath}.fq"
+    threads: 1
+    shell:
+        """
+        reformat.sh in={input} out={output} qfake=93
+        """
+
+# rule sam2bam:
+#     input:
+#         sam = "{fpath}.sam"
+#     output:
+#         bam = "{fpath}.bam",
+#         bai = "{fpath}.bam.bai"
+#     threads: 1
+#     shell:
+#         """
+#         samtools view -bS {input.sam} | samtools sort > {output.bam}
+#         samtools index {output.bam}
+#         """
+
+rule sam2bed:
+    input:
+        "{fpath}.sam"
+    output:
+        "{fpath}.sam.bed"
+    shell:
+        """
+        python3 scripts/sam2bed.py {input} > {output}
+        """
+
+rule plot_samples_len:
+    input:
+        fq1 = pjoin(root, f"{samples[1]}.fq"),
+        fq2 = pjoin(root, f"{samples[0]}.fq")
+    output:
+        pjoin(root, "samples.len.png")
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py lsamples {input.fq1} {input.fq2} {output}
+        """
+
+rule get_stats:
+    input:
+        pjoin(root, pp, f"{sspecific_prefix}.fq"),
+        pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam"),
+        pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+        pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+        pjoin(root, step2, "uncovering", f"sspecific.{samples[1]}.sam"),
+        pjoin(root, step2, "uncovering", f"sspecific.{samples[0]}.sam")
+    output:
+        pjoin(root, "stats.txt")
+    params:
+        root
+    threads: 1
+    shell:
+        """
+        pushd scripts
+        bash get_stats.sh {params} > {output}
+        popd
         """

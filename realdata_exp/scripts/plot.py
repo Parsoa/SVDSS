@@ -90,6 +90,8 @@ def plot_nal_by_err():
     data1 = []
     bamfile1 = pysam.AlignmentFile(bampath1, "rb")
     for al in bamfile1.fetch():
+        if al.is_secondary or al.is_unmapped or al.is_supplementary:
+            continue
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
@@ -100,6 +102,8 @@ def plot_nal_by_err():
     data2 = []
     bamfile2 = pysam.AlignmentFile(bampath2, "rb")
     for al in bamfile2.fetch():
+        if al.is_secondary or al.is_unmapped or al.is_supplementary:
+            continue
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
@@ -131,76 +135,244 @@ def plot_nal_by_err():
     # plt.show()
 
 def plot_covering():
-    bed_path_1 = sys.argv[1]
-    bed_path_2 = sys.argv[2]
-    out_path = sys.argv[3]
+    bed1_path = sys.argv[1]
+    bed2_path = sys.argv[2]
+    sam1_path = sys.argv[3]
+    sam2_path = sys.argv[4]
+    out_path = sys.argv[5]
 
-    covering = {}
-    not_covering = {}
-    
-    for line in open(bed_path_1):
-        line = line.strip('\n').split('\t')
-        idx, iden, count = line[3], int(line[4]), int(line[-1])
-        if count == 0:
-            not_covering[idx] = iden
-        else:
-            covering[idx] = iden
-
-    for line in open(bed_path_2):
-        line = line.strip('\n').split('\t')
-        idx, iden, count = line[3], int(line[4]), int(line[-1])
-        if count == 0:
-            if idx in covering:
-                pass
-            elif idx in not_covering:
-                not_covering[idx] = max(iden, not_covering[idx])
-            else:
-                not_covering[idx] = iden
-        else:
-            if idx in covering:
-                covering[idx] = max(iden, covering[idx])
-            elif idx in not_covering:
-                not_covering.pop(idx)
-                covering[idx] = iden
-            else:
-                covering[idx] = iden
-
-    fig, ax1 = plt.subplots(1, 1, tight_layout=True)
+    # plot (hardcoded) parameters
     nbins = 7
-    ax1.hist([list(covering.values()), list(not_covering.values())],
-             bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left",
-             histtype="bar", cumulative=False,
-             color=["seagreen", "darkorchid"], label=["Covering", "Not covering"])
+    barw = 0.35
+    Xs = list(range(0,nbins))
+    
+    # Parsing BEDs
+    alignments = {}
+    for line in open(bed1_path):
+        line = line.strip('\n').split('\t')
+        idx, err, count = line[3], int(line[4]), int(line[-1])
+        if idx not in alignments:
+            alignments[idx] = (False, float("inf"))
+        if count > 0:
+            alignments[idx] = (True, min(alignments[idx][1], err))
+        else:
+            if not alignments[idx][0]:
+                alignments[idx] = (False, min(alignments[idx][1], err))
 
-    ax1.set_xlabel("# Base Differences")
-    ax1.set_ylabel("# Primary Alignments")
+    for line in open(bed2_path):
+        line = line.strip('\n').split('\t')
+        idx, err, count = line[3], int(line[4]), int(line[-1])
+        if idx not in alignments:
+            alignments[idx] = (False, float("inf"))
+        if count > 0:
+            alignments[idx] = (True, min(alignments[idx][1], err))
+        else:
+            if not alignments[idx][0]:
+                alignments[idx] = (False, min(alignments[idx][1], err))
 
-    plt.legend(loc=1)
-    plt.savefig(out_path)
-    # plt.show()
+    covering = []
+    not_covering = []
+    for idx, (cov_flag, err) in alignments.items():
+        if cov_flag:
+            covering.append(err)
+        else:
+            not_covering.append(err)
 
-def plot_pmatches_len():
-    bampath = sys.argv[1]
-    out_path = sys.argv[2]
+    print("Covering:", len(covering))
+    print("Limits:", min(covering), max(covering))
+    print("---")
+    print("Not covering:", len(not_covering))
+    print("Limits:", min(not_covering), max(not_covering))
 
-    data = []
-    bamfile = pysam.AlignmentFile(bampath, "rb")
-    for al in bamfile.fetch():
+    # Parsing BAMs
+    data1 = []
+    bamfile1 = pysam.AlignmentFile(sam1_path, "rb")
+    for al in bamfile1.fetch():
+        if al.is_secondary or al.is_unmapped or al.is_supplementary:
+            continue
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
         errors = bad_bases + deletions
-        if errors == 0:
-            data.append(al.query_length)
-    print("Limits: ", min(data), max(data))
+        data1.append(errors)
 
-    nbins = 501
-    fig, ax1 = plt.subplots(1, 1, sharey = True)
+    data2 = []
+    bamfile2 = pysam.AlignmentFile(sam2_path, "rb")
+    for al in bamfile2.fetch():
+        if al.is_secondary or al.is_unmapped or al.is_supplementary:
+            continue
+        good_bases = al.get_cigar_stats()[0][7]
+        bad_bases = al.query_length - good_bases
+        deletions = al.get_cigar_stats()[0][2]
+        errors = bad_bases + deletions
+        data2.append(errors)
 
-    ax1.hist(data, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen")
-    ax1.set_xlabel("Length")
-    ax1.set_ylabel("# specific strings")
+    data1_dict = {}
+    for e in data1:
+        if e < nbins:
+            data1_dict[e] = data1_dict[e]+1 if e in data1_dict else 1
+    data2_dict = {}
+    for e in data2:
+        if e < nbins:
+            data2_dict[e] = data2_dict[e]+1 if e in data2_dict else 1
+
+    print("bam1 limits: ", min(data1), max(data1))
+    print("bam2 limits: ", min(data2), max(data2))
+
+    # Plotting
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey = True, tight_layout=True, figsize=(13, 7))
+
+    ax1.hist([covering, not_covering],
+             bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left",
+             histtype="bar", cumulative=False,
+             color=["steelblue", "darkorchid"], label=["Covering", "Not covering"])
+    ax1.set_ylabel("# Primary Alignments")
+    ax1.legend()
+
+    ax2.bar(Xs, [data1_dict[x] for x in Xs], color="plum", width=-barw, align="edge", label="HG00733")
+    ax2.bar(Xs, [data2_dict[x] for x in Xs], color="pink", width=barw, align="edge", label="NA19240")    
+    ax2.legend()
+
+    fig.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
+    plt.xticks()
+    plt.xlabel("# Base Differences")
+
     plt.savefig(out_path)
+
+# def plot_covering():
+#     bed_path_1 = sys.argv[1]
+#     bed_path_2 = sys.argv[2]
+#     out_path = sys.argv[3]
+
+#     alignments = {}
+#     for line in open(bed_path_1):
+#         line = line.strip('\n').split('\t')
+#         idx, err, count = line[3], int(line[4]), int(line[-1])
+#         if idx not in alignments:
+#             alignments[idx] = (False, float("inf"))
+#         if count > 0:
+#             alignments[idx] = (True, min(alignments[idx][1], err))
+#         else:
+#             if not alignments[idx][0]:
+#                 alignments[idx] = (False, min(alignments[idx][1], err))
+
+#     for line in open(bed_path_2):
+#         line = line.strip('\n').split('\t')
+#         idx, err, count = line[3], int(line[4]), int(line[-1])
+#         if idx not in alignments:
+#             alignments[idx] = (False, float("inf"))
+#         if count > 0:
+#             alignments[idx] = (True, min(alignments[idx][1], err))
+#         else:
+#             if not alignments[idx][0]:
+#                 alignments[idx] = (False, min(alignments[idx][1], err))
+
+#     covering = []
+#     not_covering = []
+#     for idx, (cov_flag, err) in alignments.items():
+#         if cov_flag:
+#             covering.append(err)
+#         else:
+#             not_covering.append(err)
+
+#     print("Covering:", len(covering))
+#     print("Limits:", min(covering), max(covering))
+#     print("---")
+#     print("Not covering:", len(not_covering))
+#     print("Limits:", min(not_covering), max(not_covering))
+
+#     fig, ax1 = plt.subplots(1, 1, tight_layout=True)
+#     nbins = 7
+#     ax1.hist([covering, not_covering],
+#              bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left",
+#              histtype="bar", cumulative=False,
+#              color=["seagreen", "darkorchid"], label=["Covering", "Not covering"])
+
+#     ax1.set_xlabel("# Base Differences")
+#     ax1.set_ylabel("# Primary Alignments")
+
+#     plt.legend(loc=1)
+#     plt.savefig(out_path)
+#     # plt.show()
+
+def plot_covering_abundances():
+    bed_path_1 = sys.argv[1]
+    bed_path_2 = sys.argv[2]
+    out_path = sys.argv[3]
+
+    covering = set()
+    not_covering = set()
+    
+    for line in open(bed_path_1):
+        line = line.strip('\n').split('\t')
+        idx, count = line[3], int(line[-1])
+        if count == 0:
+            if idx in covering:
+                pass
+            else:
+                not_covering.add(idx)
+        else:
+            if idx in not_covering:
+                not_covering.remove(idx)
+            covering.add(idx)
+
+    for line in open(bed_path_2):
+        line = line.strip('\n').split('\t')
+        idx, count = line[3], int(line[-1])
+        if count == 0:
+            if idx in covering:
+                pass
+            elif idx in not_covering:
+                pass
+            else:
+                not_covering.add(idx)
+        else:
+            if idx in covering:
+                pass
+            elif idx in not_covering:
+                not_covering.remove(idx)
+                covering.add(idx)
+            else:
+                covering.add(idx)
+
+    print("Covering:", len(covering))
+    print("Non-Covering:", len(not_covering))
+    print("Total:", len(covering) + len(not_covering))
+
+    data = {"Type" : ["Covering" for _ in covering] + ["Non-Covering" for _ in not_covering],
+            "Abundance" : [int(idx.split('#')[1]) for idx in covering] + [int(idx.split('#')[1]) for idx in not_covering]}
+    df = pd.DataFrame(data)
+
+    sns.histplot(data=df, x="Abundance", hue="Type", element="step",
+                 binrange=(0,50),
+                 bins=range(0,51))
+
+    # plt.savefig(out_path)
+    plt.show()
+
+# def plot_pmatches_len():
+#     bampath = sys.argv[1]
+#     out_path = sys.argv[2]
+
+#     data = []
+#     bamfile = pysam.AlignmentFile(bampath, "rb")
+#     for al in bamfile.fetch():
+#         good_bases = al.get_cigar_stats()[0][7]
+#         bad_bases = al.query_length - good_bases
+#         deletions = al.get_cigar_stats()[0][2]
+#         errors = bad_bases + deletions
+#         if errors == 0:
+#             data.append(al.query_length)
+#     print("Limits: ", min(data), max(data))
+
+#     nbins = 501
+#     fig, ax1 = plt.subplots(1, 1, sharey = True)
+
+#     ax1.hist(data, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen")
+#     ax1.set_xlabel("Length")
+#     ax1.set_ylabel("# specific strings")
+#     plt.savefig(out_path)
 
 def recbylen():
     fpath = sys.argv[1]
@@ -281,8 +453,17 @@ def repmask():
     min_l = int(sys.argv[4]) if len(sys.argv) == 5 else 0
 
     lens = {}
+    L = 0
+    N = 0
     for record in SeqIO.parse(fa_path, "fasta"):
         lens[record.id] = len(record)
+        seq = str(record.seq).upper()
+        l = len(seq)
+        if l >= min_l:
+            n = seq.count('N')
+            L += l
+            N += n
+    print(f"Masked: {N}/{L} ({N/L})")
 
     rtypes = {"SINE" : "SINE",
               "LINE" : "LINE",
@@ -322,15 +503,13 @@ def repmask():
     # plt.show()
 
 def plot_nalignment():
-    bampath = sys.argv[1]
+    sampath = sys.argv[1]
     out_path = sys.argv[2]
 
     aligns = {}
-    bamfile = pysam.AlignmentFile(bampath, "rb")
-    for al in bamfile.fetch():
-        if al.query_name not in aligns:
-            aligns[al.query_name] = 0
-        aligns[al.query_name] += 1
+    sam = pysam.AlignmentFile(sampath, "r")
+    for al in sam.fetch():
+        aligns[al.query_name] = aligns[al.query_name]+1 if al.query_name in aligns else 1
 
     data = {}
     for v in aligns.values():
@@ -358,14 +537,16 @@ if __name__ == "__main__":
         plot_nal_by_err()
     elif mode == "cov":
         plot_covering()
-    elif mode == "pmatches":
-        plot_pmatches_len()
+    # elif mode == "pmatches":
+    #     plot_pmatches_len()
     elif mode == "recbylen":
         recbylen()
     elif mode == "repmask":
         repmask()
     elif mode == "nal":
         plot_nalignment()
+    elif mode == "covab":
+        plot_covering_abundances()
     else:
         print("python3 plot.py")
         print("\t\tlsamples <fq1> <fq2> <out>")

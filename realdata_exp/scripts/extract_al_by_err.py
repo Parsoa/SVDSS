@@ -8,7 +8,7 @@ def main():
 
     nerr = sys.argv[2]
     exact = True
-    if nerr.startswith('>'):
+    if nerr.startswith('g'):
         exact = False
         nerr = nerr[1:]
     nerr = int(nerr)
@@ -20,6 +20,8 @@ def main():
     if out_fmt == "sam":
         print(bam.header, end='')
     for al in bam.fetch():
+        if al.is_secondary or al.is_unmapped or al.is_supplementary:
+            continue
         good_bases = al.get_cigar_stats()[0][7]
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
@@ -28,7 +30,7 @@ def main():
             if out_fmt == "sam":
                 print(al.tostring(bam))
             elif out_fmt == "fa":
-                seq = Seq(al.query_sequence)
+                seq = Seq(str(al.query_sequence))
                 if al.is_reverse:
                     seq = seq.reverse_complement()
                 print(f">{al.query_name}\n{seq}")
