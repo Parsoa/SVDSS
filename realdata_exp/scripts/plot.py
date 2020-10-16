@@ -465,6 +465,7 @@ def repmask():
             N += n
     print(f"Masked: {N}/{L} ({N/L})")
 
+    labels = ["SINE", "LINE", "Satellite", "Simple Repeat", "Low Complex.", "Other", "None"]
     rtypes = {"SINE" : "SINE",
               "LINE" : "LINE",
               "Satellite" : "Satellite",
@@ -497,8 +498,9 @@ def repmask():
     for t in list(rtypes.values()) + ["None"]:
         print(t, len(df.loc[df["Repeat Type"] == t])/len(df)*100)
 
-    dplot = sns.histplot(data=df, x="Specific String Length", hue="Repeat Type", multiple="stack")
+    dplot = sns.histplot(data=df, x="Specific String Length", hue="Repeat Type", multiple="stack", bins=30, hue_order=labels)
 
+    plt.tight_layout()
     plt.savefig(out_path)
     # plt.show()
 

@@ -11,19 +11,19 @@ def extract_reclist():
     for line in open(bed_path_1):
         line = line.strip('\n').split('\t')
         s, e, idx, l, count = int(line[1]), int(line[2]), line[3], int(line[6]), int(line[-1])
-        l1 = e - s - 1
-        if l < 0:
-            l1 = -l1
-        l = l1
+        # l1 = e - s - 1
+        # if l < 0:
+        #     l1 = -l1
+        # l = l1
         variants[idx] = (count, -1, l)
 
     for line in open(bed_path_2):
         line = line.strip('\n').split('\t')
         s, e, idx, l, count = int(line[1]), int(line[2]), line[3], int(line[6]), int(line[-1])
-        l1 = e - s - 1
-        if l < 0:
-            l1 = -l1
-        l = l1
+        # l1 = e - s - 1
+        # if l < 0:
+        #     l1 = -l1
+        # l = l1
         if idx in variants:
             variants[idx] = (variants[idx][0], count, l)
         else:

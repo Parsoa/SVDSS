@@ -46,6 +46,7 @@ rule run:
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa"),
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa"),
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.nal.png"),
+        pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.2al_homo.txt"),
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.nal.png"),
         pjoin(root, step1, "new_precision.csv"),
         # STEP 1.1 - repeatmasker
@@ -257,6 +258,19 @@ rule plot_nalign_bar_1:
     shell:
         """
         python3 scripts/plot.py nal {input.sam} {output.png}
+        """
+
+rule check_2alignments_1:
+    input:
+        fa1 = pjoin(root, f"{samples[0]}_assembly1.fa"),
+        fa2 = pjoin(root, f"{samples[0]}_assembly2.fa"),
+        sam = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam")
+    output:
+        txt = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.2al_homo.txt")
+    threads: 1
+    shell:
+        """
+        python3 scripts/check_2al_for_homo.py {input.fa1} {input.fa2} {input.sam} > {output.txt}
         """
 
 rule extract_pmatches_NA:
