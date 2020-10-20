@@ -47,13 +47,13 @@ def main():
         epos1 = pos1 + len(alt1)
         offset1 += len(alt1)-len(ref)
         if print1_flag:
-            out1.write(f"{chrom}\t{pos1}\t{epos1}\t{idx}\t{ref}\t{alt1}\t{len(alt1)-len(ref)}\t{gt1}\n")
+            out1.write(f"{chrom}\t{pos1}\t{epos1}\t{idx}_1\t{ref}\t{alt1}\t{len(alt1)-len(ref)}\t{gt1}\n")
 
         pos2 = pos-1 + offset2
         epos2 = pos2 + len(alt2)
         offset2 += len(alt2)-len(ref)
         if print2_flag:
-            out2.write(f"{chrom}_2\t{pos2}\t{epos2}\t{idx}\t{ref}\t{alt2}\t{len(alt2)-len(ref)}\t{gt2}\n")
+            out2.write(f"{chrom}_2\t{pos2}\t{epos2}\t{idx}_2\t{ref}\t{alt2}\t{len(alt2)-len(ref)}\t{gt2}\n")
 
         idx+=1
 

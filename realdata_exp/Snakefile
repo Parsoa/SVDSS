@@ -525,7 +525,7 @@ rule analyze_step2:
     shell:
         """
         python3 scripts/analyze.py reclist {input.i1} {input.i2} > {params.reclist}
-        python3 scripts/analyze.py rec {params.reclist} {params.lvalue} > {output.rec}
+        python3 scripts/analyze.py rec {input.i1} {input.i2} {params.lvalue} > {output.rec}
         python3 scripts/analyze.py pre {input.i3} {input.i4} > {output.prec}
         """
 # python3 scripts/plot.py recbylen {params.reclist} {output.png1}
@@ -589,34 +589,34 @@ rule plot_uncovering_al_by_err:
         python3 scripts/plot.py cov {input.i3} {input.i4} {input.sam1} {input.sam2} {output.png}
         """
 
-rule bbmap_index_reference:
-    input:
-        pjoin(root, "hg38.chroms.fa")
-    output:
-        directory(pjoin(root, "hg38.chroms.fa.bbmapindex"))
-    threads: thrs
-    log:
-        time = pjoin(root, "hg38.chroms.fa.bbmapindex.time"),
-        out= pjoin(root, "hg38.chroms.fa.bbmapindex.log")
-    shell:
-        """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 ref={input} path={output} &> {log.out}
-        """
+# rule bbmap_index_reference:
+#     input:
+#         pjoin(root, "hg38.chroms.fa")
+#     output:
+#         directory(pjoin(root, "hg38.chroms.fa.bbmapindex"))
+#     threads: thrs
+#     log:
+#         time = pjoin(root, "hg38.chroms.fa.bbmapindex.time"),
+#         out= pjoin(root, "hg38.chroms.fa.bbmapindex.log")
+#     shell:
+#         """
+#         /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 ref={input} path={output} &> {log.out}
+#         """
 
-rule bbmap_align_uncovering_to_reference:
-    input:
-        index = pjoin(root, "hg38.chroms.fa.bbmapindex"),
-        fq = pjoin(root, step2, "uncovering", "sspecific.fq")
-    output:
-        sam = pjoin(root, step2, "uncovering", "sspecific.sam")
-    threads: thrs
-    log:
-        time = pjoin(root, step2, "uncovering", "sspecific.time"),
-        out = pjoin(root, step2, "uncovering", "sspecific.log")
-    shell:
-        """
-        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
-        """
+# rule bbmap_align_uncovering_to_reference:
+#     input:
+#         index = pjoin(root, "hg38.chroms.fa.bbmapindex"),
+#         fq = pjoin(root, step2, "uncovering", "sspecific.fq")
+#     output:
+#         sam = pjoin(root, step2, "uncovering", "sspecific.sam")
+#     threads: thrs
+#     log:
+#         time = pjoin(root, step2, "uncovering", "sspecific.time"),
+#         out = pjoin(root, step2, "uncovering", "sspecific.log")
+#     shell:
+#         """
+#         /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+#         """
         
 
 

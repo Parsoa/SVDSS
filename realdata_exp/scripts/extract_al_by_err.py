@@ -22,7 +22,10 @@ def main():
     for al in bam.fetch():
         if al.is_secondary or al.is_unmapped or al.is_supplementary:
             continue
+        # bbmap:
         good_bases = al.get_cigar_stats()[0][7]
+        # minimap2:
+        # good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
         if (exact and bad_bases + deletions == nerr) or (not exact and bad_bases + deletions > nerr):

@@ -3,6 +3,57 @@ import sys
 from Bio import SeqIO
 import pysam
 
+def get_atype(alen, l):
+    if alen == 1:
+        return "SNP"
+    elif alen < l:
+        return "<"
+    else:
+        return ">="
+
+def extract_alleles(bed_path, alt):
+    alleles = {}
+    for line in open(bed_path, 'r'):
+        line = line.strip('\n').split('\t')
+        aidx, alen, gt, covering = line[3], int(len(line[5])), int(line[-2]), int(line[-1])
+        atype = get_atype(alen, alt)
+        hap = '1' if aidx.endswith('1') else '2'
+        gt = "Ref" if gt == 0 else "Alt"
+        alleles[aidx] = (covering>0, atype, hap, gt)
+    return alleles
+
+def recall():
+    bed1_path = sys.argv[1]
+    bed2_path = sys.argv[2]
+    alt = int(sys.argv[3])
+
+    alleles1 = extract_alleles(bed1_path, alt)
+    alleles2 = extract_alleles(bed2_path, alt)
+
+    alleles = {**alleles1, **alleles2}
+
+    found = {"SNP" : {"Ref" : 0, "Alt" : 0}, "<" : {"Ref" : 0, "Alt" : 0}, ">=" : {"Ref" : 0, "Alt" : 0}}
+    tot = {"SNP" : {"Ref" : 0, "Alt" : 0}, "<" : {"Ref" : 0, "Alt" : 0}, ">=" : {"Ref" : 0, "Alt" : 0}}
+    for aidx, (covering, atype, hap, gt) in alleles.items():
+        tot[atype][gt] += 1
+        if covering:
+            found[atype][gt] += 1
+
+    print(f"Split at", alt)
+    print("")
+    print("Type", "GT", "Found", "Total", "%", sep='\t')
+    print("---")
+    ntot = {"Ref": 0, "Alt": 0}
+    nfound = {"Ref": 0, "Alt": 0}
+    for idx in ["SNP", "<", ">="]:
+        for gt in ["Ref", "Alt"]:
+            print(idx, gt, found[idx][gt], tot[idx][gt], round(found[idx][gt]/tot[idx][gt]*100, 2), sep='\t')
+            nfound[gt] += found[idx][gt]
+            ntot[gt] += tot[idx][gt]
+    print("---")
+    print("All", "Ref", nfound["Ref"], ntot["Ref"], round(nfound["Ref"]/ntot["Ref"]*100, 2), sep='\t')
+    print("All", "Alt", nfound["Alt"], ntot["Alt"], round(nfound["Alt"]/ntot["Alt"]*100, 2), sep='\t')
+
 def extract_reclist():
     bed_path_1 = sys.argv[1]
     bed_path_2 = sys.argv[2]
@@ -11,19 +62,11 @@ def extract_reclist():
     for line in open(bed_path_1):
         line = line.strip('\n').split('\t')
         s, e, idx, l, count = int(line[1]), int(line[2]), line[3], int(line[6]), int(line[-1])
-        # l1 = e - s - 1
-        # if l < 0:
-        #     l1 = -l1
-        # l = l1
         variants[idx] = (count, -1, l)
 
     for line in open(bed_path_2):
         line = line.strip('\n').split('\t')
         s, e, idx, l, count = int(line[1]), int(line[2]), line[3], int(line[6]), int(line[-1])
-        # l1 = e - s - 1
-        # if l < 0:
-        #     l1 = -l1
-        # l = l1
         if idx in variants:
             variants[idx] = (variants[idx][0], count, l)
         else:
@@ -41,7 +84,7 @@ def extract_reclist():
             ov = 2
         print(idx, l, ov)
 
-def recall():
+def recall_from_reclist():
     fpath = sys.argv[1]
     l_thresh = int(sys.argv[2])
 
@@ -144,7 +187,7 @@ def extract_uncovering():
             if record.id in uncovering_idxs:
                 SeqIO.write(record, sys.stdout, "fastq")
 
-def new_precision():
+def new_contigbased_precision():
     bampath1 = sys.argv[1]
     bampath2 = sys.argv[2]
     fq_path = sys.argv[3]
@@ -183,10 +226,12 @@ if __name__ == "__main__":
     if mode == "pre":
         precision()
     elif mode == "newpre":
-        new_precision()
+        new_contigbased_precision()
     elif mode == "reclist":
         extract_reclist()
     elif mode == "rec":
         recall()
+    elif mode == "recfromlist":
+        recall_from_reclist()
     elif mode == "exunc":
         extract_uncovering()

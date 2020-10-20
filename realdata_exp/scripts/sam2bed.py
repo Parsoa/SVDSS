@@ -7,7 +7,10 @@ import pysam
 """
 
 def get_errors(al, read_len):
+    # bbmap:
     good_bases = al.get_cigar_stats()[0][7]
+    # minimap2:
+    # good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
     bad_bases = read_len - good_bases
     deletions = al.get_cigar_stats()[0][2]
     return bad_bases + deletions
