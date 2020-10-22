@@ -4,6 +4,7 @@ import pysam
 
 """
 "bedtools bamtobed" cannot set the quality to #errors+#deletions+#clips
+even though we do not use this information anymore, it could be useful
 """
 
 def get_errors(al, read_len):
@@ -19,6 +20,8 @@ def main():
     sampath = sys.argv[1]
 
     read_lens = {} # bbmap doesn't report read sequence on secondary alignment
+    # NOTE: this scripts does not work if sam/bam is sorted by coordinate.
+    # It iterates once over the alignments and it assumes primary alignments to come before secondary ones
     sam = pysam.AlignmentFile(sampath, 'r')
     skipped = 0
     for al in sam.fetch():

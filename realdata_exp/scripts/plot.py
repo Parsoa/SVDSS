@@ -141,48 +141,41 @@ def plot_nal_by_err():
     # plt.show()
 
 def plot_covering():
-    bed1_path = sys.argv[1]
-    bed2_path = sys.argv[2]
-    sam1_path = sys.argv[3]
-    sam2_path = sys.argv[4]
+    uncovering_txt = sys.arv[1]
+    haplosam_path = sys.arv[2]
+    contigssam1_path = sys.argv[3]
+    contigssam2_path = sys.argv[4]
     out_path = sys.argv[5]
 
     # plot (hardcoded) parameters
     nbins = 7
     barw = 0.35
     Xs = list(range(0,nbins))
-    
-    # Parsing BEDs
-    alignments = {}
-    for line in open(bed1_path):
-        line = line.strip('\n').split('\t')
-        idx, err, count = line[3], int(line[4]), int(line[-1])
-        if idx not in alignments:
-            alignments[idx] = (False, float("inf"))
-        if count > 0:
-            alignments[idx] = (True, min(alignments[idx][1], err))
-        else:
-            if not alignments[idx][0]:
-                alignments[idx] = (False, min(alignments[idx][1], err))
 
-    for line in open(bed2_path):
-        line = line.strip('\n').split('\t')
-        idx, err, count = line[3], int(line[4]), int(line[-1])
-        if idx not in alignments:
-            alignments[idx] = (False, float("inf"))
-        if count > 0:
-            alignments[idx] = (True, min(alignments[idx][1], err))
-        else:
-            if not alignments[idx][0]:
-                alignments[idx] = (False, min(alignments[idx][1], err))
+    # Parsing uncoverings
+    uncovering_idxs = set()
+    for line in open(fpath):
+        uncovering_idxs.add(line.strip('\n'))
 
+    # Parsing haplo sam (left plot)
     covering = []
     not_covering = []
-    for idx, (cov_flag, err) in alignments.items():
-        if cov_flag:
-            covering.append(err)
+    haplosam = pysam.AlignmentFile(haplosam_path, 'r')
+    for al in haplosam.fetch():
+        if al.is_secondary or al.is_unmapped or al.is_supplementary:
+            continue
+        # bbmap:
+        good_bases = al.get_cigar_stats()[0][7]
+        # minimap2:
+        # good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
+        bad_bases = al.query_length - good_bases
+        deletions = al.get_cigar_stats()[0][2]
+        errors = bad_bases + deletions
+
+        if idx in uncovering_idxs:
+            uncovering.append(errors)
         else:
-            not_covering.append(err)
+            covering.append(errors)
 
     print("Covering:", len(covering))
     print("Limits:", min(covering), max(covering))
@@ -190,9 +183,9 @@ def plot_covering():
     print("Not covering:", len(not_covering))
     print("Limits:", min(not_covering), max(not_covering))
 
-    # Parsing BAMs
+    # Parsing contigs sams (right plot)
     data1 = []
-    bamfile1 = pysam.AlignmentFile(sam1_path, "rb")
+    contigssam1 = pysam.AlignmentFile(contigssam1_path, 'r')
     for al in bamfile1.fetch():
         if al.is_secondary or al.is_unmapped or al.is_supplementary:
             continue
@@ -206,7 +199,7 @@ def plot_covering():
         data1.append(errors)
 
     data2 = []
-    bamfile2 = pysam.AlignmentFile(sam2_path, "rb")
+    contigssam2_path = pysam.AlignmentFile(contigssam2_path, 'r')
     for al in bamfile2.fetch():
         if al.is_secondary or al.is_unmapped or al.is_supplementary:
             continue
@@ -308,6 +301,7 @@ def plot_covering():
 #     plt.savefig(out_path)
 #     # plt.show()
 
+# FIXME: CHECK IF THIS FUNCTION STILL WORKS
 def plot_covering_abundances():
     bed_path_1 = sys.argv[1]
     bed_path_2 = sys.argv[2]

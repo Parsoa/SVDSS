@@ -7,6 +7,7 @@ def main():
     sample1 = sys.argv[2]
     sample2 = sys.argv[3]
     out_prefix = sys.argv[4]
+    all_flag = len(sys.argv) == 6
 
     out1_path = out_prefix + "_1.bed"
     out2_path = out_prefix + "_2.bed"
@@ -33,8 +34,8 @@ def main():
         gt1, gt2 = record.samples[sample1]["GT"]
         gt1_2, gt2_2 = record.samples[sample2]["GT"]
 
-        print1_flag = gt1 != gt1_2 and gt1 != gt2_2
-        print2_flag = gt2 != gt1_2 and gt2 != gt2_2
+        print1_flag = all_flag or (gt1 != gt1_2 and gt1 != gt2_2)
+        print2_flag = all_flag or (gt2 != gt1_2 and gt2 != gt2_2)
 
         alt1 = ref
         if gt1 != 0:
