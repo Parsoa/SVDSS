@@ -1,6 +1,3 @@
-[submodule "error_correction/KMC"]
-	path = error_correction/KMC
-	url = https://github.com/refresh-bio/KMC.git
 [submodule "ropebwt2"]
 	path = ropebwt2
 	url = https://github.com/ldenti/ropebwt2.git

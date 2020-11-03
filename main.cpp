@@ -253,9 +253,13 @@ void output_batch(void* args) {
 }
 
 int search_f3(int argc, char *argv[]) {
+    if(argc == 1 || strcmp(argv[1], "-h") == 0) {
+        cerr << "Usage: main sf3 [-h] <index> <sample> <threads>" << endl;
+        return 1;
+    }
     // parse arguments
     char *index_path = argv[1] ;
-    cout << "Restroing index.." << endl ;
+    cout << "Restoring index.." << endl ;
     rld_t *index = rld_restore(index_path) ;
     cout << "Done." << endl ;
     char *sample_path = argv[2] ;
@@ -663,8 +667,13 @@ int main_index(int argc, char* argv[]) {
 /**********************************************************/
 
 int main(int argc, char *argv[]) {
+    if(argc == 1)
+    {
+        cerr << "Usage: main [index|sf3] -h" << endl;
+        return 1;
+    }
     string mode = argv[1] ;
-    int retcode = 0 ;
+    int retcode = 0;
     DEBUG(cerr << "DEBUG MODE" << endl ;)
     if(mode == "index") {
         retcode = main_index(argc - 1, argv + 1);
@@ -676,6 +685,7 @@ int main(int argc, char *argv[]) {
     } else if (mode == "query") {
         retcode = query(argc - 1, argv + 1) ;
     } else {
+        cerr << "main [index|sf3] -h" << endl;
         retcode = 1 ;
     }
     return retcode ;
