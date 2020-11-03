@@ -23,12 +23,12 @@ Let's assume to have 3 samples: A, B, and, C. If we want to compute A-specific s
 
 1. index samples B and C:
 ```
-./main index -b /path/to/sample/B > B.index.bin
-./main index -a B.index.bin /path/to/sample/C > BC.index.fmd
+./stella pingpong index -b /path/to/sample/B > B.index.bin
+./stella pingpong -a B.index.bin /path/to/sample/C > BC.index.fmd
 ```
 2. search A-specific strings
 ```
-./main sf3 [B.index.bin] /path/to/sample/A [nthreads]
+./stella pingpong search [B.index.bin] /path/to/sample/A [nthreads]
 ```
 3. the search step splits the input sample in batches, to combine them in a single fastq file:
 ```
@@ -37,7 +37,7 @@ Let's assume to have 3 samples: A, B, and, C. If we want to compute A-specific s
 
 ### Usage
 ```
-Usage: main index [-h] [-b] [-a index] <sample>
+Usage: stella pingpong index [-h] [-b] [-a index] <sample>
 
 Optional arguments:
       -h, --help            display this help and exit
@@ -45,7 +45,7 @@ Optional arguments:
       -a, --append          append to existing index (must be stored in binary)
       -t, --threads         number of threads (default:1)
 
-Usage: main sf3 [-h] <index> <sample> <threads>
+Usage: stella pingpong search [-h] <index> <sample> <threads>
 ```
 
 ##### Notes
@@ -55,9 +55,9 @@ Usage: main sf3 [-h] <index> <sample> <threads>
 
 ### Example
 ```
-./main index -b example/father.fq > example/father.fq.bin
-./main index -a example/father.fq.bin example/mother.fq > example/index.fmd
-./main sf3 example/index.fmd example/child.fq 1
+./stella pingpong index -b example/father.fq > example/father.fq.bin
+./stella pingpong index -a example/father.fq.bin example/mother.fq > example/index.fmd
+./stella pingpong search example/index.fmd example/child.fq 1
  ```
  
  ### Authors
