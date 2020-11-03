@@ -1,19 +1,24 @@
 ROPE_PREFIX=./ropebwt2
 CXX=g++
-CXXFLAGS=-std=c++11 -Wall -O3 -I$(ROPE_PREFIX) -fopenmp -Wno-comment
-LIBS=-lm -lz -lpthread
+CXXFLAGS=-std=c++17 -Wall -O3 -I$(ROPE_PREFIX) -fopenmp -Wno-comment
+LDFLAGS= -lm -lpthread -lz
 OBJS=$(ROPE_PREFIX)/mrope.o $(ROPE_PREFIX)/rope.o $(ROPE_PREFIX)/rld0.o $(ROPE_PREFIX)/rle.o
 
-all: main aggregate
+HPP = $(wildcard *.hpp)
+SRC = $(wildcard *.cpp)
+OBJS := $(OBJS) $(SRC:.cpp=.o)
 
-main: main.cpp
-	$(CXX) -g $(CXXFLAGS) $(OBJS) $< -o main $(LIBS)
+all: stella 
+debug: CXXFLAGS += -DDEBUG -g
+debug: stella 
 
-aggregate: aggregate.cpp
-	$(CXX) -g $(CXXFLAGS) $(OBJS) $< -o aggregate $(LIBS)
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@ 
 
-debug: main.cpp
-	$(CXX) -g $(CXXFLAGS) $(OBJS) -DDEBUG_MODE $< -o debug $(LIBS)
+stella: $(OBJS) $(HPP) 
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 
 clean:
-	rm -rf main aggregate debug
+	rm *.o
+.PHONY: clean
+
