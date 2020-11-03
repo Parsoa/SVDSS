@@ -25,6 +25,10 @@ __pycache__/
 *.txt
 *.o
 
+stella
+main
+debug
+
 *.bin
 *.fmd
 *.fmdi
