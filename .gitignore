@@ -23,6 +23,7 @@ __pycache__/
 *.fastq
 *.bam
 *.txt
+*.o
 
 *.bin
 *.fmd
