@@ -1,5 +1,5 @@
 CXX = g++
-LDFLAGS = -lm -lpthread
+LDFLAGS = -lm -lpthread -lz
 CXXFLAGS = -std=c++17 -O3 -funroll-loops -fopenmp
 
 HPP = $(wildcard *.hpp)

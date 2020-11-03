@@ -90,7 +90,7 @@ def parse_args():
     # alternate directory for previous job
     parser.add_argument("--previous", default = None)
     # expected depth of coverage for the FASTQ file
-    parser.add_argument("--coverage", type = float, default = 50)
+    parser.add_argument("--coverage", type = float, default = 30)
     # the path to a jellyfish generated kmer count index
     parser.add_argument("--jellyfish")
     # a reference genome assembly, used to extract sequences from a set of BED tracks etc
@@ -99,6 +99,8 @@ def parse_args():
     parser.add_argument("--workdir", default = '/share/hormozdiarilab/Codes/Stella/output')
     # if selecting kmers for genotyping 
     parser.add_argument("--select", action = 'store_true')
+    # if selecting kmers for genotyping 
+    parser.add_argument("--random", action = 'store_true')
     # which chromosomes to consider
     parser.add_argument("--chromosomes", nargs = '*') 
     # mother

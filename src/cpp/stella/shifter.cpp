@@ -108,6 +108,11 @@ Track* Shifter::find(string chrom, int position, int len) {
                     return &track->second ;
                 }
             }
+            if (track->first.svtype == "INV") {
+                if (position <= track->first.begin + track->first.svlen && position + len >= track->first.begin) {
+                    return &track->second ;
+                }
+            }
         }
     }
     return nullptr ;

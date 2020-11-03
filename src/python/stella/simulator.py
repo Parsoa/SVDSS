@@ -184,7 +184,7 @@ class Simulation(map_reduce.Job):
         c = config.Configuration()
         FNULL = open(os.devnull, 'w')
         fasta = os.path.join(self.get_current_job_directory(), name + '.fa')
-        command = "pbsim --data-type CCS --depth 30 --sample-fastq /share/hormozdiarilab/Codes/Fulminata/data/Samples/HG00731/HG00731_20190925_EEE_m54329U_190528_231241.Q20.fastq --prefix {} --length-max 20000 --length-min 2000 {}".format(name, fasta)
+        command = "pbsim --data-type CCS --depth {} --sample-fastq /share/hormozdiarilab/Codes/Fulminata/data/Samples/HG00731/HG00731_20190925_EEE_m54329U_190528_231241.Q20.fastq --prefix {} --length-max 20000 --length-min 2000 {}".format(c.coverage, name, fasta)
         print(command)
         output = subprocess.call(command, shell = True, stdout = FNULL, stderr = subprocess.STDOUT, cwd = self.get_current_job_directory())
 
@@ -284,6 +284,7 @@ class TrioSimulator(map_reduce.Job):
         c = config.Configuration()
         #########extract_whole_genome()
         self.tracks = {'father': True, 'mother': True}
+        self.chroms = extract_whole_genome()
         self.round_robin(self.tracks)
 
     def transform(self, track, track_name):
@@ -296,6 +297,7 @@ class TrioSimulator(map_reduce.Job):
         tracks = []
         _tracks = {}
         chromosomes = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5']
+        chromosome_lengths = [len(self.chroms[chrom]) for chrom in chromosomes]
         for parent in ['father', 'mother']:
             path = os.path.join(self.get_current_job_directory(), parent, 'all.bed')
             _tracks[parent] = bed.load_tracks_from_file(path)
@@ -350,20 +352,66 @@ class TrioSimulator(map_reduce.Job):
                     t['allele_father'] = '1'
                     t['allele_mother'] = '1'
             tracks.append(t)
-            # recombination
-            choices = [1, 2]
-            p = 10.0 / tracks_per_chrom[t.chrom]
-            weights = [p, 1.0 - p]
-            r = np.random.choice(choices, p = weights)
-            if r == 1:
-                print('Changing mother haploid')
-                mother_haploid = (mother_haploid + 1) % 2
-            r = np.random.choice(choices, p = weights)
-            if r == 1:
-                print('Changing father haploid')
-                father_haploid = (father_haploid + 1) % 2
-        job = ChildSimulation(name = 'child', tracks = tracks)
+        # recombination
+        choices = [1, 2]
+        p = 10.0 / tracks_per_chrom[t.chrom]
+        weights = [p, 1.0 - p]
+        r = np.random.choice(choices, p = weights)
+        if r == 1:
+            print('Changing mother haploid')
+            mother_haploid = (mother_haploid + 1) % 2
+        r = np.random.choice(choices, p = weights)
+        if r == 1:
+            print('Changing father haploid')
+            father_haploid = (father_haploid + 1) % 2
+        bases = ['A', 'T', 'C', 'G']
+        svtypes = ['DEL', 'INS', 'INV']
+        tracks = bed.sort_tracks(tracks)
+        track_index = {chrom: [track for track in tracks if track.chrom == chrom] for chrom in self.chroms}
+        de_novo_tracks = []
+        svlens = list(range(50, 1200))
+        s = sum(svlens)
+        probs = [d / s for d in svlens[::-1]]
+        if c.random: # also add random de-novo SVs
+            print('Adding random mutations..')
+            for chrom in chromosomes:
+                i = 1000000
+                while i < len(self.chroms[chrom]) - 1000000:
+                    svtype = np.random.choice(svtypes)
+                    l = np.random.choice(svlens, p = probs)
+                    g = np.random.choice([1, 2, 3])
+                    genotype = '1/1' if g == 1 else '1/0'
+                    allele_father = '1' if g == 1 or g == 3 else '0'
+                    allele_mother = '1' if g == 1 or g == 2 else '0'
+                    if not self.intersect(chrom, i,  i + l, track_index[chrom]):
+                        if svtype == 'INS':
+                            seq = ''
+                            for j in range(l):
+                                seq += np.random.choice(bases)
+                            track = bed.BedTrack(chrom = chrom, begin = i, end = i + 1, fields = [('svtype', 'INS'), ('svlen', l), ('seq', seq), ('svclass', 'Random'), ('is_trf', False), ('callset', 'Random'), ('genotype', genotype), ('allele_father', allele_father), ('allele_mother', allele_mother), ('mother_haploid', -1), ('father_haploid', -1)])
+                        if svtype == 'DEL':
+                            track = bed.BedTrack(chrom = chrom, begin = i, end = i + l, fields = [('svtype', 'DEL'), ('svlen', -l), ('seq', '.'), ('svclass', 'Random'), ('is_trf', False), ('callset', 'Random'), ('genotype', genotype), ('allele_father', allele_father), ('allele_mother', allele_mother), ('mother_haploid', -1), ('father_haploid', -1)])
+                        if svtype == 'INV':
+                            track = bed.BedTrack(chrom = chrom, begin = i, end = i + l, fields = [('svtype', 'INV'), ('svlen', l), ('seq', '.'), ('svclass', 'Random'), ('is_trf', False), ('callset', 'Random'), ('genotype', genotype), ('allele_father', allele_father), ('allele_mother', allele_mother), ('mother_haploid', -1), ('father_haploid', -1)])
+                        de_novo_tracks.append(track)
+                        i += random.randint(3, 8) * 10000 + random.randint(1,9999)
+                    else:
+                        i += 100
+            print('Generated', len(de_novo_tracks), 'de novo SVs..')
+        child_tracks = bed.sort_tracks(tracks + de_novo_tracks)
+        print(len(child_tracks), 'tracks on child')
+        #child_tracks = bed.load_tracks_from_file('/share/hormozdiarilab/Codes/Stella/output/Simulation/PUR/child/present.bed')
+        #exit()
+        job = ChildSimulation(name = 'child', tracks = child_tracks)
         tracks = job.execute()
+
+    def intersect(self, chrom, begin, end, tracks):
+        for track in tracks:
+            if end >= track.begin - 10000 and end <= track.end + 10000:
+                return True
+            if begin >= track.begin - 10000 and begin <= track.end + 10000:
+                return True
+        return False
 
     def get_current_job_directory(self):
         return os.path.abspath(self.get_output_directory())

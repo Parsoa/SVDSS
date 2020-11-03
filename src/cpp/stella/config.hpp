@@ -17,7 +17,9 @@ public:
 
     void parse(int argc, char* argv[]) ;
 
-    int threads ;
+    int cutoff = 5 ;
+    int threads = 48 ;
+    int coverage = 50 ;
     int batch_size = 1000 ;
 
     std::string bed ;

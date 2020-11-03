@@ -19,7 +19,9 @@
 #include "shifter.hpp"
 #include "scanner.hpp"
 #include "aggregator.hpp"
+#include "intersector.hpp"
 #include "chromosomes.hpp"
+#include "extractor.hpp"
 
 using namespace std ;
 
@@ -79,6 +81,7 @@ int main(int argc, char** argv) {
                 s = strstr(chromosome_seqs[chrom->first], lines[i].c_str()) ;
                 if (s != nullptr) {
                     m[t] += 1 ;
+                    cout << "Match " << lines[i] << endl ;
                     break ;
                 }
             }
@@ -106,9 +109,17 @@ int main(int argc, char** argv) {
         auto finder = new Finder() ;
         finder->run() ;
     }
+    if (strcmp(argv[1], "extract") == 0) {
+        auto extractor = new Extractor() ;
+        extractor->run() ;
+    }
     if (strcmp(argv[1], "aggregate") == 0) {
         auto aggregator = new Aggregator() ;
         aggregator->run() ;
+    }
+    if (strcmp(argv[1], "intersect") == 0) {
+        auto intersector = new Intersector() ;
+        intersector->run() ;
     }
 }
 

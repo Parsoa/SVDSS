@@ -7,7 +7,7 @@ using namespace std ;
 std::vector<std::string> chromosomes ;
 std::unordered_map<std::string, char*> chromosome_seqs ;
 
-string canonicalize(string s) {
+string reverse_complement(string s) {
     string rc(s) ;
     int l = s.length() ;
     for (int i = 0; i < l; i++) {
@@ -24,6 +24,11 @@ string canonicalize(string s) {
             rc[l - 1 - i] = 'A' ;
         }
     }
+    return rc ;
+}
+
+string canonicalize(string s) {
+    auto rc = reverse_complement(s) ;
     return rc < s ? rc : s ;
 }
 

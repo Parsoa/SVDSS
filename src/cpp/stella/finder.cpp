@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdlib.h>
+#include <algorithm>
 #include <bits/stdc++.h> 
 
 #include "config.hpp"
@@ -13,6 +14,7 @@
 using namespace std ;
 
 void Finder::run() {
+    cout << "Starting finder.." << endl ;
     auto c = Configuration::getInstance() ;
     load_sequences() ;
     dump_sequences() ;
@@ -40,7 +42,7 @@ void Finder::load_sequences() {
             assert(tokens.size() == 4) ;
             int p = tokens[0].rfind('#') ;
             int count = std::stoi(tokens[0].substr(p + 1, tokens[0].length() - (p + 1))) ;
-            if (count >= 5) {
+            if (count >= c->cutoff) {
                 _sequences[j][tokens[3]] = Locus{tokens[1], std::stoi(tokens[2]), count} ;
             }
         }
@@ -67,12 +69,13 @@ void Finder::dump_sequences() {
     ofstream unmapped_fasta(c->workdir + "/" + c->type + "_unmapped.fasta") ;
     ofstream unmapped_fastq(c->workdir + "/" + c->type + "_unmapped.fastq") ;
 
+    auto de_novo_tracks = load_tracks_from_file_as_dict(c->workdir + "/de_novo.bed") ; 
     unordered_map<Track, int> mapped_tracks ;
     int m = 0 ;
     for (auto it = sequences.begin(); it != sequences.end(); it++) {
         auto& locus = it->second ;
         auto match = shifter.find(locus.chrom, locus.position, it->first.length()) ;
-        if (match != nullptr) {
+        if (match != nullptr && de_novo_tracks.find(*match) != de_novo_tracks.end()) {
             auto& track = *match ;
             auto pos = shifter.shift_coordinate(locus.chrom, locus.position) ;
             if (mapped_tracks.find(track) == mapped_tracks.end()) {
@@ -99,5 +102,4 @@ void Finder::dump_sequences() {
             unmapped_fasta << it->first << endl ;
         }
     }
-    cout << m << endl ;
 }

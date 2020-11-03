@@ -19,8 +19,10 @@ Configuration::Configuration() :
     parser.add_options()
         ("bed", "", cxxopts::value<std::string>())
         ("type", "", cxxopts::value<std::string>())
+        ("cutoff", "", cxxopts::value<int>())
         ("threads", "", cxxopts::value<int>())
         ("workdir", "", cxxopts::value<std::string>())
+        ("coverage", "", cxxopts::value<int>())
         ("reference", "", cxxopts::value<std::string>())
     ;
 }
@@ -36,11 +38,18 @@ void Configuration::parse(int argc, char** argv) {
     if (results.count("threads")) {
         threads = results["threads"].as<int>() ;
     }
+    if (results.count("cutoff")) {
+        cutoff = results["cutoff"].as<int>() ;
+    }
     if (results.count("workdir")) {
         workdir = results["workdir"].as<std::string>() ;
+    }
+    if (results.count("coverage")) {
+        coverage = results["coverage"].as<int>() ;
     }
     if (results.count("reference")) {
         reference = results["reference"].as<std::string>() ;
     }
+    cout << "Coverage: " << coverage << endl ;
 }
 

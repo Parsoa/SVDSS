@@ -136,7 +136,7 @@ def plot_nal_by_err():
     plt.xticks()
     plt.xlabel("# Base Differences")
 
-    ax2.legend(loc=4, fancybox=True, shadow=True)
+    ax1.legend(loc=4, fancybox=True, shadow=True)
     plt.savefig(out_path)
     # plt.show()
 
