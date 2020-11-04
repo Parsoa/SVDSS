@@ -262,13 +262,13 @@ def plot_nal_by_err():
     ax1.axhline(tot_strings, 0, 100, linewidth=1, color='r', label="Total specific")
     ax1.hist(data1, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", alpha=0.75, cumulative = True, histtype="step", label="Cumulative count")
     ax1.hist(data1, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", histtype="stepfilled", label="Count")
-    ax1.set_title("(c) Child")
-    ax1.set_ylabel("# Primary Alignments")
+    ax1.set_title("(c) Child", fontsize = 13)
+    ax1.set_ylabel("# Primary Alignments", fontsize = 13)
 
     ax2.axhline(tot_strings, 0, 100, linewidth=1, color='r', label="Total specific")
     ax2.hist(data2, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", alpha=0.75, cumulative = True, histtype="step", label="Cumulative count")
     ax2.hist(data2, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", histtype="stepfilled", label="Count")
-    ax2.set_title("(d) Mother")
+    ax2.set_title("(d) Mother", fontsize = 13)
 
     #ax3.axhline(tot_strings, 0, 100, linewidth=1, color='r', label="Total specific")
     #ax3.hist(data3, bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left", color="seagreen", alpha=0.75, cumulative = True, histtype="step", label="Cumulative count")
@@ -278,7 +278,7 @@ def plot_nal_by_err():
     fig.add_subplot(111, frame_on=False)
     plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
     plt.xticks()
-    plt.xlabel("# Base Differences")
+    plt.xlabel("# Base Differences", fontsize = 13)
 
     ax1.legend(loc=4, fancybox=True, shadow=True)
     plt.savefig('plots/' + out_path)
@@ -435,13 +435,13 @@ def plot_cutoff():
 
     fig, (ax1, ax2) = plt.subplots(1, 2, sharey = True, tight_layout=True, figsize=(8, 4))
     sns.lineplot(ax = ax1, data=data, x="cutoff", y="precision", hue="coverage", palette="Dark2", legend = False)
-    ax1.set_title("(a) Precision")
+    ax1.set_title("(a) Precision", fontsize = 13)
     ax1.set_ylabel("")
     ax1.set_xlabel("")
     ax1.set_xticks(list(range(2, 7)))
     #plt.savefig('precision.png')
     sns.lineplot(ax = ax2, data=data, x="cutoff", y="recall", hue="coverage", palette="Dark2")
-    ax2.set_title("(b) Recall")
+    ax2.set_title("(b) Recall", fontsize = 13)
     ax2.set_ylabel("")
     ax2.set_xlabel("")
     ax2.set_xticks(list(range(2, 7)))
@@ -449,7 +449,7 @@ def plot_cutoff():
     fig.add_subplot(111, frame_on=False)
     plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
     plt.xticks()
-    plt.xlabel('Cutoff')
+    plt.xlabel('Cutoff', fontsize = 13)
     plt.savefig('cutoff.png')
 
 if __name__ == "__main__":

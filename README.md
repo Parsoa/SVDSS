@@ -21,32 +21,39 @@ make
 ## How-To
 Let's assume we have 3 samples A, B, and, C. To compute A-specific strings we have to:
 
-1. index samples B and C:
+1. Index samples B and C:
 ```
-./stella pingpong index -b /path/to/sample/B > B.index.bin
-./stella pingpong index -a B.index.bin /path/to/sample/C > BC.index.fmd
+./stella pingpong index --binary --fastq /path/to/sample/B > B.index.bin
+./stella pingpong index --append B.index.bin --fastq /path/to/sample/C > BC.index.fmd
 ```
-2. search for A-specific strings in the index
+2. Search for A-specific strings in the index
 ```
 ./stella pingpong search --index [B.index.bin] --fastq /path/to/sample/A --threads [nthreads]
 ```
-3. the search step splits the input sample in batches, to aggregate them to a single fastq file:
+
+The algorithm will output a set of files named `solution_batch_<number>.fastq` with the list of A-specific strings. This is done to keep the memory usage constant. A string maybe repeated in multiple files and abundances from all files should be aggregated to represent final numbers.
+
+3. Aggregate output to a single fastq file:
 ```
-./stella aggregate --workdir /path/to/string/batches --threads
+./stella aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings>
 ```
 
-The algorithm will out a file named `solution.aggregated.fastq` with the list of A-specific strings that are repeated more than
+You also directly aggregate output from the search step by adding `--aggregate --cutoff <value>`.
 
 ### PingPong Algorithm Usage
 ```
 Usage: stella pingpong index [--binary] [--append index] --fastq /path/to/fastq/file [--threads threads]
 
 Optional arguments:
-      -b, --binary          output index in binary format
-      -a, --append          append to existing index (must be stored in binary)
-      -t, --threads         number of threads (default:1)
+    -b, --binary          output index in binary format
+    -a, --append          append to existing index (must be stored in binary)
+    -t, --threads         number of threads (default:1)
 
 Usage: stella pingpong search [--index index] [--fastq fastq] [--threads threads]
+
+Optional arguments:
+    --aggregate         aggregate ouputs directly.
+    --cutof             sets cutoff for minimum string abundance (tau)
 ```
 
 ##### Notes
