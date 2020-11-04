@@ -38,13 +38,13 @@ class PingPong {
 
 public:
 
-    int run(int argc, char* argv[]) ;
+    int index() ;
+    int query() ;
+    int search() ;
+
+    int num_output_batches ;
 
 private:
-
-    int index(int argc, char* argv[]) ;
-    int query(int argc, char* argv[]) ;
-    int search(int argc, char* argv[]) ;
 
     int current_batch = 0 ;
 

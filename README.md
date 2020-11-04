@@ -11,41 +11,42 @@ C++11-compliant compiler and [ropebwt2](https://github.com/lh3/ropebwt2) library
 
 ## Download and Installation
 ```
-git clone --recursive https://github.com/Parsoa/Variation-Discovery.git
-cd Variation-Discovery/ropebwt2
+git clone --recursive https://github.com/Parsoa/PingPong.git
+cd PingPong/ropebwt2
 make
 cd ..
 make
 ```
 
 ## How-To
-Let's assume to have 3 samples: A, B, and, C. If we want to compute A-specific strings we have to:
+Let's assume we have 3 samples A, B, and, C. To compute A-specific strings we have to:
 
 1. index samples B and C:
 ```
 ./stella pingpong index -b /path/to/sample/B > B.index.bin
-./stella pingpong -a B.index.bin /path/to/sample/C > BC.index.fmd
+./stella pingpong index -a B.index.bin /path/to/sample/C > BC.index.fmd
 ```
-2. search A-specific strings
+2. search for A-specific strings in the index
 ```
-./stella pingpong search [B.index.bin] /path/to/sample/A [nthreads]
+./stella pingpong search --index [B.index.bin] --fastq /path/to/sample/A --threads [nthreads]
 ```
-3. the search step splits the input sample in batches, to combine them in a single fastq file:
+3. the search step splits the input sample in batches, to aggregate them to a single fastq file:
 ```
-./aggregate /path/to/curr/dir > specific.fastq
+./stella aggregate --workdir /path/to/string/batches --threads
 ```
 
-### Usage
+The algorithm will out a file named `solution.aggregated.fastq` with the list of A-specific strings that are repeated more than
+
+### PingPong Algorithm Usage
 ```
-Usage: stella pingpong index [-h] [-b] [-a index] <sample>
+Usage: stella pingpong index [--binary] [--append index] --fastq /path/to/fastq/file [--threads threads]
 
 Optional arguments:
-      -h, --help            display this help and exit
       -b, --binary          output index in binary format
       -a, --append          append to existing index (must be stored in binary)
       -t, --threads         number of threads (default:1)
 
-Usage: stella pingpong search [-h] <index> <sample> <threads>
+Usage: stella pingpong search [--index index] [--fastq fastq] [--threads threads]
 ```
 
 ##### Notes
@@ -54,10 +55,11 @@ Usage: stella pingpong search [-h] <index> <sample> <threads>
 * the search output is stored in multiple `solution_batch_*.fastq` files (created in the current directory)
 
 ### Example
+
 ```
-./stella pingpong index -b example/father.fq > example/father.fq.bin
-./stella pingpong index -a example/father.fq.bin example/mother.fq > example/index.fmd
-./stella pingpong search example/index.fmd example/child.fq 1
+./stella pingpong index --binary --fastq example/father.fq > example/father.fq.bin
+./stella pingpong index --append --fastq example/father.fq.bin example/mother.fq > example/index.fmd
+./stella pingpong search --index example/index.fmd --fastq example/child.fq --threads 4
  ```
  
  ### Authors

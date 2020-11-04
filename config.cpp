@@ -19,11 +19,16 @@ Configuration::Configuration() :
     parser.add_options()
         ("bed", "", cxxopts::value<std::string>())
         ("type", "", cxxopts::value<std::string>())
+        ("index", "", cxxopts::value<std::string>())
+        ("fastq", "", cxxopts::value<std::string>())
         ("cutoff", "", cxxopts::value<int>())
-        ("threads", "", cxxopts::value<int>())
+        ("t,threads", "", cxxopts::value<int>())
+        ("a,append", "", cxxopts::value<std::string>())
         ("workdir", "", cxxopts::value<std::string>())
         ("coverage", "", cxxopts::value<int>())
         ("reference", "", cxxopts::value<std::string>())
+        ("b,binary", "", cxxopts::value<bool>()->default_value("false"))
+        ("aggregate", "", cxxopts::value<bool>())
     ;
 }
 
@@ -35,14 +40,27 @@ void Configuration::parse(int argc, char** argv) {
     if (results.count("type")) {
         type = results["type"].as<std::string>() ;
     }
-    if (results.count("threads")) {
-        threads = results["threads"].as<int>() ;
+    if (results.count("index")) {
+        index = results["index"].as<std::string>() ;
+    }
+    if (results.count("fastq")) {
+        fastq = results["fastq"].as<std::string>() ;
     }
     if (results.count("cutoff")) {
         cutoff = results["cutoff"].as<int>() ;
     }
+    if (results.count("threads")) {
+        threads = results["threads"].as<int>() ;
+    }
     if (results.count("workdir")) {
         workdir = results["workdir"].as<std::string>() ;
+    } else {
+        workdir = "." ;
+    }
+    if (results.count("append")) {
+        append = results["append"].as<std::string>() ;
+    } else {
+        append = "" ;
     }
     if (results.count("coverage")) {
         coverage = results["coverage"].as<int>() ;
@@ -50,6 +68,8 @@ void Configuration::parse(int argc, char** argv) {
     if (results.count("reference")) {
         reference = results["reference"].as<std::string>() ;
     }
+    binary = results["binary"].as<bool>() ;
+    aggregate = results["aggregate"].as<bool>() ;
     cout << "Coverage: " << coverage << endl ;
 }
 

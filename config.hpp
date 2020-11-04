@@ -17,14 +17,20 @@ public:
 
     void parse(int argc, char* argv[]) ;
 
-    int cutoff = 5 ;
+    int cutoff = 1 ;
     int threads = 48 ;
     int coverage = 50 ;
     int batch_size = 1000 ;
 
+    bool binary ;
+    bool aggregate ;
+
     std::string bed ;
     std::string type ;
     std::string workdir ;
+    std::string append ;
+    std::string index ;
+    std::string fastq ;
     std::string reference ;
 
 private:

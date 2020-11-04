@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <unordered_map>
 
+#include "config.hpp"
 #include "ping_pong.hpp"
 
 using namespace std ;
@@ -28,7 +29,7 @@ using namespace std ;
 // ============================================================================= \\
 
 std::string interval2str(rldintv_t sai) {
-    return "[" + std::to_string(sai.x[0]) + "," + std::to_string(sai.x[1]) + "," + std::to_string(sai.x[2]) + "]";
+    return "[" + std::to_string(sai.x[0]) + "," + std::to_string(sai.x[1]) + "," + std::to_string(sai.x[2]) + "]" ;
 }
 
 static inline int kputsn(const char *p, int l, kstring_t *s) {
@@ -183,8 +184,9 @@ vector<fastq_entry_t> PingPong::process_batch_fastq(rld_t* index, vector<fastq_e
 }
 
 void PingPong::output_batch(void* args) {
+    auto c = Configuration::getInstance() ;
     int batch = ((OutputBatchArgs*) args)->batch ;
-    string path = "solution_batch_" + std::to_string(batch - 1) + ".fastq" ;
+    string path = c->workdir + "/solution_batch_" + std::to_string(batch - 1) + ".fastq" ;
     std::ofstream o(path) ;
     for (const auto it : search_solutions[batch - 1]) {
         fastq_entry_t fastq_entry = it.first ;
@@ -197,33 +199,26 @@ void PingPong::output_batch(void* args) {
     search_solutions[batch - 1].clear() ;
 }
 
-int PingPong::search(int argc, char *argv[]) {
-    if(argc == 1 || strcmp(argv[1], "-h") == 0) {
-        cerr << "Usage: stella pingpong search [-h] <index> <sample> <threads>" << endl;
-        return 1;
-    }
+int PingPong::search() {
+    auto c = Configuration::getInstance() ;
     // parse arguments
-    char *index_path = argv[1] ;
     cout << "Restoring index.." << endl ;
-    rld_t *index = rld_restore(index_path) ;
+    rld_t *index = rld_restore(c->index.c_str()) ;
     cout << "Done." << endl ;
-    char *sample_path = argv[2] ;
-    fastq_file = gzopen(sample_path, "r") ;
+    fastq_file = gzopen(c->fastq.c_str(), "r") ;
     fastq_iterator = kseq_init(fastq_file) ;
-    int threads = atoi(argv[3]) ;
-    DEBUG(threads = 1; )
     // load first batch
     unordered_map<fastq_entry_t, int> s ;
     search_solutions.push_back(s) ;
     vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
-        batches.push_back(vector<vector<fastq_entry_t>>(threads)) ; // previous and current output
-        fastq_entries.push_back(vector<vector<fastq_entry_t>>(threads)) ; // current and next output
+        batches.push_back(vector<vector<fastq_entry_t>>(c->threads)) ; // previous and current output
+        fastq_entries.push_back(vector<vector<fastq_entry_t>>(c->threads)) ; // current and next output
     }
     int p = 0 ;
     int batch_size = 10000 ;
     cerr << "Loading first batch" << endl ;
-    load_batch_fastq(threads, batch_size, p) ;
+    load_batch_fastq(c->threads, batch_size, p) ;
     // main loop
     time_t t ;
     time(&t) ;
@@ -232,17 +227,17 @@ int PingPong::search(int argc, char *argv[]) {
     while (true) {
         cerr << "Beginning batch " << b + 1 << endl ;
         uint64_t v = u ;
-        for (int i = 0 ; i < threads ; i++) {
+        for (int i = 0 ; i < c->threads ; i++) {
             u += fastq_entries[p][i].size() ;
         }
         if (v == u) {
             break ;
         }
-        #pragma omp parallel for num_threads(threads + 2)
-        for(int i = 0; i < threads + 2; i++) {
+        #pragma omp parallel for num_threads(c->threads + 2)
+        for(int i = 0; i < c->threads + 2; i++) {
             if (i == 0) {
                 // load next batch of entries
-                load_batch_fastq(threads, batch_size, (p + 1) % 2) ;
+                load_batch_fastq(c->threads, batch_size, (p + 1) % 2) ;
                 cerr << "Loaded." << endl ;
             } else if (i == 1) {
                 // merge output of previous batch
@@ -302,6 +297,7 @@ int PingPong::search(int argc, char *argv[]) {
     // cleanup
     kseq_destroy(fastq_iterator) ;
     gzclose(fastq_file) ;
+    num_output_batches = current_batch ;
     return u ;
 }
 
@@ -309,23 +305,23 @@ int PingPong::search(int argc, char *argv[]) {
 // ============================================================================= \\
 // ============================================================================= \\
 
-int PingPong::query(int argc, char *argv[]) {
-    cout << "Single query mode.." << endl ;
-    char *index_path = argv[1] ;
-    rld_t *index = rld_restore(index_path) ;
-    char *query_seq = argv[2] ;
-    //
-    vector<fastq_entry_t> solutions ;
-    fastq_entry_t fastq_entry("Query", std::string(query_seq), std::string(query_seq)) ;
-    ping_pong_search(index, fastq_entry, solutions) ;
-    //
-    for (const auto fastq_entry : solutions) {
-        cout << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
-            << fastq_entry.start + fastq_entry.len - 1 << endl 
-            << fastq_entry.seq << endl ;
-    }
-    return 0 ;
-}
+//int PingPong::query() {
+//    cout << "Single query mode.." << endl ;
+//    char *index_path = argv[1] ;
+//    rld_t *index = rld_restore(index_path) ;
+//    char *query_seq = argv[2] ;
+//    //
+//    vector<fastq_entry_t> solutions ;
+//    fastq_entry_t fastq_entry("Query", std::string(query_seq), std::string(query_seq)) ;
+//    ping_pong_search(index, fastq_entry, solutions) ;
+//    //
+//    for (const auto fastq_entry : solutions) {
+//        cout << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
+//            << fastq_entry.start + fastq_entry.len - 1 << endl 
+//            << fastq_entry.seq << endl ;
+//    }
+//    return 0 ;
+//}
 
 // ============================================================================= \\
 // ============================================================================= \\
@@ -435,64 +431,72 @@ int PingPong::query(int argc, char *argv[]) {
 // ============================================================================= \\
 
 /** Code adapted from ropebwt2 (main_ropebwt2 in main.c) **/
-int PingPong::index(int argc, char* argv[]) {
+int PingPong::index() {
+    auto c = Configuration::getInstance() ;
     // hardcoded parameters
-    uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1; // batch size for multi-string indexing
-    int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES, so = MR_SO_RCLO;
-    int thr_min = 100; // switch to single thread when < 100 strings remain in a batch
+    uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1 ; // batch size for multi-string indexing
+    int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES, so = MR_SO_RCLO ;
+    int thr_min = 100 ; // switch to single thread when < 100 strings remain in a batch
 
     // the index
-    mrope_t *mr = 0;
+    mrope_t *mr = 0 ;
 
-    // cmd line arguments
-    bool binary_output = false;
-    int c;
-    while ((c = getopt (argc, argv, "a:bh")) != -1)
-        switch (c) {
-            case 'a':
-                // append to existing index - we restore the index (it must be in binary FMR format)
-                FILE *fp;
-                if ((fp = fopen(optarg, "rb")) == 0) {
-                    cerr << "fail to open file " << optarg << endl;
-                    return 1;
-                }
-                mr = mr_restore(fp);
-                fclose(fp);
-                break;
-            case 'b':
-                binary_output = true;
-                break;
-            case 'h':
-                cerr << "Usage: stella pingpong index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
-                return 0;
-            case '?':
-                return 1;
-            default:
-                return 1;
+    bool binary_output = c->binary ;
+    if (c->append != "") {
+        FILE *fp ;
+        if ((fp = fopen(c->append.c_str(), "rb")) == 0) {
+            cerr << "Failed to open file " << c->append << endl ;
+            return 1 ;
         }
-    if(optind == argc) {
-        cerr << "Usage: stella pingpong index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
-        return 1;
+        mr = mr_restore(fp) ;
+        fclose(fp) ;
     }
-    char *fpath = argv[optind]; // input sample
+    //int c ;
+    //while ((c = getopt (argc, argv, "a:bh")) != -1)
+    //    switch (c) {
+    //        case 'a':
+    //            // append to existing index - we restore the index (it must be in binary FMR format)
+    //            FILE *fp;
+    //            if ((fp = fopen(optarg, "rb")) == 0) {
+    //                cerr << "fail to open file " << optarg << endl;
+    //                return 1;
+    //            }
+    //            mr = mr_restore(fp);
+    //            fclose(fp);
+    //            break;
+    //        case 'b':
+    //            binary_output = true;
+    //            break;
+    //        case 'h':
+    //            cerr << "Usage: stella pingpong index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
+    //            return 0;
+    //        case '?':
+    //            return 1;
+    //        default:
+    //            return 1;
+    //    }
+    //if(optind == argc) {
+    //    cerr << "Usage: stella pingpong index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
+    //    return 1;
+    //}
 
     // Initialize mr if not restored
-    if (mr == 0) mr = mr_init(max_nodes, block_len, so);
-    mr_thr_min(mr, thr_min);
+    if (mr == 0) mr = mr_init(max_nodes, block_len, so) ;
+    mr_thr_min(mr, thr_min) ;
 
     // Parsing the input sample
-    gzFile fp = gzopen(fpath, "rb");
-    kseq_t *ks = kseq_init(fp);
-    kstring_t buf = { 0, 0, 0 }; // buffer, will contain the concatenation
-    int l;
-    uint8_t *s;
-    int i;
+    gzFile fp = gzopen(c->fastq.c_str(), "rb") ;
+    kseq_t *ks = kseq_init(fp) ;
+    kstring_t buf = { 0, 0, 0 } ; // buffer, will contain the concatenation
+    int l ;
+    uint8_t *s ;
+    int i ;
     while ((l = kseq_read(ks)) >= 0) {
-        s = (uint8_t*)ks->seq.s;
+        s = (uint8_t*)ks->seq.s ;
 
         // change encoding
         for (i = 0; i < l; ++i) {
-            s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5;
+            s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5 ;
         }
 
         // --- hard mask the sequence ---
@@ -531,27 +535,27 @@ int PingPong::index(int argc, char* argv[]) {
 
         // Reverse the sequence
         for (i = 0; i < l>>1; ++i) {
-            int tmp = s[l-1-i];
-            s[l-1-i] = s[i];
-            s[i] = tmp;
+            int tmp = s[l-1-i] ;
+            s[l-1-i] = s[i] ;
+            s[i] = tmp ;
         }
 
         // Add forward to buffer
-        kputsn((char*)ks->seq.s, ks->seq.l + 1, &buf);
+        kputsn((char*)ks->seq.s, ks->seq.l + 1, &buf) ;
 
         // Add reverse to buffer
         for (i = 0; i < l>>1; ++i) {
-            int tmp = s[l-1-i];
-            tmp = (tmp >= 1 && tmp <= 4)? 5 - tmp : tmp;
-            s[l-1-i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i];
-            s[i] = tmp;
+            int tmp = s[l - 1 - i] ;
+            tmp = (tmp >= 1 && tmp <= 4)? 5 - tmp : tmp ;
+            s[l - 1 - i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i] ;
+            s[i] = tmp ;
         }
-        if (l&1) s[i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i];
-        kputsn((char*)ks->seq.s, ks->seq.l + 1, &buf);
+        if (l&1) s[i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i] ;
+        kputsn((char*)ks->seq.s, ks->seq.l + 1, &buf) ;
 
         if(buf.l >= m) {
-            mr_insert_multi(mr, buf.l, (uint8_t*)buf.s, 1);
-            buf.l = 0;
+            mr_insert_multi(mr, buf.l, (uint8_t*)buf.s, 1) ;
+            buf.l = 0 ;
         }
     }
 
@@ -559,64 +563,37 @@ int PingPong::index(int argc, char* argv[]) {
         mr_insert_multi(mr, buf.l, (uint8_t*)buf.s, 1) ;
     }
 
-    free(buf.s);
-    kseq_destroy(ks);
-    gzclose(fp);
+    free(buf.s) ;
+    kseq_destroy(ks) ;
+    gzclose(fp) ;
 
     // dump index to stdout
     if (binary_output) {
         // binary FMR format
-        mr_dump(mr, stdout);
+        mr_dump(mr, stdout) ;
     } else {
         // FMD format
-        mritr_t itr;
-        const uint8_t *block;
-        rld_t *e = 0;
-        rlditr_t di;
-        e = rld_init(6, 3);
-        rld_itr_init(e, &di, 0);
-        mr_itr_first(mr, &itr, 1);
+        mritr_t itr ;
+        const uint8_t *block ;
+        rld_t *e = 0 ;
+        rlditr_t di ;
+        e = rld_init(6, 3) ;
+        rld_itr_init(e, &di, 0) ;
+        mr_itr_first(mr, &itr, 1) ;
         while ((block = mr_itr_next_block(&itr)) != 0) {
-            const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
+            const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block) ;
             while (q < end) {
-                int c = 0;
-                int64_t l;
-                rle_dec1(q, c, l);
-                rld_enc(e, &di, l, c);
+                int c = 0 ;
+                int64_t l ;
+                rle_dec1(q, c, l) ;
+                rld_enc(e, &di, l, c) ;
             }
         }
-        rld_enc_finish(e, &di);
-        rld_dump(e, "-");
+        rld_enc_finish(e, &di) ;
+        rld_dump(e, "-") ;
     }
 
     mr_destroy(mr) ;
 
     return 0 ;
-}
-
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
-
-int PingPong::run(int argc, char *argv[]) {
-    if(argc == 1) {
-        cerr << "Usage: main [index|sf3] -h" << endl ;
-        return 1;
-    }
-    string mode = argv[1] ;
-    int retcode = 0;
-    if (mode == "index") {
-        retcode = index(argc - 1, argv + 1) ;
-    } else if (mode == "check") {
-        //retcode = check(argc - 1, argv + 1) ;
-    } else if (mode == "query") {
-        retcode = query(argc - 1, argv + 1) ;
-    } else if (mode == "search") {
-        retcode = search(argc - 1, argv + 1) ;
-        retcode = 0 ;
-    } else {
-        cerr << "stella pingpong [index|search|query|check] -h" << endl;
-        retcode = 1 ;
-    }
-    return retcode ;
 }
