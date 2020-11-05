@@ -19,9 +19,12 @@ def main():
     bam = pysam.AlignmentFile(bampath, "r")
     if out_fmt == "sam":
         print(bam.header, end='')
+    used_idxs = set()
     for al in bam.fetch():
-        if al.is_secondary or al.is_unmapped or al.is_supplementary:
-            continue
+        # I cannot use this since some secondary may be primary (bug in bbmap2?) - just 2 alignments btw
+        # if al.is_secondary or al.is_unmapped or al.is_supplementary:
+        #     continue
+
         # bbmap:
         good_bases = al.get_cigar_stats()[0][7]
         # minimap2:
@@ -29,6 +32,9 @@ def main():
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
         if (exact and bad_bases + deletions == nerr) or (not exact and bad_bases + deletions > nerr):
+            if al.query_name in used_idxs:
+                continue
+            used_idxs.add(al.query_name)
             good_als += 1
             if out_fmt == "sam":
                 print(al.tostring(bam))

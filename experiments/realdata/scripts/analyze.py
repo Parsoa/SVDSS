@@ -105,6 +105,7 @@ def contigbased_precision():
 ################################
 def parse_waobed(bed_path, firsthap = True):
     alignments = {}
+    all_alignments = {}
     for line in open(bed_path):
         line = line.strip('\n').split('\t')
         ref, start, end, ridx, vidx, covering = line[0], line[1], line[2], line[3], line[9], line[-1]
@@ -135,12 +136,12 @@ def parse_outsiders(bed_path):
         ridx, flag = line[3], line[-1]
         if ridx not in outsiders_dict:
             outsiders_dict[ridx] = False
-        outsiders_dict[ridx] = outsiders_dict[ridx] or flag != '0'
+        outsiders_dict[ridx] = outsiders_dict[ridx] or flag == '0'
     outsiders = set()
     for ridx,flag in outsiders_dict.items():
         if not flag:
             outsiders.add(ridx)
-    print(len(outsiders), len(outsiders_dict), len(outsiders)/len(outsiders_dict), file=sys.stderr)
+    print(len(outsiders), len(outsiders_dict), len(outsiders)/len(outsiders_dict) if len(outsiders_dict) > 0 else 0)
     return outsiders
 
 def check_haplo_uniqueness(variants, firsthap = True):
@@ -149,11 +150,11 @@ def check_haplo_uniqueness(variants, firsthap = True):
     NAhaplo2 = [v[1][1] for v in variants]
     return HGhaplo != NAhaplo1 and HGhaplo != NAhaplo2
 
-def haplo_precision():
+def precision():
     vcf_path = sys.argv[1]  # all variants
     bed1_path = sys.argv[2] # bedintersect -wao between alignments and variants on first haplotype
     bed2_path = sys.argv[3] # bedintersect -wao between alignments and variants on second haplotype
-    bed3_path = sys.argv[4] # bedintersect -c between alignments and regions called by HGSV consortium
+    bed3_path = sys.argv[4] # bedintersect -c between alignments and regions not called by HGSV consortium
 
     variants = parse_vcf(vcf_path)
 
@@ -161,7 +162,7 @@ def haplo_precision():
     alignments2 = parse_waobed(bed2_path, False)
 
     outsiders = parse_outsiders(bed3_path)
-    
+
     covering_results = {}
     for posidx,vidxs in alignments1.items():
         ridx = posidx.split(':')[0]
@@ -190,15 +191,46 @@ def haplo_precision():
             covering += 1
         else:
             if ridx in outsiders:
-                print("O", idx)
                 outside += 1
-            else:
-                print("I", idx)
-    print("Covering:", covering, file=sys.stderr)
-    print("Outsiders:", outside, file=sys.stderr)
-    print("Total:", total, file=sys.stderr)
-    print("P:", round(covering/total*100, 3), file=sys.stderr)
-    print("P (w/o outsiders):", round(covering/(total-outside)*100, 3), file=sys.stderr)
+    print("Covering:", covering)
+    print("Outsiders:", outside)
+    print("Total:", total)
+    print("P:", round(covering/total*100, 3))
+    print("P (w/o outsiders):", round(covering/(total-outside)*100, 3))
+
+# I had to duplicate the function to avoid a cycle in snakemake
+def extract_uncovering():
+    vcf_path = sys.argv[1]  # all variants
+    bed1_path = sys.argv[2] # bedintersect -wao between alignments and variants on first haplotype
+    bed2_path = sys.argv[3] # bedintersect -wao between alignments and variants on second haplotype
+
+    variants = parse_vcf(vcf_path)
+
+    alignments1 = parse_waobed(bed1_path, True)
+    alignments2 = parse_waobed(bed2_path, False)
+
+    covering_results = {}
+    for posidx,vidxs in alignments1.items():
+        ridx = posidx.split(':')[0]
+        if ridx not in covering_results:
+            covering_results[ridx] = False
+        if len(vidxs) > 0:
+            covered_variants = [variants[vidx] for vidx in vidxs]
+            unique = check_haplo_uniqueness(covered_variants, True)
+            covering_results[ridx] = covering_results[ridx] or unique
+
+    for posidx,vidxs in alignments2.items():
+        ridx = posidx.split(':')[0]
+        if ridx not in covering_results:
+            covering_results[ridx] = False
+        if len(vidxs) > 0:
+            covered_variants = [variants[vidx] for vidx in vidxs]
+            unique = check_haplo_uniqueness(covered_variants, False)
+            covering_results[ridx] = covering_results[ridx] or unique
+
+    for ridx, flag in covering_results.items():
+        if not flag:
+            print(ridx)
 
 if __name__ == "__main__":
     mode = sys.argv.pop(1)
@@ -208,3 +240,5 @@ if __name__ == "__main__":
         contigbased_precision()
     elif mode == "rec":
         recall()
+    elif mode == "exunc":
+        extract_uncovering()

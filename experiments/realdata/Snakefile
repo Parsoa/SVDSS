@@ -9,11 +9,13 @@ root = config["root"]
 samples = config["samples"]
 ref = pjoin(root, config["ref"])
 known_vars = pjoin(root, config["vcf"])
+thrs = config["threads"]
 
 """
 snakeroot
 |-- CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.all_variants.genotypes.vcf.gz
 |-- CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.all_variants.genotypes.vcf.gz.tbi
+|-- CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.callable-regions.bed
 |-- HG00733_assembly1.fa
 |-- HG00733_assembly2.fa
 |-- HG00733.fq
@@ -28,12 +30,13 @@ snakeroot
 pp = "pp"
 step1 = "step1"
 step2 = "step2"
+mm2 = "long_mm2"
 
 # Some hardcoded parameters
-thrs = 8
 min_ab = 5
 max_l = 500
 sspecific_prefix = f"sspecific.minab_{min_ab}.maxl_{max_l}"
+sspecific_prefix_long = f"sspecific.minab_{min_ab}.minl_{max_l}"
 
 rule run:
     input:
@@ -42,13 +45,13 @@ rule run:
         # ping-pong (pp) pipeline
         pjoin(root, pp, "sspecific.correlation.png"),
         # STEP 1 - contigs
-        pjoin(root, step1, "al_by_errors.png"),
+        # pjoin(root, step1, "al_by_errors.png"),
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.pmatches.fa"),
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.notpmatches.fa"),
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.nal.png"),
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.2al_homo.txt"),
         pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.nal.png"),
-        pjoin(root, step1, "new_precision.csv"),
+        pjoin(root, step1, "Cprecision.csv"),
         # STEP 1.1 - repeatmasker
         pjoin(root, step1, "repmask_hg.tbl"),
         pjoin(root, step1, "repmask_hg.png"),
@@ -56,17 +59,40 @@ rule run:
         pjoin(root, step1, "repmask_na.png"),
         # STEP 2 - haplotypes
         pjoin(root, step2, "recall.csv"),
-        pjoin(root, step2, "precision.csv"),
-        pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.nal.png"),
+        pjoin(root, step2, "Hprecision.csv"),
         # Step 2b - uncovering
-        pjoin(root, step2, "covering_plot.png"),
+        # pjoin(root, step2, "covering_plot.png"),
+        pjoin(root, step2, "uncovering", "sspecific_intersect_regions.stats.csv"),
         # General stats
-        pjoin(root, "stats.txt")
-
+        pjoin(root, "stats.txt"),
+        # 4-panes paper plot
+        pjoin(root, "4paneplot.png"),
+        # minimap2
+        pjoin(root, mm2, "contigs_analysis.png"),
+        pjoin(root, mm2, "recall.csv"),
+        pjoin(root, mm2, "Hprecision.csv"),
+        pjoin(root, mm2, "covering_plot.png"),
+        pjoin(root, mm2, "recall.combined.csv"),
+        pjoin(root, mm2, "Hprecision.combined.csv")
 
 # pjoin(root, step2, "recbylen.png"),
 
-
+rule plot:
+    input:
+        fq = pjoin(root, pp, f"{sspecific_prefix}.fq"),
+        contigssam1 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+        contigssam2 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam"),
+        uncovering_txt = pjoin(root, step2, "uncovering", "sspecific.txt"),
+        haplosam = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+        subcontigssam1 = pjoin(root, step2, "uncovering", f"sspecific.{samples[1]}.sam"),
+        subcontigssam2 = pjoin(root, step2, "uncovering", f"sspecific.{samples[0]}.sam")
+    output:
+        png = pjoin(root, "4paneplot.png")
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot_paperimage.py {input.fq} {input.contigssam1} {input.contigssam2} {input.uncovering_txt} {input.haplosam} {input.subcontigssam1} {input.subcontigssam2} {output.png}
+        """
 
 
 ###############################
@@ -136,7 +162,7 @@ rule pp_search:
     shell:
         """
         mkdir -p {output}
-        pushd {output}  &> /dev/null
+        pushd {output} &> /dev/null
         /usr/bin/time -vo {log.time} {params.bin} sf3 {input.index} {input.sample} {threads} &> {log.out}
         popd &> /dev/null
         """
@@ -236,18 +262,18 @@ rule clean_bbmap_1:
         python3 scripts/remove_bad_ambiguous.py {input.sam} > {output.sam}
         """
 
-rule plot_step1:
-    input:
-        sam1 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
-        sam2 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam"),
-        fq = pjoin(root, pp, f"{sspecific_prefix}.fq")
-    output:
-        png = pjoin(root, step1, "al_by_errors.png")
-    threads: 1
-    shell:
-        """
-        python3 scripts/plot.py albyerr {input.sam1} {input.sam2} {input.fq} {output.png}
-        """
+# rule plot_step1:
+#     input:
+#         sam1 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+#         sam2 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam"),
+#         fq = pjoin(root, pp, f"{sspecific_prefix}.fq")
+#     output:
+#         png = pjoin(root, step1, "al_by_errors.png")
+#     threads: 1
+#     shell:
+#         """
+#         python3 scripts/plot.py albyerr {input.sam1} {input.sam2} {input.fq} {output.png}
+#         """
 
 rule plot_nalign_bar_1:
     input:
@@ -301,7 +327,7 @@ rule analyze_step1_precision:
         sam2 = pjoin(root, step1, f"{sspecific_prefix}.cleared.{samples[0]}.sam"),
         fq = pjoin(root, pp, f"{sspecific_prefix}.fq")
     output:
-        txt = pjoin(root, step1, "new_precision.csv")
+        txt = pjoin(root, step1, "Cprecision.csv")
     threads: 1
     shell:
         """
@@ -443,17 +469,6 @@ rule clean_bbmap_2:
         python3 scripts/remove_bad_ambiguous.py {input.sam} > {output.sam}
         """
 
-rule plot_nalign_bar_2:
-    input:
-        sam = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam")
-    output:
-        png = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.nal.png")
-    threads: 1
-    shell:
-        """
-        python3 scripts/plot.py nal {input.sam} {output.png}
-        """
-
 rule vcf2uniquehaplobeds:
     input:
         vcf = known_vars
@@ -517,32 +532,41 @@ rule intersect_beds_for_precision:
 rule analyze_step2:
     # TODO split in multiple rules
     input:
+        vcf = known_vars,
         bed_rec1 = pjoin(root, step2, "bedintersect", "uniquevars1_vs_sam.c.bed"),
         bed_rec2 = pjoin(root, step2, "bedintersect", "uniquevars2_vs_sam.c.bed"),
-        bed_pre1 = pjoin(root, step2, "bedintersect", "sam_vs_allvars1.c.bed"),
-        bed_pre2 = pjoin(root, step2, "bedintersect", "sam_vs_allvars2.c.bed")
+        bed_pre1 = pjoin(root, step2, "bedintersect", "sam_vs_allvars1.wao.bed"),
+        bed_pre2 = pjoin(root, step2, "bedintersect", "sam_vs_allvars2.wao.bed"),
+        bed_regions = pjoin(root, step2, "uncovering", "sspecific_intersect_regions.bed")
     output:
         rec = pjoin(root, step2, "recall.csv"),
-        pre = pjoin(root, step2, "precision.csv"),
-        txt = pjoin(root, step2, "uncovering", "sspecific.txt")
+        pre = pjoin(root, step2, "Hprecision.csv")
         # png2 = pjoin(root, step2, "recbylen.png")
     params:
-        txt = pjoin(root, step2, "uncovering", "sspecific.wclass.txt")
         # reclist = pjoin(root, step2, "recall.list.txt"),
         lvalue = 250
     threads: 1
     shell:
         """
         python3 scripts/analyze.py rec {input.bed_rec1} {input.bed_rec2} {params.lvalue} > {output.rec}
-        python3 scripts/analyze.py pre {input.bed_pre1} {input.bed_pre2} > {params.txt} 2> {output.pre}
-        cut -f 2 -d' ' {params.txt} > {output.txt}
+        python3 scripts/analyze.py pre {input.vcf} {input.bed_pre1} {input.bed_pre2} {input.bed_regions} > {output.pre}
         """
 # python3 scripts/analyze.py reclist {input.i1} {input.i2} > {params.reclist}
 # python3 scripts/plot.py recbylen {params.reclist} {output.png1}
 
-
-
-
+# I cannot do this while computing precision. It will create a cycle in snakemake flow
+rule extract_uncovering:
+    input:
+        vcf = known_vars,
+        bed_pre1 = pjoin(root, step2, "bedintersect", "sam_vs_allvars1.wao.bed"),
+        bed_pre2 = pjoin(root, step2, "bedintersect", "sam_vs_allvars2.wao.bed"),
+    output:
+        txt = pjoin(root, step2, "uncovering", "sspecific.txt")
+    threads: 1
+    shell:
+        """
+        python3 scripts/analyze.py exunc {input.vcf} {input.bed_pre1} {input.bed_pre2} > {output.txt}
+        """
 
 ################################################################
 ### Step 2b: specific strings not covering a known variation ###
@@ -572,56 +596,100 @@ rule extract_uncovering_alignment_contigs:
         python3 scripts/extract_subsam.py {input.sam} {input.txt} > {output.sam}
         """
 
-rule plot_uncovering_al_by_err:
+# rule plot_uncovering_al_by_err:
+#     input:
+#         uncovering_txt = pjoin(root, step2, "uncovering", "sspecific.txt"),
+#         haplosam = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+#         contigssam1 = pjoin(root, step2, "uncovering", f"sspecific.{samples[1]}.sam"),
+#         contigssam2 = pjoin(root, step2, "uncovering", f"sspecific.{samples[0]}.sam")
+#     output:
+#         png = pjoin(root, step2, "covering_plot.png")
+#     threads: 1
+#     shell:
+#         """
+#         python3 scripts/plot.py cov {input.uncovering_txt} {input.haplosam} {input.contigssam1} {input.contigssam2} {output.png}
+#         """
+
+
+rule bbmap_index_reference:
     input:
-        uncovering_txt = pjoin(root, step2, "uncovering", "sspecific.txt"),
-        haplosam = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
-        contigssam1 = pjoin(root, step2, "uncovering", f"sspecific.{samples[1]}.sam"),
-        contigssam2 = pjoin(root, step2, "uncovering", f"sspecific.{samples[0]}.sam")
+        pjoin(root, "hg38.chroms.fa")
     output:
-        png = pjoin(root, step2, "covering_plot.png")
+        directory(pjoin(root, "hg38.chroms.fa.bbmapindex"))
+    threads: thrs
+    log:
+        time = pjoin(root, "hg38.chroms.fa.bbmapindex.time"),
+        out= pjoin(root, "hg38.chroms.fa.bbmapindex.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 ref={input} path={output} &> {log.out}
+        """
+
+rule bbmap_align_uncovering_to_reference:
+    input:
+        index = pjoin(root, "hg38.chroms.fa.bbmapindex"),
+        fq = pjoin(root, step2, "uncovering", "sspecific.fq")
+    output:
+        sam = pjoin(root, step2, "uncovering", "sspecific.sam")
+    threads: thrs
+    log:
+        time = pjoin(root, step2, "uncovering", "sspecific.time"),
+        out = pjoin(root, step2, "uncovering", "sspecific.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
+        """
+
+rule complement_callableregions:
+    input:
+        bed = pjoin(root, "CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.callable-regions.bed"),
+        fai = pjoin(root, "hg38.chroms.fa.fai"),
+    output:
+        bed = pjoin(root, "CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.callable-regions.complement.bed")
     threads: 1
     shell:
         """
-        python3 scripts/plot.py cov {input.uncovering_txt} {input.haplosam} {input.contigssam1} {input.contigssam1} {output.png}
+        bedtools complement -i {input.bed} -g {input.fai} > {output.bed}
         """
 
-# rule bbmap_index_reference:
-#     input:
-#         pjoin(root, "hg38.chroms.fa")
-#     output:
-#         directory(pjoin(root, "hg38.chroms.fa.bbmapindex"))
-#     threads: thrs
-#     log:
-#         time = pjoin(root, "hg38.chroms.fa.bbmapindex.time"),
-#         out= pjoin(root, "hg38.chroms.fa.bbmapindex.log")
-#     shell:
-#         """
-#         /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 ref={input} path={output} &> {log.out}
-#         """
+rule intersect_uncoverings_with_callableregions:
+    input:
+        aligns = pjoin(root, step2, "uncovering", "sspecific.sam.bed"),
+        regions = pjoin(root, "CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.callable-regions.complement.bed")
+    output:
+        bed = pjoin(root, step2, "uncovering", "sspecific_intersect_regions.bed")
+    threads: 1
+    shell:
+        """
+        bedtools intersect -c -a {input.aligns} -b {input.regions} > {output.bed}
+        """
 
-# rule bbmap_align_uncovering_to_reference:
-#     input:
-#         index = pjoin(root, "hg38.chroms.fa.bbmapindex"),
-#         fq = pjoin(root, step2, "uncovering", "sspecific.fq")
-#     output:
-#         sam = pjoin(root, step2, "uncovering", "sspecific.sam")
-#     threads: thrs
-#     log:
-#         time = pjoin(root, step2, "uncovering", "sspecific.time"),
-#         out = pjoin(root, step2, "uncovering", "sspecific.log")
-#     shell:
-#         """
-#         /usr/bin/time -vo {log.time} bbmap.sh threads={threads} k=11 usequality=f ambiguous=all idtag=t path={input.index} in={input.fq} outm={output.sam} &> {log.out}
-#         """
-        
-
-
+rule check_cintersection:
+    input:
+        bed = pjoin(root, step2, "uncovering", "sspecific_intersect_regions.bed")
+    output:
+        csv = pjoin(root, step2, "uncovering", "sspecific_intersect_regions.stats.csv")
+    threads: 1
+    shell:
+        """
+        python3 scripts/count_bed_cintersection.py {input.bed} > {output.csv}
+        """
 
 
 #############
 ### utils ###
 #############
+rule faindex:
+    input:
+        "{fpath}.fa"
+    output:
+        "{fpath}.fa.fai"
+    threads: 1
+    shell:
+        """
+        samtools faidx {input}
+        """
+
 rule fa2fq:
     input:
         "{fpath}.fa"
@@ -683,7 +751,234 @@ rule get_stats:
     threads: 1
     shell:
         """
-        pushd scripts
+        pushd scripts &> /dev/null
         bash get_stats.sh {params} > {output}
-        popd
+        popd &> /dev/null
+        """
+
+### minimap2 analysis ###
+rule filter_long:
+    input:
+        pjoin(root, pp, "sspecific.fq")
+    output:
+        pjoin(root, pp, f"{sspecific_prefix_long}.fq")
+    params:
+        ab = min_ab,
+        l = max_l
+    threads: 1
+    shell:
+        """
+        ./scripts/filter La {input} {params.ab} {params.l} > {output}
+        """
+
+rule minimap2_contigs:
+    input:
+        ref = pjoin(root, "{sample}_assembly.fa"),
+        fq = pjoin(root, pp, f"{sspecific_prefix_long}.fq")
+    output:
+        sam = pjoin(root, mm2, "{sample}.contigs.sam")
+    threads: thrs
+    log:
+        time = pjoin(root, mm2, "{sample}.contigs.time"),
+        out = pjoin(root, mm2, "{sample}.contigs.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} minimap2 --split-prefix 1 -t {threads} -ax asm20 {input.ref} {input.fq} > {output.sam} 2> {log.out}
+        """
+rule minimap2_contigs_plot:
+    input:
+        sam1 = pjoin(root, mm2, f"{samples[1]}.contigs.sam"),
+        sam2 = pjoin(root, mm2, f"{samples[0]}.contigs.sam"),
+        fq = pjoin(root, pp, f"{sspecific_prefix_long}.fq")
+    output:
+        png = pjoin(root, mm2, "contigs_analysis.png")
+    threads: 1
+    shell:
+        """
+        python3 ./scripts/plot.py albyerr {input.sam1} {input.sam2} {input.fq} {output.png}
+        """
+
+rule minimap2_haplo:
+    input:
+        ref = pjoin(root, f"{samples[1]}_haplotypes.fa"),
+        fq = pjoin(root, pp, f"{sspecific_prefix_long}.fq")
+    output:
+        sam = pjoin(root, mm2, f"{samples[1]}.haplo.sam")
+    threads: thrs
+    log:
+        time = pjoin(root, mm2, f"{samples[1]}.haplo.time"),
+        out = pjoin(root, mm2, f"{samples[1]}.haplo.log")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} minimap2 --split-prefix 1 -t {threads} -ax asm20 {input.ref} {input.fq} > {output.sam} 2> {log.out}
+        """
+
+rule minimap2_intersect_beds_for_recall:
+    input:
+        aligns = pjoin(root, mm2, f"{samples[1]}.haplo.sam.bed"),
+        vars1 = pjoin(root, step2, f"{samples[1]}_uniquevars_1.bed"),
+        vars2 = pjoin(root, step2, f"{samples[1]}_uniquevars_2.bed")
+    output:
+        bed1 = pjoin(root, mm2, "bedintersect", "uniquevars1_vs_sam.c.bed"),
+        bed2 = pjoin(root, mm2, "bedintersect", "uniquevars2_vs_sam.c.bed")
+    threads: 1
+    shell:
+        """
+        bedtools intersect -c -a {input.vars1} -b {input.aligns} > {output.bed1}
+        bedtools intersect -c -a {input.vars2} -b {input.aligns} > {output.bed2}
+        """
+
+rule minimap2_intersect_beds_for_precision:
+    input:
+        aligns = pjoin(root, mm2, f"{samples[1]}.haplo.sam.bed"),
+        vars1 = known_vars + "_1.bed",
+        vars2 = known_vars + "_2.bed"
+    output:
+        bed1 = pjoin(root, mm2, "bedintersect", "sam_vs_allvars1.wao.bed"),
+        bed2 = pjoin(root, mm2, "bedintersect", "sam_vs_allvars2.wao.bed")
+    threads: 1
+    shell:
+        """
+        bedtools intersect -wao -a {input.aligns} -b {input.vars1} > {output.bed1}
+        bedtools intersect -wao -a {input.aligns} -b {input.vars2} > {output.bed2}
+        """
+
+rule minimap2_analyze_step2:
+    input:
+        vcf = known_vars,
+        bed_rec1 = pjoin(root, mm2, "bedintersect", "uniquevars1_vs_sam.c.bed"),
+        bed_rec2 = pjoin(root, mm2, "bedintersect", "uniquevars2_vs_sam.c.bed"),
+        bed_pre1 = pjoin(root, mm2, "bedintersect", "sam_vs_allvars1.wao.bed"),
+        bed_pre2 = pjoin(root, mm2, "bedintersect", "sam_vs_allvars2.wao.bed")
+        # bed_regions = pjoin(root, mm2, "uncovering", "sspecific_intersect_regions.bed")
+    output:
+        rec = pjoin(root, mm2, "recall.csv"),
+        pre = pjoin(root, mm2, "Hprecision.csv")
+    params:
+        lvalue = 250
+    threads: 1
+    shell:
+        """
+        touch .tmp..
+        python3 scripts/analyze.py rec {input.bed_rec1} {input.bed_rec2} {params.lvalue} > {output.rec}
+        python3 scripts/analyze.py pre {input.vcf} {input.bed_pre1} {input.bed_pre2} .tmp.. > {output.pre}
+        rm .tmp..
+        """
+
+rule minimap2_extract_uncovering:
+    input:
+        vcf = known_vars,
+        bed_pre1 = pjoin(root, mm2, "bedintersect", "sam_vs_allvars1.wao.bed"),
+        bed_pre2 = pjoin(root, mm2, "bedintersect", "sam_vs_allvars2.wao.bed"),
+    output:
+        txt = pjoin(root, mm2, "uncovering", "sspecific.txt")
+    threads: 1
+    shell:
+        """
+        python3 scripts/analyze.py exunc {input.vcf} {input.bed_pre1} {input.bed_pre2} > {output.txt}
+        """
+
+rule minimap2_extract_uncovering_fq:
+    input:
+        fq = pjoin(root, pp, f"{sspecific_prefix}.fq"),
+        txt = pjoin(root, mm2, "uncovering", "sspecific.txt")
+    output:
+        fq = pjoin(root, mm2, "uncovering", "sspecific.fq")
+    threads: 1
+    shell:
+        """
+        python3 scripts/extract_subfq.py {input.fq} {input.txt} > {output.fq}
+        """
+
+rule minimap2_extract_uncovering_alignment_contigs:
+    input:
+        sam = pjoin(root, mm2, "{sample}.contigs.sam"),
+        txt = pjoin(root, mm2, "uncovering", "sspecific.txt")
+    output:
+        sam = pjoin(root, mm2, "uncovering", "sspecific.{sample}.sam")
+    threads: 1
+    shell:
+        """
+        python3 scripts/extract_subsam.py {input.sam} {input.txt} > {output.sam}
+        """
+
+rule minimap2_plot_uncovering_al_by_err:
+    input:
+        uncovering_txt = pjoin(root, mm2, "uncovering", "sspecific.txt"),
+        haplosam = pjoin(root, mm2, f"{samples[1]}.haplo.sam"),
+        contigssam1 = pjoin(root, mm2, "uncovering", f"sspecific.{samples[1]}.sam"),
+        contigssam2 = pjoin(root, mm2, "uncovering", f"sspecific.{samples[0]}.sam")
+    output:
+        png = pjoin(root, mm2, "covering_plot.png")
+    threads: 1
+    shell:
+        """
+        python3 scripts/plot.py cov {input.uncovering_txt} {input.haplosam} {input.contigssam1} {input.contigssam2} {output.png}
+        """
+
+# bbmap + minimap2
+rule combine_sams:
+    input:
+        bb_sam = pjoin(root, step2, f"{sspecific_prefix}.cleared.{samples[1]}.sam"),
+        mm2_sam = pjoin(root, mm2, f"{samples[1]}.haplo.sam")
+    output:
+        sam = pjoin(root, mm2, f"{samples[1]}.haplo.combined.sam")
+    shell:
+        """
+        samtools view -HS {input.bb_sam} > {output.sam}
+        samtools view -HS {input.mm2_sam} | grep '^@PG' >> {output.sam}
+        samtools view -S {input.bb_sam} >> {output.sam}
+        samtools view -S {input.mm2_sam} >> {output.sam}
+        """
+
+rule intersect_beds_for_recall_combined:
+    input:
+        aligns = pjoin(root, mm2, f"{samples[1]}.haplo.combined.sam.bed"),
+        vars1 = pjoin(root, step2, f"{samples[1]}_uniquevars_1.bed"),
+        vars2 = pjoin(root, step2, f"{samples[1]}_uniquevars_2.bed")
+    output:
+        bed1 = pjoin(root, mm2, "bedintersect_combined", "uniquevars1_vs_sam.c.bed"),
+        bed2 = pjoin(root, mm2, "bedintersect_combined", "uniquevars2_vs_sam.c.bed")
+    threads: 1
+    shell:
+        """
+        bedtools intersect -c -a {input.vars1} -b {input.aligns} > {output.bed1}
+        bedtools intersect -c -a {input.vars2} -b {input.aligns} > {output.bed2}
+        """
+
+rule intersect_beds_for_precision_combined:
+    input:
+        aligns = pjoin(root, mm2, f"{samples[1]}.haplo.combined.sam.bed"),
+        vars1 = known_vars + "_1.bed",
+        vars2 = known_vars + "_2.bed"
+    output:
+        bed1 = pjoin(root, mm2, "bedintersect_combined", "sam_vs_allvars1.wao.bed"),
+        bed2 = pjoin(root, mm2, "bedintersect_combined", "sam_vs_allvars2.wao.bed")
+    threads: 1
+    shell:
+        """
+        bedtools intersect -wao -a {input.aligns} -b {input.vars1} > {output.bed1}
+        bedtools intersect -wao -a {input.aligns} -b {input.vars2} > {output.bed2}
+        """
+
+rule analyze_step2_combined:
+    # TODO split in multiple rules
+    input:
+        vcf = known_vars,
+        bed_rec1 = pjoin(root, mm2, "bedintersect_combined", "uniquevars1_vs_sam.c.bed"),
+        bed_rec2 = pjoin(root, mm2, "bedintersect_combined", "uniquevars2_vs_sam.c.bed"),
+        bed_pre1 = pjoin(root, mm2, "bedintersect_combined", "sam_vs_allvars1.wao.bed"),
+        bed_pre2 = pjoin(root, mm2, "bedintersect_combined", "sam_vs_allvars2.wao.bed")
+    output:
+        rec = pjoin(root, mm2, "recall.combined.csv"),
+        pre = pjoin(root, mm2, "Hprecision.combined.csv")
+    params:
+        lvalue = 250
+    threads: 1
+    shell:
+        """
+        touch .tmp..
+        python3 scripts/analyze.py rec {input.bed_rec1} {input.bed_rec2} {params.lvalue} > {output.rec}
+        python3 scripts/analyze.py pre {input.vcf} {input.bed_pre1} {input.bed_pre2} .tmp.. > {output.pre}
+        rm .tmp..
         """

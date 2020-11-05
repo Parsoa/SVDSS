@@ -93,9 +93,9 @@ def plot_nal_by_err():
         if al.is_secondary or al.is_unmapped or al.is_supplementary:
             continue
         # bbmap:
-        good_bases = al.get_cigar_stats()[0][7]
+        # good_bases = al.get_cigar_stats()[0][7]
         # minimap2:
-        # good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
+        good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
         errors = bad_bases + deletions
@@ -108,9 +108,9 @@ def plot_nal_by_err():
         if al.is_secondary or al.is_unmapped or al.is_supplementary:
             continue
         # bbmap:
-        good_bases = al.get_cigar_stats()[0][7]
+        # good_bases = al.get_cigar_stats()[0][7]
         # minimap2:
-        # good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
+        good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
         errors = bad_bases + deletions
@@ -136,13 +136,13 @@ def plot_nal_by_err():
     plt.xticks()
     plt.xlabel("# Base Differences")
 
-    ax1.legend(loc=4, fancybox=True, shadow=True)
+    ax2.legend(loc=4, fancybox=True, shadow=True)
     plt.savefig(out_path)
     # plt.show()
 
 def plot_covering():
-    uncovering_txt = sys.arv[1]
-    haplosam_path = sys.arv[2]
+    uncovering_path = sys.argv[1]
+    haplosam_path = sys.argv[2]
     contigssam1_path = sys.argv[3]
     contigssam2_path = sys.argv[4]
     out_path = sys.argv[5]
@@ -154,7 +154,7 @@ def plot_covering():
 
     # Parsing uncoverings
     uncovering_idxs = set()
-    for line in open(fpath):
+    for line in open(uncovering_path):
         uncovering_idxs.add(line.strip('\n'))
 
     # Parsing haplo sam (left plot)
@@ -165,15 +165,15 @@ def plot_covering():
         if al.is_secondary or al.is_unmapped or al.is_supplementary:
             continue
         # bbmap:
-        good_bases = al.get_cigar_stats()[0][7]
+        # good_bases = al.get_cigar_stats()[0][7]
         # minimap2:
-        # good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
+        good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
         errors = bad_bases + deletions
 
-        if idx in uncovering_idxs:
-            uncovering.append(errors)
+        if al.query_name in uncovering_idxs:
+            not_covering.append(errors)
         else:
             covering.append(errors)
 
@@ -186,27 +186,27 @@ def plot_covering():
     # Parsing contigs sams (right plot)
     data1 = []
     contigssam1 = pysam.AlignmentFile(contigssam1_path, 'r')
-    for al in bamfile1.fetch():
+    for al in contigssam1.fetch():
         if al.is_secondary or al.is_unmapped or al.is_supplementary:
             continue
         # bbmap:
-        good_bases = al.get_cigar_stats()[0][7]
+        # good_bases = al.get_cigar_stats()[0][7]
         # minimap2:
-        # good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
+        good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
         errors = bad_bases + deletions
         data1.append(errors)
 
     data2 = []
-    contigssam2_path = pysam.AlignmentFile(contigssam2_path, 'r')
-    for al in bamfile2.fetch():
+    contigssam2 = pysam.AlignmentFile(contigssam2_path, 'r')
+    for al in contigssam2.fetch():
         if al.is_secondary or al.is_unmapped or al.is_supplementary:
             continue
         # bbmap:
-        good_bases = al.get_cigar_stats()[0][7]
+        # good_bases = al.get_cigar_stats()[0][7]
         # minimap2:
-        # good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
+        good_bases = al.get_cigar_stats()[0][0] - al.get_tag("NM")
         bad_bases = al.query_length - good_bases
         deletions = al.get_cigar_stats()[0][2]
         errors = bad_bases + deletions
@@ -234,8 +234,8 @@ def plot_covering():
     ax1.set_ylabel("# Primary Alignments")
     ax1.legend()
 
-    ax2.bar(Xs, [data1_dict[x] for x in Xs], color="plum", width=-barw, align="edge", label="HG00733")
-    ax2.bar(Xs, [data2_dict[x] for x in Xs], color="pink", width=barw, align="edge", label="NA19240")    
+    ax2.bar(Xs, [data1_dict[x] if x in data1_dict else 0 for x in Xs], color="plum", width=-barw, align="edge", label="HG00733")
+    ax2.bar(Xs, [data2_dict[x] if x in data2_dict else 0 for x in Xs], color="pink", width=barw, align="edge", label="NA19240")    
     ax2.legend()
 
     fig.add_subplot(111, frame_on=False)
@@ -244,62 +244,6 @@ def plot_covering():
     plt.xlabel("# Base Differences")
 
     plt.savefig(out_path)
-
-# def plot_covering():
-#     bed_path_1 = sys.argv[1]
-#     bed_path_2 = sys.argv[2]
-#     out_path = sys.argv[3]
-
-#     alignments = {}
-#     for line in open(bed_path_1):
-#         line = line.strip('\n').split('\t')
-#         idx, err, count = line[3], int(line[4]), int(line[-1])
-#         if idx not in alignments:
-#             alignments[idx] = (False, float("inf"))
-#         if count > 0:
-#             alignments[idx] = (True, min(alignments[idx][1], err))
-#         else:
-#             if not alignments[idx][0]:
-#                 alignments[idx] = (False, min(alignments[idx][1], err))
-
-#     for line in open(bed_path_2):
-#         line = line.strip('\n').split('\t')
-#         idx, err, count = line[3], int(line[4]), int(line[-1])
-#         if idx not in alignments:
-#             alignments[idx] = (False, float("inf"))
-#         if count > 0:
-#             alignments[idx] = (True, min(alignments[idx][1], err))
-#         else:
-#             if not alignments[idx][0]:
-#                 alignments[idx] = (False, min(alignments[idx][1], err))
-
-#     covering = []
-#     not_covering = []
-#     for idx, (cov_flag, err) in alignments.items():
-#         if cov_flag:
-#             covering.append(err)
-#         else:
-#             not_covering.append(err)
-
-#     print("Covering:", len(covering))
-#     print("Limits:", min(covering), max(covering))
-#     print("---")
-#     print("Not covering:", len(not_covering))
-#     print("Limits:", min(not_covering), max(not_covering))
-
-#     fig, ax1 = plt.subplots(1, 1, tight_layout=True)
-#     nbins = 7
-#     ax1.hist([covering, not_covering],
-#              bins=np.arange(0, nbins+1), range=(0,nbins+1), align = "left",
-#              histtype="bar", cumulative=False,
-#              color=["seagreen", "darkorchid"], label=["Covering", "Not covering"])
-
-#     ax1.set_xlabel("# Base Differences")
-#     ax1.set_ylabel("# Primary Alignments")
-
-#     plt.legend(loc=1)
-#     plt.savefig(out_path)
-#     # plt.show()
 
 # FIXME: CHECK IF THIS FUNCTION STILL WORKS
 def plot_covering_abundances():

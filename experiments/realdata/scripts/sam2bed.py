@@ -23,7 +23,6 @@ def main():
     # NOTE: this scripts does not work if sam/bam is sorted by coordinate.
     # It iterates once over the alignments and it assumes primary alignments to come before secondary ones
     sam = pysam.AlignmentFile(sampath, 'r')
-    skipped = 0
     for al in sam.fetch():
         ridx, ref, al_start, al_end = al.query_name, al.reference_name, al.reference_start, al.reference_end
         strand = '-' if al.is_reverse else '+'
@@ -39,7 +38,6 @@ def main():
         errors = get_errors(al, read_len)
 
         print(ref, al_start, al_end, ridx, errors, strand, sep='\t')
-    print(f"Skipped {skipped} alignments (no primary)", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

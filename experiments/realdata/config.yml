@@ -4,3 +4,4 @@ samples:
   - HG00733
 ref: hg38.chroms.fa
 vcf: CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.all_variants.genotypes.vcf.gz
+threads: 8
