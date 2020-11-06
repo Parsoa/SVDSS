@@ -532,6 +532,7 @@ rule intersect_beds_for_precision:
 rule analyze_step2:
     # TODO split in multiple rules
     input:
+        fq = pjoin(root, pp, f"{sspecific_prefix}.fq"),
         vcf = known_vars,
         bed_rec1 = pjoin(root, step2, "bedintersect", "uniquevars1_vs_sam.c.bed"),
         bed_rec2 = pjoin(root, step2, "bedintersect", "uniquevars2_vs_sam.c.bed"),
@@ -549,7 +550,7 @@ rule analyze_step2:
     shell:
         """
         python3 scripts/analyze.py rec {input.bed_rec1} {input.bed_rec2} {params.lvalue} > {output.rec}
-        python3 scripts/analyze.py pre {input.vcf} {input.bed_pre1} {input.bed_pre2} {input.bed_regions} > {output.pre}
+        python3 scripts/analyze.py pre {input.fq} {input.vcf} {input.bed_pre1} {input.bed_pre2} {input.bed_regions} > {output.pre}
         """
 # python3 scripts/analyze.py reclist {input.i1} {input.i2} > {params.reclist}
 # python3 scripts/plot.py recbylen {params.reclist} {output.png1}
@@ -845,6 +846,7 @@ rule minimap2_intersect_beds_for_precision:
 
 rule minimap2_analyze_step2:
     input:
+        fq = pjoin(root, pp, f"{sspecific_prefix_long}.fq"),
         vcf = known_vars,
         bed_rec1 = pjoin(root, mm2, "bedintersect", "uniquevars1_vs_sam.c.bed"),
         bed_rec2 = pjoin(root, mm2, "bedintersect", "uniquevars2_vs_sam.c.bed"),
@@ -861,7 +863,7 @@ rule minimap2_analyze_step2:
         """
         touch .tmp..
         python3 scripts/analyze.py rec {input.bed_rec1} {input.bed_rec2} {params.lvalue} > {output.rec}
-        python3 scripts/analyze.py pre {input.vcf} {input.bed_pre1} {input.bed_pre2} .tmp.. > {output.pre}
+        python3 scripts/analyze.py pre {input.fq} {input.vcf} {input.bed_pre1} {input.bed_pre2} .tmp.. > {output.pre}
         rm .tmp..
         """
 
@@ -964,6 +966,8 @@ rule intersect_beds_for_precision_combined:
 rule analyze_step2_combined:
     # TODO split in multiple rules
     input:
+        fq1 = pjoin(root, pp, f"{sspecific_prefix}.fq"),
+        fq2 = pjoin(root, pp, f"{sspecific_prefix_long}.fq"),
         vcf = known_vars,
         bed_rec1 = pjoin(root, mm2, "bedintersect_combined", "uniquevars1_vs_sam.c.bed"),
         bed_rec2 = pjoin(root, mm2, "bedintersect_combined", "uniquevars2_vs_sam.c.bed"),
@@ -973,12 +977,14 @@ rule analyze_step2_combined:
         rec = pjoin(root, mm2, "recall.combined.csv"),
         pre = pjoin(root, mm2, "Hprecision.combined.csv")
     params:
+        fq = temp(pjoin(root, pp, "combined.fq")),
         lvalue = 250
     threads: 1
     shell:
         """
+        cat {input.fq1} {input.fq2} > {params.fq}
         touch .tmp..
         python3 scripts/analyze.py rec {input.bed_rec1} {input.bed_rec2} {params.lvalue} > {output.rec}
-        python3 scripts/analyze.py pre {input.vcf} {input.bed_pre1} {input.bed_pre2} .tmp.. > {output.pre}
+        python3 scripts/analyze.py pre {params.fq} {input.vcf} {input.bed_pre1} {input.bed_pre2} .tmp.. > {output.pre}
         rm .tmp..
         """

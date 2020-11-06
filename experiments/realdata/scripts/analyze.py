@@ -100,9 +100,15 @@ def contigbased_precision():
 
 
 
-################################
-### HAPLOTYPE-BASE PRECISION ###
-################################
+#################################
+### HAPLOTYPE-BASED PRECISION ###
+#################################
+def count_sample(fq_path):
+    n = 0
+    for record in SeqIO.parse(fq_path, "fastq"):
+        n += 1
+    return n
+
 def parse_waobed(bed_path, firsthap = True):
     alignments = {}
     all_alignments = {}
@@ -151,10 +157,13 @@ def check_haplo_uniqueness(variants, firsthap = True):
     return HGhaplo != NAhaplo1 and HGhaplo != NAhaplo2
 
 def precision():
-    vcf_path = sys.argv[1]  # all variants
-    bed1_path = sys.argv[2] # bedintersect -wao between alignments and variants on first haplotype
-    bed2_path = sys.argv[3] # bedintersect -wao between alignments and variants on second haplotype
-    bed3_path = sys.argv[4] # bedintersect -c between alignments and regions not called by HGSV consortium
+    fq_path = sys.argv[1]   # sample
+    vcf_path = sys.argv[2]  # all variants
+    bed1_path = sys.argv[3] # bedintersect -wao between alignments and variants on first haplotype
+    bed2_path = sys.argv[4] # bedintersect -wao between alignments and variants on second haplotype
+    bed3_path = sys.argv[5] # bedintersect -c between alignments and regions not called by HGSV consortium
+
+    total = count_sample(fq_path)
 
     variants = parse_vcf(vcf_path)
 
@@ -182,11 +191,9 @@ def precision():
             unique = check_haplo_uniqueness(covered_variants, False)
             covering_results[ridx] = covering_results[ridx] or unique
 
-    total = 0
     covering = 0
     outside = 0
     for ridx, flag in covering_results.items():
-        total += 1
         if flag:
             covering += 1
         else:
