@@ -77,8 +77,12 @@ void Extractor::load_reads() {
         auto f = fastq_entry_t(fastq_iterator->name.s, fastq_iterator->seq.s, fastq_iterator->qual.s) ;
         if (read_ids.find(fastq_iterator->name.s) != read_ids.end()) {
             for (auto s: read_ids[fastq_iterator->name.s]) {
-                reads[s].push_back(f) ;
-                n += 1 ;
+                auto ss = strstr(f.seq.c_str(), s.c_str()) ;
+                auto sr = strstr(f.seq.c_str(), reverse_complement(s).c_str()) ;
+                if (ss != nullptr || sr != nullptr) { 
+                    reads[s].push_back(f) ;
+                    n += 1 ;
+                }
             }
             //cout << n << endl ;
         }

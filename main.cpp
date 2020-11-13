@@ -94,6 +94,23 @@ int main(int argc, char** argv) {
     //    cout << "Found " << _m << " out of " << _n << endl ;
     //    exit(0) ;
     //}
+    if (argc == 1) {
+        cerr << "Usage: " << endl;
+        cerr << "\tTo index sample:" << endl ;
+        cerr << "stella pingpong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file [--threads threads] --workdir /outpout/directory" << endl ;
+        cerr << "\t\tOptional arguments: " << endl ;
+        cerr << "\t\t\t-b, --binary          output index in binary format" << endl ;
+        cerr << "\t\t\t-a, --append          append to existing index (must be stored in binary)" << endl ;
+        cerr << "\t\t\t-t, --threads         number of threads (default is 1)" << endl ;
+        cerr << "\tTo search for specific strings:" << endl ;
+        cerr << "stella pingpong search [--index /path/to/index] [--fastq /path/to/fastq] [--threads threads] --workdir /output/directory" << endl ;
+        cerr << "\t\tOptional arguments: " << endl ;
+        cerr << "\t\t\t--aggregate         aggregate ouputs directly." << endl ;
+        cerr << "\t\t\t--cutof             sets cutoff for minimum string abundance (tau)" << endl ;
+        cerr << "\tTo aggregate specfici strings:" << endl ;
+        cerr << "\t\tstella aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings>" << endl ;
+        exit(0) ;
+    }
     if (strcmp(argv[1], "scan") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
