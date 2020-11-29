@@ -20,8 +20,9 @@ void Aggregator::run() {
 
 void Aggregator::load_sequences() {
     auto c = Configuration::getInstance() ;
-    cout << "Loading sequences.." << endl ;
-    vector<unordered_map<string, int>> _sequences(num_batches+ 1) ;
+    num_batches = c->aggregate_batches + 1 ;
+    cout << "Loading sequences from " << num_batches << " batches.." << endl ;
+    vector<unordered_map<string, int>> _sequences(num_batches) ;
     int e = 0 ;
     #pragma omp parallel for num_threads(num_batches)
     for (int j = 0; j <= num_batches; j++) {
@@ -73,7 +74,7 @@ void Aggregator::dump_sequences() {
     ofstream o(path) ;
     int n = 0 ;
     for (auto it = sequences.begin(); it != sequences.end(); it++) {
-        if (it->second > c->cutoff) {
+        if (it->second >= c->cutoff) {
             o << "@sol_" << i << "#" << it->second << endl ;
             o << it->first << endl ;
             o << "+" << endl ;

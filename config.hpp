@@ -21,11 +21,14 @@ public:
     int threads = 48 ;
     int coverage = 50 ;
     int batch_size = 1000 ;
+    int aggregate_batches = 5 ;
 
     bool binary ;
     bool aggregate ;
 
     std::string bed ;
+    std::string bam ;
+    std::string vcf ;
     std::string type ;
     std::string workdir ;
     std::string append ;

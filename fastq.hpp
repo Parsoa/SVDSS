@@ -9,7 +9,6 @@
 
 #include <zlib.h>
 #include "kseq.h"
-#include "fastq.hpp"
 
 KSEQ_INIT(gzFile, gzread)
 

@@ -10,6 +10,8 @@
 #include "config.hpp"
 #include "finder.hpp"
 #include "shifter.hpp"
+#include "haplotype_shifter.hpp"
+#include "intersector.hpp"
 
 using namespace std ;
 
@@ -58,8 +60,10 @@ void Finder::load_sequences() {
 
 void Finder::dump_sequences() {
     auto c = Configuration::getInstance() ;
-    auto shifter = Shifter() ;
+    //auto matcher = Intersector() ;
+    auto shifter = HaplotypeShifter() ;
     shifter.load_tracks() ;
+    exit(0) ;
 
     ofstream mapped_bed(c->workdir + "/" + c->type + "_mapped.bed") ;
     ofstream mapped_fasta(c->workdir + "/" + c->type + "_mapped.fasta") ;
@@ -69,15 +73,16 @@ void Finder::dump_sequences() {
     ofstream unmapped_fasta(c->workdir + "/" + c->type + "_unmapped.fasta") ;
     ofstream unmapped_fastq(c->workdir + "/" + c->type + "_unmapped.fastq") ;
 
-    auto de_novo_tracks = load_tracks_from_file_as_dict(c->workdir + "/de_novo.bed") ; 
+    //auto de_novo_tracks = load_tracks_from_file_as_dict(c->workdir + "/de_novo.bed") ; 
     unordered_map<Track, int> mapped_tracks ;
     int m = 0 ;
     for (auto it = sequences.begin(); it != sequences.end(); it++) {
         auto& locus = it->second ;
         auto match = shifter.find(locus.chrom, locus.position, it->first.length()) ;
-        if (match != nullptr && de_novo_tracks.find(*match) != de_novo_tracks.end()) {
+        if (match != nullptr) {// && de_novo_tracks.find(*match) != de_novo_tracks.end()) {
             auto& track = *match ;
-            auto pos = shifter.shift_coordinate(locus.chrom, locus.position) ;
+            auto pos = -1 ;
+            //auto pos = intersector.shift_coordinate(locus.chrom, locus.position) ;
             if (mapped_tracks.find(track) == mapped_tracks.end()) {
                 m += 1 ;
                 mapped_tracks[track] = 0 ;
@@ -87,7 +92,8 @@ void Finder::dump_sequences() {
             mapped_fasta << it->first << endl ;
             mapped_bed_seqs << track.chrom << "\t" << track.begin << "\t" << track.end << "\t" << it->first << "\t" << locus.count << "\t" << locus.position << endl ;
         } else {
-            auto pos = shifter.shift_coordinate(locus.chrom, locus.position) ;
+            auto pos = -1 ;
+            //auto pos = intersector.shift_coordinate(locus.chrom, locus.position) ;
             unmapped_bed << locus.chrom << "\t" << locus.position << "\t" << pos << "\t" << it->first << "\t" << locus.count << endl ;
             // FASTQ file
             unmapped_fastq << "@" << locus.chrom << "_" << locus.position << endl ;

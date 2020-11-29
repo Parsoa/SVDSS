@@ -23,8 +23,8 @@ Let's assume we have 3 samples A, B, and, C. To compute A-specific strings we ha
 
 1. Index samples B and C:
 ```
-./stella pingpong index --binary --fastq /path/to/sample/B > B.index.bin
-./stella pingpong index --append B.index.bin --fastq /path/to/sample/C > BC.index.fmd
+./stella pingpong index --binary --fastq /path/to/sample/B --index B.index.bin
+./stella pingpong index --append B.index.bin --fastq /path/to/sample/C --index BC.index.fmd
 ```
 2. Search for A-specific strings in the index
 ```
@@ -42,14 +42,14 @@ You also directly aggregate output from the search step by adding `--aggregate -
 
 ### PingPong Algorithm Usage
 ```
-Usage: stella pingpong index [--binary] [--append index] --fastq /path/to/fastq/file [--threads threads]
+Usage: stella pingpong index [--binary] [--append index] --fastq /path/to/fastq/file --index /path/to/output/index/file [--threads threads]
 
 Optional arguments:
     -b, --binary          output index in binary format
     -a, --append          append to existing index (must be stored in binary)
     -t, --threads         number of threads (default:1)
 
-Usage: stella pingpong search [--index index] [--fastq fastq] [--threads threads]
+Usage: stella pingpong search [--index /path/to/index/file] [--fastq fastq] [--threads threads]
 
 Optional arguments:
     --aggregate         aggregate ouputs directly.

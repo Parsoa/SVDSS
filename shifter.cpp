@@ -27,7 +27,7 @@ void Shifter::load_tracks() {
     int begin = 0 ;
     string previous ;
     int n = 0 ;
-    vector<string> chromosomes {"chr1", "chr2", "chr3", "chr4", "chr5"} ;
+    vector<string> chromosomes {"chr1", "chr2", "chr3", "chr4", "chr5", "chr6"} ;
     for (auto chrom: chromosomes) {
         for (int i = 0; i < 2; i++) {
             offsets[chrom + "_" + std::to_string(i)].push_back(std::make_pair(0, 0)) ;

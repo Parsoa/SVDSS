@@ -10,6 +10,15 @@
 #include "rle.h"
 #include "rld0.h"
 #include "mrope.h"
+
+#include <zlib.h>
+#include <htslib/hts.h>
+#include <htslib/sam.h>
+#include <htslib/bgzf.h>
+#include <htslib/hfile.h>
+#include "htslib/hfile.h"
+#include "htslib/hts_endian.h"
+
 #include "fastq.hpp"
 
 #define fm6_comp(a) ((a) >= 1 && (a) <= 4? 5 - (a) : (a))
@@ -51,15 +60,24 @@ private:
     gzFile fastq_file ;
     kseq_t* fastq_iterator ;
     std::vector<std::vector<std::vector<fastq_entry_t>>> fastq_entries ;
-    std::vector<std::unordered_map<fastq_entry_t, int>> search_solutions ;
-
-    void output_batch(void* args) ;
-    bool check_solution(rld_t* index, std::string S) ;
     bool load_batch_fastq(int threads, int batch_size, int p) ;
-    fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l) ;
-    bool backward_search(rld_t *index, const uint8_t *P, int p2) ;
-    void ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<fastq_entry_t>& solutions) ;
     std::vector<fastq_entry_t> process_batch_fastq(rld_t* index, std::vector<fastq_entry_t> fastq_entries) ;
+ 
+    samFile *bam_file ;
+    bam_hdr_t *bam_header ;
+    std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
+    bool load_batch_bam(int threads, int batch_size, int p) ;
+    std::vector<fastq_entry_t> process_batch_bam(rld_t* index, std::vector<bam1_t*> bam_entries) ;
+
+    fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l) ;
+
+    std::vector<std::unordered_map<fastq_entry_t, int>> search_solutions ;
+    //void ping_pong_search(rld_t *index, const char* seq, const char* qual, std::vector<fastq_entry_t>& solutions) ;
+    void ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<fastq_entry_t>& solutions) ;
+    void output_batch(void* args) ;
+    
+    bool backward_search(rld_t *index, const uint8_t *P, int p2) ;
+    bool check_solution(rld_t* index, std::string S) ;
 } ;
 
 #endif

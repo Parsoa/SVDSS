@@ -24,6 +24,7 @@
 #include "chromosomes.hpp"
 
 using namespace std ;
+//using namespace fs = std::filesystem ;
 
 // ============================================================================= \\
 // ============================================================================= \\
@@ -34,9 +35,14 @@ using namespace std ;
 void create_workdir() {
     auto c = Configuration::getInstance() ;
     struct stat info ;
+    cout << c->workdir << endl ;
     if (stat(c->workdir.c_str(), &info) != 0) {
-        cout << "Working directory " << c->workdir << " does not exist. Aborting.." << endl ;
-        exit(0) ;
+        cout << "Working directory does not exist. creating.." << endl ;
+        int check = mkdir(c->workdir.c_str(), 0777) ;
+        if (check != 0) {
+            cerr << "Failed to create output directory, aborting.." << endl ;
+            exit(check) ;
+        }
     }
 }
 
@@ -123,14 +129,15 @@ int main(int argc, char** argv) {
         auto finder = new Finder() ;
         finder->run() ;
     }
-    if (strcmp(argv[1], "extract") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto extractor = new Extractor() ;
-        extractor->run() ;
-    }
+    //if (strcmp(argv[1], "extract") == 0) {
+    //    c->parse(argc - 1, argv + 1) ;
+    //    create_workdir() ;
+    //    auto extractor = new Extractor() ;
+    //    extractor->run() ;
+    //}
     if (strcmp(argv[1], "pingpong") == 0) {
         c->parse(argc - 2, argv + 2) ;
+        create_workdir() ;
         auto pingpong = new PingPong() ;
         if (strcmp(argv[2], "index") == 0) {
             pingpong->index() ;

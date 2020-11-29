@@ -81,15 +81,15 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     return sai.x[2] != 0 ;
 }
 
+//void PingPong::ping_pong_search(rld_t *index, const char* seq, const char* qual, vector<fastq_entry_t>& solutions) {
 void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& solutions) {
     int l = fqe.seq.size() ;
-    if (l == 0) {
-        cerr << "Empty read." << endl ;
+    //int l = strlen(seq) ;
+    if (l <= 10) {
         return ;
     }
     DEBUG(cerr << "Read Length: " << l << endl ;)
-
-    char *seq = new char[fqe.seq.size() + 1] ; // current sequence
+    char *seq = new char[l + 1] ; // current sequence
     strcpy(seq, fqe.seq.c_str()) ; // seq
     uint8_t *P = (uint8_t*) seq ; 
     seq_char2nt6(l, P) ; // convert to integers
@@ -131,16 +131,8 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
         DEBUG(cerr << "Mismatch " << int2char[P[end]] << " (" << end << "). fmatches: " << fmatches << endl ;)
         // add solution
         DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
-        //string S(fqe.seq, begin, end - begin + 1) ;
-        //if (check_solution(index, S)) {
-        //    DEBUG(cerr << "Found " << S << endl ;)
-        //    exit(0) ;
-        //}
+        //solutions.push_back(get_solution(seq, qual, begin, end - begin + 1)) ;
         solutions.push_back(get_solution(fqe, begin, end - begin + 1)) ;
-        //if (solutions.find(S) == solutions.end()) {
-        //    solutions[S] = 0 ;
-        //}
-        //solutions[S] = solutions[S] + 1 ;
         DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         // prepare for next round
         if (begin == 0) {
@@ -155,6 +147,33 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
     delete[] seq ;
 }
 
+bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
+    for (int i = 0; i < threads; i++) {
+        fastq_entries[p][i].clear() ;
+    }
+    int i = 0 ;
+    int n = 0 ;
+    while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
+        auto alignment = bam_entries[p][n % threads][i] ;
+        uint32_t l = alignment->core.l_qseq ; //length of the read
+        char* seq = (char*) malloc(l + 1) ;
+        uint8_t *q = bam_get_seq(alignment) ; //quality string
+        for (int i = 0; i < l; i++){
+            seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
+        }
+        seq[l] = '\0' ; // null terminate
+        fastq_entries[p][n % threads].push_back(fastq_entry_t("ID", seq, seq)) ;
+        n += 1 ;
+        if (n % threads == threads - 1) {
+            i += 1 ;
+        }
+        if (n == batch_size) {
+            return true ;
+        }
+    }
+    cout << "Loaded " << n << " BAM reads.." << endl ;
+    return n != 0 ? true : false ;
+}
 
 bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
     for (int i = 0; i < threads; i++) {
@@ -183,10 +202,36 @@ vector<fastq_entry_t> PingPong::process_batch_fastq(rld_t* index, vector<fastq_e
     return solutions ;
 }
 
+vector<fastq_entry_t> PingPong::process_batch_bam(rld_t* index, vector<bam1_t*> bam_entries) {
+    vector<fastq_entry_t> solutions ;
+    //char* seq = (char*) malloc(10000) ;
+    //uint32_t len = 0 ;
+    //bam1_t* alignment ; 
+    //for (int b = 0; b < bam_entries.size(); b++) {
+    //    alignment = bam_entries[b] ;
+    //    uint32_t l = alignment->core.l_qseq ; //length of the read
+    //    if (l > len) {
+    //        if (len > 0) {
+    //            free(seq) ;
+    //        }
+    //        len = l ;
+    //        seq = (char*) malloc(l + 1) ;
+    //    }
+    //    uint8_t *q = bam_get_seq(alignment) ; //quality string
+    //    for (int i = 0; i < l; i++){
+    //        seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
+    //    }
+    //    seq[l] = '\0' ; // null terminate
+    //    ping_pong_search(index, seq, seq, solutions) ;
+    //}
+    return solutions ;
+}
+
 void PingPong::output_batch(void* args) {
     auto c = Configuration::getInstance() ;
     int batch = ((OutputBatchArgs*) args)->batch ;
     string path = c->workdir + "/solution_batch_" + std::to_string(batch - 1) + ".fastq" ;
+    cout << "Outputting to " << path << endl ;
     std::ofstream o(path) ;
     for (const auto it : search_solutions[batch - 1]) {
         fastq_entry_t fastq_entry = it.first ;
@@ -205,39 +250,71 @@ int PingPong::search() {
     cout << "Restoring index.." << endl ;
     rld_t *index = rld_restore(c->index.c_str()) ;
     cout << "Done." << endl ;
-    fastq_file = gzopen(c->fastq.c_str(), "r") ;
-    fastq_iterator = kseq_init(fastq_file) ;
+    int mode = 0 ;
+    if (c->fastq != "") {
+        cout << "FASTQ input.." << endl ;
+        fastq_file = gzopen(c->fastq.c_str(), "r") ;
+        fastq_iterator = kseq_init(fastq_file) ;
+    } else if (c->bam != "") {
+        cout << "BAM input.." << endl ;
+        bam_file = hts_open(c->bam.c_str(), "r") ;
+        bam_header = sam_hdr_read(bam_file) ; //read header
+        mode = 1 ;
+    } else {
+        cerr << "No input file provided, aborting.." << endl ;
+        exit(1) ;
+    }
     // load first batch
     unordered_map<fastq_entry_t, int> s ;
     search_solutions.push_back(s) ;
     vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
-        batches.push_back(vector<vector<fastq_entry_t>>(c->threads)) ; // previous and current output
+        bam_entries.push_back(vector<vector<bam1_t*>>(c->threads)) ;
         fastq_entries.push_back(vector<vector<fastq_entry_t>>(c->threads)) ; // current and next output
+        batches.push_back(vector<vector<fastq_entry_t>>(c->threads)) ; // previous and current output
     }
     int p = 0 ;
     int batch_size = 10000 ;
     cerr << "Loading first batch" << endl ;
-    load_batch_fastq(c->threads, batch_size, p) ;
+    if (mode == 0) {
+        load_batch_fastq(c->threads, batch_size, p) ;
+    } else {
+        cout << "Allocating BAM buffers.." << endl ;
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < c->threads; j++) {
+                for (int k = 0; k <= batch_size / c->threads; k++) {
+                    bam_entries[i][j].push_back(bam_init1()) ;
+                }
+            }
+        }
+        load_batch_bam(c->threads, batch_size, p) ;
+    }
     // main loop
     time_t t ;
     time(&t) ;
     int b = 0 ;
     uint64_t u = 0 ;
+    bool should_continue = true ;
     while (true) {
         cerr << "Beginning batch " << b + 1 << endl ;
         uint64_t v = u ;
         for (int i = 0 ; i < c->threads ; i++) {
             u += fastq_entries[p][i].size() ;
         }
-        if (v == u) {
-            break ;
+        if (mode == 0) {
+            if (v == u) {
+                break ;
+            }
         }
         #pragma omp parallel for num_threads(c->threads + 2)
         for(int i = 0; i < c->threads + 2; i++) {
             if (i == 0) {
                 // load next batch of entries
-                load_batch_fastq(c->threads, batch_size, (p + 1) % 2) ;
+                if (mode == 0) {
+                    load_batch_fastq(c->threads, batch_size, (p + 1) % 2) ;
+                } else {
+                    should_continue = load_batch_bam(c->threads, batch_size, (p + 1) % 2) ;
+                }
                 cerr << "Loaded." << endl ;
             } else if (i == 1) {
                 // merge output of previous batch
@@ -278,6 +355,10 @@ int PingPong::search() {
             s += 1 ;
         }
         cerr << "Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+        if (!should_continue) {
+            cout << "Should not continue." << endl ;
+            break ;
+        }
     }
     int y = 0 ;
     for (const auto &batch : batches[(p + 1) % 2]) {
@@ -444,6 +525,7 @@ int PingPong::index() {
     bool binary_output = c->binary ;
     if (c->append != "") {
         FILE *fp ;
+        cout << "Appending index: " << c->append << endl ;
         if ((fp = fopen(c->append.c_str(), "rb")) == 0) {
             cerr << "Failed to open file " << c->append << endl ;
             return 1 ;
@@ -570,7 +652,7 @@ int PingPong::index() {
     // dump index to stdout
     if (binary_output) {
         // binary FMR format
-        mr_dump(mr, stdout) ;
+        mr_dump(mr, fopen(c->index.c_str(), "wb")) ;
     } else {
         // FMD format
         mritr_t itr ;
@@ -590,7 +672,7 @@ int PingPong::index() {
             }
         }
         rld_enc_finish(e, &di) ;
-        rld_dump(e, "-") ;
+        rld_dump(e, c->index.c_str()) ;
     }
 
     mr_destroy(mr) ;
