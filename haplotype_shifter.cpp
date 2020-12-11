@@ -57,7 +57,7 @@ void HaplotypeShifter::load_tracks() {
                 track.end = track.begin + alt_tokens[alt].length() ; 
                 track.svlen = alt_tokens[alt].length() - ref.length() ;
                 tracks[i][chrom].push_back(track) ;
-                out_files[i] << track.chrom << "\t" << track.begin << "\t" << track.end << "\t" << ref << "\t" << alt_tokens[alt] << "\t" << track.svlen << "\t" << genotype << endl ;
+                out_files[i] << track.chrom << "\t" << track.begin << "\t" << track.end << "\t" << ref << "\t" << alt_tokens[alt] << "\t" << track.svlen << "\t" << genotype << "\t" << tokens[0] << "_" << tokens[1] << endl ;
             }
         }
     }

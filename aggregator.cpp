@@ -20,12 +20,13 @@ void Aggregator::run() {
 
 void Aggregator::load_sequences() {
     auto c = Configuration::getInstance() ;
-    num_batches = c->aggregate_batches + 1 ;
+    num_batches = c->aggregate_batches ;
     cout << "Loading sequences from " << num_batches << " batches.." << endl ;
     vector<unordered_map<string, int>> _sequences(num_batches) ;
+    vector<unordered_map<string, string>> _read_ids(num_batches) ;
     int e = 0 ;
     #pragma omp parallel for num_threads(num_batches)
-    for (int j = 0; j <= num_batches; j++) {
+    for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
         string path = c->workdir + "/solution_batch_" + s_j + ".fastq" ;
         ifstream txt_file(path) ;
@@ -40,7 +41,6 @@ void Aggregator::load_sequences() {
                 count = std::stoi(line.substr(p + 1, line.length() - (p + 1))) ;
             }
             if (i == 1) {
-                //cout << name << " " << count << endl ;
                 string canon = canonicalize(line) ;
                 if (_sequences[j].find(canon) == _sequences[j].end()) {
                     _sequences[j][canon] == 0 ;
@@ -50,16 +50,33 @@ void Aggregator::load_sequences() {
             i++ ;
             i %= 4 ;
         }
+        // load read ids
+        string id_path = c->workdir + "/read_ids_batch_" + s_j + ".fasta" ;
+        ifstream id_txt_file(id_path) ;
+        i = 0 ;
+        string canon ;
+        while (std::getline(id_txt_file, line)) {
+            if (i == 0) {
+                canon = canonicalize(line.substr(1, line.size() - 1)) ;
+                assert(_sequences[j].find(canon) != _sequences[j].end()) ;
+            }
+            if (i == 1) {
+                _read_ids[j][canon] = line ;
+            }
+            i++ ;
+            i %= 2 ;
+        }
         txt_file.close() ;
     }
     cout << "Merging.." << endl ;
-    for (int j = 0; j <= num_batches; j++) {
+    for (int j = 0; j < num_batches; j++) {
         cout << "Batch " << j << " with " << _sequences[j].size() << " sequences." << endl ;
         for (auto it = _sequences[j].begin(); it != _sequences[j].end(); it++) {
             if (sequences.find(it->first) == sequences.end()) {
                 sequences[it->first] = 0 ;
             }
             sequences[it->first] += it->second ;
+            read_ids[it->first].push_back(_read_ids[j][it->first]) ;
         }
         _sequences[j].clear() ;
     }
@@ -70,8 +87,10 @@ void Aggregator::dump_sequences() {
     auto c = Configuration::getInstance() ;
     cout << "Dumping aggregated counts.." << endl ;
     string path = c->workdir + "/solution_aggregated.fastq" ;
-    int i = 0 ;
+    string id_path = c->workdir + "/read_ids_aggregated.fasta" ;
     ofstream o(path) ;
+    ofstream id_o(id_path) ;
+    int i = 0 ;
     int n = 0 ;
     for (auto it = sequences.begin(); it != sequences.end(); it++) {
         if (it->second >= c->cutoff) {
@@ -82,6 +101,13 @@ void Aggregator::dump_sequences() {
                 o << "I" ;
             }
             o << endl ;
+            // read ids
+            id_o << it->first << endl ;
+            for (auto s: read_ids[it->first]) {
+                id_o << s ;
+            }
+            id_o << endl ;
+            //
             n += 1 ;
         }
         i += 1 ;

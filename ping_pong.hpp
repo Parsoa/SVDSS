@@ -72,6 +72,7 @@ private:
     fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l) ;
 
     std::vector<std::unordered_map<fastq_entry_t, int>> search_solutions ;
+    std::vector<std::unordered_map<fastq_entry_t, std::vector<std::string>>> read_ids ;
     //void ping_pong_search(rld_t *index, const char* seq, const char* qual, std::vector<fastq_entry_t>& solutions) ;
     void ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<fastq_entry_t>& solutions) ;
     void output_batch(void* args) ;

@@ -22,6 +22,7 @@ Configuration::Configuration() :
         ("vcf", "", cxxopts::value<std::string>())
         ("type", "", cxxopts::value<std::string>())
         ("index", "", cxxopts::value<std::string>())
+        ("fasta", "", cxxopts::value<std::string>())
         ("fastq", "", cxxopts::value<std::string>())
         ("cutoff", "", cxxopts::value<int>())
         ("t,threads", "", cxxopts::value<int>())
@@ -56,6 +57,10 @@ void Configuration::parse(int argc, char** argv) {
     fastq = "" ;
     if (results.count("fastq")) {
         fastq = results["fastq"].as<std::string>() ;
+    }
+    fasta = "" ;
+    if (results.count("fasta")) {
+        fasta = results["fasta"].as<std::string>() ;
     }
     if (results.count("cutoff")) {
         cutoff = results["cutoff"].as<int>() ;

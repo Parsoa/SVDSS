@@ -18,8 +18,8 @@
 #include "finder.hpp"
 #include "shifter.hpp"
 #include "scanner.hpp"
-#include "extractor.hpp"
 #include "ping_pong.hpp"
+#include "extractor.hpp"
 #include "aggregator.hpp"
 #include "chromosomes.hpp"
 
@@ -129,12 +129,12 @@ int main(int argc, char** argv) {
         auto finder = new Finder() ;
         finder->run() ;
     }
-    //if (strcmp(argv[1], "extract") == 0) {
-    //    c->parse(argc - 1, argv + 1) ;
-    //    create_workdir() ;
-    //    auto extractor = new Extractor() ;
-    //    extractor->run() ;
-    //}
+    if (strcmp(argv[1], "extract") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto extractor = new Extractor() ;
+        extractor->run() ;
+    }
     if (strcmp(argv[1], "pingpong") == 0) {
         c->parse(argc - 2, argv + 2) ;
         create_workdir() ;

@@ -34,6 +34,7 @@ public:
     std::string append ;
     std::string index ;
     std::string fastq ;
+    std::string fasta ;
     std::string reference ;
 
 private:

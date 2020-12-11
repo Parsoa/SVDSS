@@ -162,7 +162,7 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
             seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
         }
         seq[l] = '\0' ; // null terminate
-        fastq_entries[p][n % threads].push_back(fastq_entry_t("ID", seq, seq)) ;
+        fastq_entries[p][n % threads].push_back(fastq_entry_t(bam_get_qname(alignment), seq, seq)) ;
         n += 1 ;
         if (n % threads == threads - 1) {
             i += 1 ;
@@ -242,6 +242,19 @@ void PingPong::output_batch(void* args) {
             << fastq_entry.qual << endl ;
     }
     search_solutions[batch - 1].clear() ;
+    // output read ids
+    path = c->workdir + "/read_ids_batch_" + std::to_string(batch - 1) + ".fasta" ;
+    cout << "Outputting to " << path << endl ;
+    std::ofstream f(path) ;
+    for (const auto it : read_ids[batch - 1]) {
+        fastq_entry_t fastq_entry = it.first ;
+        f << ">" << fastq_entry.seq << endl ;
+        for (auto id: it.second) {
+            f << id << "$" ;
+        }
+        f << endl ;
+    }
+    read_ids[batch - 1].clear() ;
 }
 
 int PingPong::search() {
@@ -267,6 +280,9 @@ int PingPong::search() {
     // load first batch
     unordered_map<fastq_entry_t, int> s ;
     search_solutions.push_back(s) ;
+    cout << "1" << endl ;
+    unordered_map<fastq_entry_t, vector<string>> r ;
+    read_ids.push_back(r) ;
     vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(c->threads)) ;
@@ -327,6 +343,7 @@ int PingPong::search() {
                                 search_solutions[current_batch][fastq_entry] = 0 ;
                             }
                             search_solutions[current_batch][fastq_entry] += 1 ;
+                            read_ids[current_batch][fastq_entry].push_back(fastq_entry.head) ;
                         }
                     }
                     cerr << y << " total sequences." << endl ;
@@ -342,6 +359,8 @@ int PingPong::search() {
             current_batch += 1 ;
             unordered_map<fastq_entry_t, int> s ;
             search_solutions.push_back(s) ;
+            unordered_map<fastq_entry_t, vector<string>> r ;
+            read_ids.push_back(r) ;
             OutputBatchArgs* b_args = new OutputBatchArgs() ;
             b_args->batch = current_batch ;
             output_batch((void*) b_args) ;
@@ -368,6 +387,7 @@ int PingPong::search() {
                 search_solutions[current_batch][fastq_entry] = 0 ;
             }
             search_solutions[current_batch][fastq_entry] += 1 ;
+            read_ids[current_batch][fastq_entry].push_back(fastq_entry.head) ;
         }
     }
     // last batch
