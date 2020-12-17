@@ -38,9 +38,9 @@ The algorithm will output a set of files named `solution_batch_<number>.fastq` w
 ./stella aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings> --batches <number of batches>
 ```
 
-You also directly aggregate output from the search step by adding `--aggregate --cutoff <value>`.
-
 The `--batches` option should be set to the number of `solution_batch_<number>.fastq` files produced, e.g if the last file is `solution_batch_5.fastq` then `--batches` should be set to 6 (batch file index starts from zero).
+
+You can also directly aggregate output from the search step by adding `--aggregate --cutoff <value>` to the command in step 2 and then skip step 3.
 
 ### PingPong Algorithm Usage
 ```
