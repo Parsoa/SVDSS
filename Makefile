@@ -1,8 +1,8 @@
 ROPE_PREFIX=./ropebwt2
-HTSLIBFLAGS =/software/htslib/1.8/lssc0-linux/lib/libhts.a -lz -llzma -lbz2 -lcurl -lcrypto
-CXX=g++
+HTSLIBFLAGS =-lhts -lz -llzma -lbz2 -lcurl -lcrypto
+CXX=g++-10
 CXXFLAGS=-std=c++11 -Wall -O3 -I$(ROPE_PREFIX) -I htslib -fopenmp -Wno-comment
-LDFLAGS= -lm -lpthread -lz $(HTSLIBFLAGS)
+LDFLAGS= -lm -lpthread -lz -L/usr/local/lib -L/usr/local/opt/openssl/lib $(HTSLIBFLAGS)
 OBJS=$(ROPE_PREFIX)/mrope.o $(ROPE_PREFIX)/rope.o $(ROPE_PREFIX)/rld0.o $(ROPE_PREFIX)/rle.o
 
 HPP = $(wildcard *.hpp)

@@ -89,6 +89,5 @@ void Configuration::parse(int argc, char** argv) {
     }
     binary = results["binary"].as<bool>() ;
     aggregate = results["aggregate"].as<bool>() ;
-    cout << "Coverage: " << coverage << endl ;
 }
 

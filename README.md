@@ -57,9 +57,10 @@ Optional arguments:
 ```
 
 ##### Notes
-* to append (`-a`) to an existing index, the existing index must be stored in binary format (`-b` option)
-* to query the index, it must be stored in FMD format (default)
-* the search output is stored in multiple `solution_batch_*.fastq` files (created in the current directory)
+* To append (`-a`) to an existing index, the existing index must be stored in binary format (`-b` option)
+* An index built with `--binary` cannot be queried. Use `--binary` only for indices that are meant to be later appended to.
+* The search output is stored in multiple `solution_batch_*.fastq` files (created in the current directory)
+* Even when indexing a FASTA file, pass it with the `--fastq` option.
 
 ### Example
 

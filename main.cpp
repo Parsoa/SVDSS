@@ -24,7 +24,6 @@
 #include "chromosomes.hpp"
 
 using namespace std ;
-//using namespace fs = std::filesystem ;
 
 // ============================================================================= \\
 // ============================================================================= \\
@@ -103,10 +102,10 @@ int main(int argc, char** argv) {
     if (argc == 1) {
         cerr << "Usage: " << endl;
         cerr << "\tTo index sample:" << endl ;
-        cerr << "stella pingpong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file [--threads threads] --workdir /outpout/directory" << endl ;
+        cerr << "stella pingpong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file [--threads threads] --index /path/to/output/index/file" << endl ;
         cerr << "\t\tOptional arguments: " << endl ;
         cerr << "\t\t\t-b, --binary          output index in binary format" << endl ;
-        cerr << "\t\t\t-a, --append          append to existing index (must be stored in binary)" << endl ;
+        cerr << "\t\t\t-a, --append          append to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly." << endl ;
         cerr << "\t\t\t-t, --threads         number of threads (default is 1)" << endl ;
         cerr << "\tTo search for specific strings:" << endl ;
         cerr << "stella pingpong search [--index /path/to/index] [--fastq /path/to/fastq] [--threads threads] --workdir /output/directory" << endl ;
