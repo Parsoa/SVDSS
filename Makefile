@@ -1,8 +1,8 @@
 ROPE_PREFIX=./ropebwt2
-HTSLIBFLAGS =-lhts -lz -llzma -lbz2 -lcurl -lcrypto
+HTS_PREFIX=./htslib
 CXX=g++
-CXXFLAGS=-std=c++11 -Wall -O3 -I$(ROPE_PREFIX) -I htslib -fopenmp -Wno-comment
-LDFLAGS= -lm -lpthread -lz -L/usr/local/lib -L/usr/local/opt/openssl/lib $(HTSLIBFLAGS)
+CXXFLAGS=-std=c++11 -Wall -Wno-comment -O3 -I$(ROPE_PREFIX) -I$(HTS_PREFIX) -fopenmp
+LIBS=-L$(HTS_PREFIX) -lm -lpthread -lz -lhts
 OBJS=$(ROPE_PREFIX)/mrope.o $(ROPE_PREFIX)/rope.o $(ROPE_PREFIX)/rld0.o $(ROPE_PREFIX)/rle.o
 
 HPP = $(wildcard *.hpp)
@@ -17,9 +17,9 @@ debug: stella
 	$(CXX) $(CXXFLAGS) -c $< -o $@ 
 
 stella: $(OBJS) $(HPP) 
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LIBS)
 
 clean:
-	rm *.o
+	rm -f stella *.o
 .PHONY: clean
 

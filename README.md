@@ -7,14 +7,14 @@ Efficient computation of A-specific string w.r.t. a set {B,C,...,Z} of other lon
 
 ## Dependencies
 
-C++11-compliant compiler and [ropebwt2](https://github.com/lh3/ropebwt2) library. For convenience, ropebwt2 is included in the repository.
+C++11-compliant compiler, [ropebwt2](https://github.com/lh3/ropebwt2) and [htslib](https://github.com/samtools/htslib). For convenience, ropebwt2 and htslib are included in the repository.
 
 ## Download and Installation
 ```
-git clone --recursive https://github.com/Parsoa/PingPong.git
-cd PingPong/ropebwt2
-make
-cd ..
+git clone --recursive https://github.com/Parsoa/Stella.git
+cd Stella
+cd ropebwt2 ; make ; cd ..
+cd htslib ; make ; cd ..
 make
 ```
 
