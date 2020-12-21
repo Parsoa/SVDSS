@@ -1,3 +1,6 @@
 [submodule "ropebwt2"]
 	path = ropebwt2
 	url = https://github.com/ldenti/ropebwt2.git
+[submodule "htslib"]
+	path = htslib
+	url = https://github.com/samtools/htslib.git
