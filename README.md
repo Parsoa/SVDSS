@@ -67,8 +67,8 @@ Optional arguments:
 ### Example
 
 ```
-./stella pingpong index --binary --fastq example/father.fq > example/father.fq.bin
-./stella pingpong index --append --fastq example/father.fq.bin example/mother.fq > example/index.fmd
+./stella pingpong index --binary --fastq example/father.fq --index example/father.fq.bin
+./stella pingpong index --append example/father.fq.bin --fastq example/mother.fq --index example/index.fmd
 ./stella pingpong search --index example/index.fmd --fastq example/child.fq --threads 4
  ```
  
