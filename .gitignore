@@ -4,6 +4,7 @@ lib/
 venv/
 venv2/
 venv3/
+venv3.6/
 binaries/
 src/
 
