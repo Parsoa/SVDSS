@@ -18,8 +18,8 @@
 #include <htslib/hfile.h>
 #include "htslib/hfile.h"
 #include "htslib/hts_endian.h"
-
 #include "fastq.hpp"
+
 
 #define fm6_comp(a) ((a) >= 1 && (a) <= 4? 5 - (a) : (a))
 

@@ -7,6 +7,10 @@
 #include <iterator>
 #include <unordered_map>
 
+#ifdef __GNUC__
+#pragma GCC system_header
+#endif
+
 #include <zlib.h>
 #include "kseq.h"
 

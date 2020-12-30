@@ -5,8 +5,7 @@ venv/
 venv2/
 venv3/
 binaries/
-src/cpp/fmd/
-src/cpp/csa/
+src/
 
 *.pyc
 

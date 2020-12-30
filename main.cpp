@@ -15,13 +15,16 @@
 #include <unordered_map>
 
 #include "config.hpp"
+#include "ping_pong.hpp"
+#include "aggregator.hpp"
+#include "chromosomes.hpp"
+
+#ifdef LOCAL_BUILD
 #include "finder.hpp"
 #include "shifter.hpp"
 #include "scanner.hpp"
-#include "ping_pong.hpp"
 #include "extractor.hpp"
-#include "aggregator.hpp"
-#include "chromosomes.hpp"
+#endif
 
 using namespace std ;
 
@@ -45,77 +48,31 @@ void create_workdir() {
     }
 }
 
+void print_help() {
+    cerr << "Usage: " << endl;
+    cerr << "\tTo index sample:" << endl ;
+    cerr << "stella pingpong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file [--threads threads] --index /path/to/output/index/file" << endl ;
+    cerr << "\t\tOptional arguments: " << endl ;
+    cerr << "\t\t\t-b, --binary          output index in binary format" << endl ;
+    cerr << "\t\t\t-a, --append          append to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly." << endl ;
+    cerr << "\t\t\t-t, --threads         number of threads (default is 1)" << endl ;
+    cerr << "\tTo search for specific strings:" << endl ;
+    cerr << "stella pingpong search [--index /path/to/index] [--fastq /path/to/fastq] [--threads threads] --workdir /output/directory" << endl ;
+    cerr << "\t\tOptional arguments: " << endl ;
+    cerr << "\t\t\t--aggregate         aggregate ouputs directly." << endl ;
+    cerr << "\t\t\t--cutof             sets cutoff for minimum string abundance (tau)" << endl ;
+    cerr << "\tTo aggregate specfici strings:" << endl ;
+    cerr << "\t\tstella aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings>" << endl ;
+}
+
 int main(int argc, char** argv) {
     cout << "Ping-pong, comparative genome analysis using sample-specific string detection in accurate long reads." << endl ;
     auto c = Configuration::getInstance() ;
-    //if (strcmp(argv[1], "search") == 0) {
-    //    load_chromosomes(c->reference) ;
-    //    char* s = nullptr ;
-    //    for (auto chrom = chromosome_seqs.begin(); chrom != chromosome_seqs.end(); chrom++) {
-    //        s = strstr(chromosome_seqs[chrom->first], argv[2]) ;
-    //        if (s != nullptr) {
-    //            cout << chrom->first << ": Found at " << s - chromosome_seqs[chrom->first] << endl ;
-    //        }
-    //    }
-    //    exit(0) ;
-    //}
-    //if (strcmp(argv[1], "bedsearch") == 0) {
-    //    load_chromosomes(c->reference) ;
-    //    std::ifstream bed_file(c->bed) ;
-    //    std::string line ;
-    //    vector<string> lines ;
-    //    while (std::getline(bed_file, line)) {
-    //        istringstream iss(line) ;
-    //        vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
-    //        lines.push_back(tokens[3]) ;
-    //    }
-    //    vector<int> n ;
-    //    vector<int> m ;
-    //    for(int i = 0; i < 48; i++) {
-    //        n.push_back(0) ;
-    //        m.push_back(0) ;
-    //    }
-    //    cout << "Searching for " << lines.size() << " sequences.." << endl ;
-    //    #pragma omp parallel for num_threads(48)
-    //    for (int i = 0; i < lines.size(); i++) {
-    //        int t = omp_get_thread_num() ;
-    //        char* s = nullptr ;
-    //        for (auto chrom = chromosome_seqs.begin(); chrom != chromosome_seqs.end(); chrom++) {
-    //            s = strstr(chromosome_seqs[chrom->first], lines[i].c_str()) ;
-    //            if (s != nullptr) {
-    //                m[t] += 1 ;
-    //                cout << "Match " << lines[i] << endl ;
-    //                break ;
-    //            }
-    //        }
-    //        n[t] += 1 ;
-    //    }
-    //    int _n ;
-    //    int _m ;
-    //    for(int i = 0; i < 48; i++) {
-    //        _n += n[i] ;
-    //        _m += m[i] ;
-    //    }
-    //    cout << "Found " << _m << " out of " << _n << endl ;
-    //    exit(0) ;
-    //}
     if (argc == 1) {
-        cerr << "Usage: " << endl;
-        cerr << "\tTo index sample:" << endl ;
-        cerr << "stella pingpong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file [--threads threads] --index /path/to/output/index/file" << endl ;
-        cerr << "\t\tOptional arguments: " << endl ;
-        cerr << "\t\t\t-b, --binary          output index in binary format" << endl ;
-        cerr << "\t\t\t-a, --append          append to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly." << endl ;
-        cerr << "\t\t\t-t, --threads         number of threads (default is 1)" << endl ;
-        cerr << "\tTo search for specific strings:" << endl ;
-        cerr << "stella pingpong search [--index /path/to/index] [--fastq /path/to/fastq] [--threads threads] --workdir /output/directory" << endl ;
-        cerr << "\t\tOptional arguments: " << endl ;
-        cerr << "\t\t\t--aggregate         aggregate ouputs directly." << endl ;
-        cerr << "\t\t\t--cutof             sets cutoff for minimum string abundance (tau)" << endl ;
-        cerr << "\tTo aggregate specfici strings:" << endl ;
-        cerr << "\t\tstella aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings>" << endl ;
+        print_help() ;
         exit(0) ;
     }
+    #ifdef LOCAL_BUILD
     if (strcmp(argv[1], "scan") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
@@ -134,6 +91,7 @@ int main(int argc, char** argv) {
         auto extractor = new Extractor() ;
         extractor->run() ;
     }
+    #endif
     if (strcmp(argv[1], "pingpong") == 0) {
         c->parse(argc - 2, argv + 2) ;
         create_workdir() ;
@@ -149,13 +107,14 @@ int main(int argc, char** argv) {
                 aggregator->run() ;
             }
         }
-        exit(0) ;
     }
-    if (strcmp(argv[1], "aggregate") == 0) {
+    else if (strcmp(argv[1], "aggregate") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
         auto aggregator = new Aggregator() ;
         aggregator->run() ;
+    } else {
+        print_help() ;
     }
 }
 

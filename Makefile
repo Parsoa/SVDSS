@@ -1,13 +1,22 @@
 ROPE_PREFIX=./ropebwt2
 HTS_PREFIX=./htslib
 CXX=g++
-CXXFLAGS=-std=c++11 -Wall -Wno-comment -O3 -I$(ROPE_PREFIX) -I$(HTS_PREFIX) -fopenmp
+CXXFLAGS=-std=c++11 -Wall -Wno-comment -O3 -I$(ROPE_PREFIX) -I$(HTS_PREFIX) -fopenmp -Wno-sign-compare -Wno-unused-variable
 LIBS=-L$(HTS_PREFIX) -lm -lpthread -lz -lhts
-OBJS=$(ROPE_PREFIX)/mrope.o $(ROPE_PREFIX)/rope.o $(ROPE_PREFIX)/rld0.o $(ROPE_PREFIX)/rle.o
+BIN=$(ROPE_PREFIX)/mrope.o $(ROPE_PREFIX)/rope.o $(ROPE_PREFIX)/rld0.o $(ROPE_PREFIX)/rle.o
 
 HPP = $(wildcard *.hpp)
 SRC = $(wildcard *.cpp)
-OBJS := $(OBJS) $(SRC:.cpp=.o)
+OBJS = $(BIN) $(SRC:.cpp=.o)
+
+LOCAL_BUILD ?= 0
+ifneq (${LOCAL_BUILD}), 0)
+	HPP += $(wildcard src/*.hpp)
+	SRC += $(wildcard src/*.cpp)
+	CXX += -Isrc
+endif	
+
+$(info $(LOCAL_BUILD))
 
 all: stella 
 debug: CXXFLAGS += -DDEBUG_MODE -g
