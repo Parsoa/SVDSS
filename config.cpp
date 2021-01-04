@@ -33,6 +33,7 @@ Configuration::Configuration() :
         ("b,binary", "", cxxopts::value<bool>()->default_value("false"))
         ("aggregate", "", cxxopts::value<bool>())
         ("batches", "", cxxopts::value<int>())
+        ("overlap", "", cxxopts::value<int>())
     ;
 }
 
@@ -65,6 +66,9 @@ void Configuration::parse(int argc, char** argv) {
     if (results.count("cutoff")) {
         cutoff = results["cutoff"].as<int>() ;
     }
+    if (results.count("overlap")) {
+        overlap = results["overlap"].as<int>() ;
+    }
     if (results.count("threads")) {
         threads = results["threads"].as<int>() ;
     }
@@ -90,4 +94,3 @@ void Configuration::parse(int argc, char** argv) {
     binary = results["binary"].as<bool>() ;
     aggregate = results["aggregate"].as<bool>() ;
 }
-

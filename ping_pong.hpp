@@ -19,7 +19,7 @@
 #include "htslib/hfile.h"
 #include "htslib/hts_endian.h"
 #include "fastq.hpp"
-
+#include "config.hpp"
 
 #define fm6_comp(a) ((a) >= 1 && (a) <= 4? 5 - (a) : (a))
 
@@ -79,6 +79,8 @@ private:
     
     bool backward_search(rld_t *index, const uint8_t *P, int p2) ;
     bool check_solution(rld_t* index, std::string S) ;
+
+    Configuration* config ;
 } ;
 
 #endif

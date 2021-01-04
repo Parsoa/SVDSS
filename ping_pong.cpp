@@ -101,7 +101,7 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
         int bmatches = 0 ;
         fm6_set_intv(index, P[begin], sai) ;
         DEBUG(cerr << "BS from " << int2char[P[begin]] << " (" << begin << "): " << interval2str(sai) << endl ;)
-            bmatches = 0 ;
+        bmatches = 0 ;
         while (sai.x[2] != 0 && begin > 0) {
             begin-- ;
             bmatches++ ;
@@ -138,10 +138,15 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
         if (begin == 0) {
             break ;
         }
-        // overlapping version:
-        //begin = end - 1 ;
-        // non-overlapping version:
-        begin -= 1 ;
+        if (config->overlap == 0) {
+            begin -= 1 ;
+        } else {
+            if (config->overlap > 0) {
+                begin = begin + config->overlap ;
+            } else {
+                begin = end + config->overlap ; // overlap < 0
+            }
+        }
     }
     DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
     delete[] seq ;
@@ -258,19 +263,19 @@ void PingPong::output_batch(void* args) {
 }
 
 int PingPong::search() {
-    auto c = Configuration::getInstance() ;
+    config = Configuration::getInstance() ;
     // parse arguments
     cout << "Restoring index.." << endl ;
-    rld_t *index = rld_restore(c->index.c_str()) ;
+    rld_t *index = rld_restore(config->index.c_str()) ;
     cout << "Done." << endl ;
     int mode = 0 ;
-    if (c->fastq != "") {
+    if (config->fastq != "") {
         cout << "FASTQ input.." << endl ;
-        fastq_file = gzopen(c->fastq.c_str(), "r") ;
+        fastq_file = gzopen(config->fastq.c_str(), "r") ;
         fastq_iterator = kseq_init(fastq_file) ;
-    } else if (c->bam != "") {
+    } else if (config->bam != "") {
         cout << "BAM input.." << endl ;
-        bam_file = hts_open(c->bam.c_str(), "r") ;
+        bam_file = hts_open(config->bam.c_str(), "r") ;
         bam_header = sam_hdr_read(bam_file) ; //read header
         mode = 1 ;
     } else {
@@ -285,25 +290,25 @@ int PingPong::search() {
     read_ids.push_back(r) ;
     vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
-        bam_entries.push_back(vector<vector<bam1_t*>>(c->threads)) ;
-        fastq_entries.push_back(vector<vector<fastq_entry_t>>(c->threads)) ; // current and next output
-        batches.push_back(vector<vector<fastq_entry_t>>(c->threads)) ; // previous and current output
+        bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
+        fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // current and next output
+        batches.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // previous and current output
     }
     int p = 0 ;
     int batch_size = 10000 ;
     cerr << "Loading first batch" << endl ;
     if (mode == 0) {
-        load_batch_fastq(c->threads, batch_size, p) ;
+        load_batch_fastq(config->threads, batch_size, p) ;
     } else {
         cout << "Allocating BAM buffers.." << endl ;
         for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < c->threads; j++) {
-                for (int k = 0; k <= batch_size / c->threads; k++) {
+            for (int j = 0; j < config->threads; j++) {
+                for (int k = 0; k <= batch_size / config->threads; k++) {
                     bam_entries[i][j].push_back(bam_init1()) ;
                 }
             }
         }
-        load_batch_bam(c->threads, batch_size, p) ;
+        load_batch_bam(config->threads, batch_size, p) ;
     }
     // main loop
     time_t t ;
@@ -314,7 +319,7 @@ int PingPong::search() {
     while (true) {
         cerr << "Beginning batch " << b + 1 << endl ;
         uint64_t v = u ;
-        for (int i = 0 ; i < c->threads ; i++) {
+        for (int i = 0 ; i < config->threads ; i++) {
             u += fastq_entries[p][i].size() ;
         }
         if (mode == 0) {
@@ -322,14 +327,14 @@ int PingPong::search() {
                 break ;
             }
         }
-        #pragma omp parallel for num_threads(c->threads + 2)
-        for(int i = 0; i < c->threads + 2; i++) {
+        #pragma omp parallel for num_threads(config->threads + 2)
+        for(int i = 0; i < config->threads + 2; i++) {
             if (i == 0) {
                 // load next batch of entries
                 if (mode == 0) {
-                    load_batch_fastq(c->threads, batch_size, (p + 1) % 2) ;
+                    load_batch_fastq(config->threads, batch_size, (p + 1) % 2) ;
                 } else {
-                    should_continue = load_batch_bam(c->threads, batch_size, (p + 1) % 2) ;
+                    should_continue = load_batch_bam(config->threads, batch_size, (p + 1) % 2) ;
                 }
                 cerr << "Loaded." << endl ;
             } else if (i == 1) {
@@ -406,131 +411,6 @@ int PingPong::search() {
 // ============================================================================= \\
 // ============================================================================= \\
 
-//int PingPong::query() {
-//    cout << "Single query mode.." << endl ;
-//    char *index_path = argv[1] ;
-//    rld_t *index = rld_restore(index_path) ;
-//    char *query_seq = argv[2] ;
-//    //
-//    vector<fastq_entry_t> solutions ;
-//    fastq_entry_t fastq_entry("Query", std::string(query_seq), std::string(query_seq)) ;
-//    ping_pong_search(index, fastq_entry, solutions) ;
-//    //
-//    for (const auto fastq_entry : solutions) {
-//        cout << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
-//            << fastq_entry.start + fastq_entry.len - 1 << endl 
-//            << fastq_entry.seq << endl ;
-//    }
-//    return 0 ;
-//}
-
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
-//
-//unordered_map<string, int> filter(rld_t* index, vector<string> lines) {
-//    unordered_map<string, int> solution ;
-//    for(const auto line: lines){
-//        int i = line.find_first_of(":") ;
-//        std::string seq(line, 0, i) ;
-//        int count = std::stoi(std::string(line, i + 2, line.length() - (i + 1)), nullptr, 10) ;
-//        if (!check_solution(index, seq)) {
-//            if (solution.find(seq) == solution.end()) {
-//                solution[seq] = 0 ;
-//            }
-//            solution[seq] += count ;
-//        }
-//    }
-//    return solution ;
-//}
-//
-//vector<unordered_map<string, int>> pcheck_f3(const vector<vector<string>> &entries, rld_t *index, int threads) {
-//    DEBUG(threads = 1; )
-//    cout << "Running .. " << endl ;
-//    vector<unordered_map<string, int>> solutions (threads) ;
-//    #pragma omp parallel for num_threads(threads)
-//    for(int i = 0; i < threads; i++) {
-//        unordered_map<string, int> sol = filter(index, entries[i]) ;
-//        solutions[i] = sol ;
-//    }
-//    return solutions ;
-//}
-//
-//int check_f3(int argc, char* argv[]) {
-//    char *index_path = argv[1] ;
-//    rld_t *index = rld_restore(index_path);
-//    std::ifstream ifs(argv[2]) ;
-//    int threads = atoi(argv[3]) ;
-//
-//    int b = 0 ;
-//    int n = 0 ;
-//    int batch_size = 100000 ;
-//    std::string line ;
-//    vector<vector<string>> entries (threads) ;
-//    unordered_map<string, int> final_solution ;
-//    time_t t ;
-//    time(&t) ;
-//    while (std::getline(ifs, line)) {
-//        entries[n % threads].push_back(line);
-//        n += 1 ;
-//        if (n == batch_size) {
-//            n = 0 ;
-//            vector<unordered_map<string, int>> output = pcheck_f3(entries, index, threads);
-//            for (const auto &batch : output) {
-//                for (const auto sol : batch) {
-//                    if (final_solution.find(sol.first) == final_solution.end()) {
-//                        final_solution[sol.first] = 0 ;
-//                    }
-//                    //cout << sol.first << ": " << sol.second << endl ;
-//                    final_solution[sol.first] += sol.second ;
-//                }
-//            }
-//            b += 1 ;
-//            for (int i = 0 ; i < threads ; i++) {
-//                entries[i].clear() ;
-//            }
-//            time_t s ;
-//            time(&s) ;
-//            cerr << "Processed batch " << std::setw(10) << b << ". Reads so far " << std::setw(12) << b * batch_size << "Final solutions: " << setw(15) << final_solution.size() << ". Time: " << std::setw(8) << std::fixed << s - t << endl ;
-//        }
-//    }
-//    // last batch
-//    if(!entries.empty()) {
-//        vector<unordered_map<string, int>> output = pcheck_f3(entries, index, threads);
-//        for (const auto &batch : output) {
-//            for (const auto sol : batch) {
-//                if (final_solution.find(sol.first) == final_solution.end()) {
-//                    final_solution[sol.first] = 0 ;
-//                }
-//                cout << sol.first << ": " << sol.second << endl ;
-//                final_solution[sol.first] += sol.second ;
-//            }
-//        }
-//    }
-//    //while (std::getline(ifs, line)) {
-//    //    //cout << line << endl ;
-//    //    int i = line.find_first_of(":") ;
-//    //    std::string seq(line, 0, i) ;
-//    //    int count = std::stoi(std::string(line, i + 2, line.length() - (i + 1)), nullptr, 10) ;
-//    //    //cout << seq << ": " << count << endl ;
-//    //    if (!check_solution(index, seq)) {
-//    //        if (final_solution.find(seq) == final_solution.end()) {
-//    //            final_solution[seq] = 0 ;
-//    //        }
-//    //        final_solution[seq] += count ;
-//    //    }
-//    //    n += 1 ;
-//    //    if (n % 10000 == 0) {
-//    //        cout << n << " " << final_solution.size() << endl ;
-//    //    }
-//    //}
-//    return 0 ;
-//}
-
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
-
 /** Code adapted from ropebwt2 (main_ropebwt2 in main.c) **/
 int PingPong::index() {
     auto c = Configuration::getInstance() ;
@@ -553,34 +433,6 @@ int PingPong::index() {
         mr = mr_restore(fp) ;
         fclose(fp) ;
     }
-    //int c ;
-    //while ((c = getopt (argc, argv, "a:bh")) != -1)
-    //    switch (c) {
-    //        case 'a':
-    //            // append to existing index - we restore the index (it must be in binary FMR format)
-    //            FILE *fp;
-    //            if ((fp = fopen(optarg, "rb")) == 0) {
-    //                cerr << "fail to open file " << optarg << endl;
-    //                return 1;
-    //            }
-    //            mr = mr_restore(fp);
-    //            fclose(fp);
-    //            break;
-    //        case 'b':
-    //            binary_output = true;
-    //            break;
-    //        case 'h':
-    //            cerr << "Usage: stella pingpong index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
-    //            return 0;
-    //        case '?':
-    //            return 1;
-    //        default:
-    //            return 1;
-    //    }
-    //if(optind == argc) {
-    //    cerr << "Usage: stella pingpong index [-h] [-b] [-a index] <in.fq> > <index>" << endl;
-    //    return 1;
-    //}
 
     // Initialize mr if not restored
     if (mr == 0) mr = mr_init(max_nodes, block_len, so) ;
@@ -600,40 +452,6 @@ int PingPong::index() {
         for (i = 0; i < l; ++i) {
             s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5 ;
         }
-
-        // --- hard mask the sequence ---
-        // if (ks->qual.l && min_q > 0)
-        //   for (i = 0; i < l; ++i)
-        // 	s[i] = ks->qual.s[i] - 33 >= min_q? s[i] : 5;
-
-        // --- skip sequences containing ambiguous bases ---
-        // if (flag & FLAG_NON) {
-        //   for (i = 0; i < l; ++i)
-        // 	if (s[i] == 5) break;
-        //   if (i < l) continue;
-        // }
-
-        // --- cut at ambiguous bases and discard segment with length <INT
-        // + cut one base if forward==reverse ---
-        // if (flag & FLAG_CUTN) {
-        //   int b, k;
-        //   for (k = b = i = 0; i <= l; ++i) {
-        // 	if (i == l || s[i] == 5) {
-        // 	  int tmp_l = i - b;
-        // 	  if (tmp_l >= min_cut_len) {
-        // 	    if ((flag & FLAG_ODD) && is_rev_same(tmp_l, &s[k - tmp_l])) --k;
-        // 	    s[k++] = 0;
-        // 	  } else k -= tmp_l; // skip this segment
-        // 	  b = i + 1;
-        // 	} else s[k++] = s[i];
-        //   }
-        //   if (--k == 0) continue;
-        //   ks->seq.l = l = k;
-        // }
-        // if ((flag & FLAG_ODD) && is_rev_same(l, s)) {
-        //   ks->seq.s[--l] = 0;
-        //   ks->seq.l = l;
-        // }
 
         // Reverse the sequence
         for (i = 0; i < l>>1; ++i) {
