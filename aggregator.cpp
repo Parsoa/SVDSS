@@ -43,7 +43,7 @@ void Aggregator::load_sequences() {
             if (i == 1) {
                 string canon = canonicalize(line) ;
                 if (_sequences[j].find(canon) == _sequences[j].end()) {
-                    _sequences[j][canon] == 0 ;
+                    _sequences[j][canon] = 0 ;
                 }
                 _sequences[j][canon] += count ;
             }
