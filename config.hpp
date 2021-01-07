@@ -23,6 +23,7 @@ public:
     int coverage = 50 ;
     int batch_size = 1000 ;
     int aggregate_batches = 5 ;
+    int min_string_length = 20;
 
     bool binary ;
     bool aggregate ;

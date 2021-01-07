@@ -13,9 +13,11 @@ public:
 
     void load_sequences() ;
     void dump_sequences() ;
+    void find_high_abundance_sequences() ;
 
     int num_batches ;
 
+    std::unordered_map<int, int> sequence_index ;
     std::unordered_map<std::string, int> sequences ;
     std::unordered_map<std::string, std::vector<std::string>> read_ids ;
 

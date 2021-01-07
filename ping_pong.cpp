@@ -132,7 +132,15 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
         // add solution
         DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
         //solutions.push_back(get_solution(seq, qual, begin, end - begin + 1)) ;
-        solutions.push_back(get_solution(fqe, begin, end - begin + 1)) ;
+        int acc_len = end - begin + 1 ;
+        int sfs_len = end - begin + 1 ;
+        if (config->min_string_length > 0) {
+            sfs_len = sfs_len > config->min_string_length ? sfs_len : config->min_string_length ;
+            if (begin + sfs_len >= l - 1) {
+                sfs_len = l - 1 - begin + 1 ;
+            }
+        }
+        solutions.push_back(get_solution(fqe, begin, sfs_len)) ;
         DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         // prepare for next round
         if (begin == 0) {
@@ -142,7 +150,11 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
             begin -= 1 ;
         } else {
             if (config->overlap > 0) {
-                begin = begin + config->overlap ;
+                int overlap = config->overlap > acc_len ? acc_len - 1 : config->overlap ;
+                begin = begin + overlap ;
+                if (begin > end - 1) {
+                    begin = end - 1 ;
+                }
             } else {
                 begin = end + config->overlap ; // overlap < 0
             }
@@ -266,6 +278,7 @@ int PingPong::search() {
     config = Configuration::getInstance() ;
     // parse arguments
     cout << "Restoring index.." << endl ;
+    cout << "Overlap = " << config->overlap << endl ;
     rld_t *index = rld_restore(config->index.c_str()) ;
     cout << "Done." << endl ;
     int mode = 0 ;
