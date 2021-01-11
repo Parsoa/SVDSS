@@ -13,7 +13,7 @@ LOCAL_BUILD ?= 0
 ifneq (${LOCAL_BUILD}), 0)
 	HPP += $(wildcard src/*.hpp)
 	SRC += $(wildcard src/*.cpp)
-	CXX += -Isrc
+	CXX += -Isrc -DLOCAL_BUILD
 endif	
 
 $(info $(LOCAL_BUILD))

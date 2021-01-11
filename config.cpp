@@ -34,6 +34,7 @@ Configuration::Configuration() :
         ("aggregate", "", cxxopts::value<bool>())
         ("batches", "", cxxopts::value<int>())
         ("overlap", "", cxxopts::value<int>())
+        ("min-length", "", cxxopts::value<int>())
     ;
 }
 
@@ -90,6 +91,9 @@ void Configuration::parse(int argc, char** argv) {
     }
     if (results.count("batches")) {
         aggregate_batches = results["batches"].as<int>() ;
+    }
+    if (results.count("min-length")) {
+        min_string_length = results["min-length"].as<int>() ;
     }
     binary = results["binary"].as<bool>() ;
     aggregate = results["aggregate"].as<bool>() ;

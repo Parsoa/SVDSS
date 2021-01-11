@@ -135,10 +135,11 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
         int acc_len = end - begin + 1 ;
         int sfs_len = end - begin + 1 ;
         if (config->min_string_length > 0) {
-            sfs_len = sfs_len > config->min_string_length ? sfs_len : config->min_string_length ;
+            sfs_len = acc_len > config->min_string_length ? acc_len : config->min_string_length ;
             if (begin + sfs_len >= l - 1) {
-                sfs_len = l - 1 - begin + 1 ;
+                sfs_len = acc_len ;
             }
+            assert(sfs_len == config->min_string_length || sfs_len == acc_len) ;
         }
         solutions.push_back(get_solution(fqe, begin, sfs_len)) ;
         DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
@@ -152,9 +153,7 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
             if (config->overlap > 0) {
                 int overlap = config->overlap > acc_len ? acc_len - 1 : config->overlap ;
                 begin = begin + overlap ;
-                if (begin > end - 1) {
-                    begin = end - 1 ;
-                }
+                assert(begin <= end) ;
             } else {
                 begin = end + config->overlap ; // overlap < 0
             }
@@ -278,7 +277,6 @@ int PingPong::search() {
     config = Configuration::getInstance() ;
     // parse arguments
     cout << "Restoring index.." << endl ;
-    cout << "Overlap = " << config->overlap << endl ;
     rld_t *index = rld_restore(config->index.c_str()) ;
     cout << "Done." << endl ;
     int mode = 0 ;
@@ -295,10 +293,12 @@ int PingPong::search() {
         cerr << "No input file provided, aborting.." << endl ;
         exit(1) ;
     }
+    cout << "Extracting SFS strings.." << endl ;
+    cout << "Overlap = " << config->overlap << endl ;
+    cout << "Minimum length = " << config->min_string_length << endl ;
     // load first batch
     unordered_map<fastq_entry_t, int> s ;
     search_solutions.push_back(s) ;
-    cout << "1" << endl ;
     unordered_map<fastq_entry_t, vector<string>> r ;
     read_ids.push_back(r) ;
     vector<vector<vector<fastq_entry_t>>> batches ;

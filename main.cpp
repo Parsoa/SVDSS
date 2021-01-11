@@ -32,7 +32,6 @@ using namespace std ;
 // ============================================================================= \\
 // ============================================================================= \\
 // ============================================================================= \\
-// ============================================================================= \\
 
 void create_workdir() {
     auto c = Configuration::getInstance() ;
@@ -78,18 +77,21 @@ int main(int argc, char** argv) {
         create_workdir() ;
         auto scanner = new Scanner() ;
         scanner->run() ;
+        exit(0) ;
     }
     if (strcmp(argv[1], "find") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
         auto finder = new Finder() ;
         finder->run() ;
+        exit(0) ;
     }
     if (strcmp(argv[1], "extract") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
         auto extractor = new Extractor() ;
         extractor->run() ;
+        exit(0) ;
     }
     #endif
     if (strcmp(argv[1], "pingpong") == 0) {
