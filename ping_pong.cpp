@@ -151,9 +151,9 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
             begin -= 1 ;
         } else {
             if (config->overlap > 0) {
-                int overlap = config->overlap > acc_len ? acc_len - 1 : config->overlap ;
+                int overlap = config->overlap >= acc_len ? acc_len - 1 : config->overlap ;
                 begin = begin + overlap ;
-                assert(begin <= end) ;
+                assert(begin <= end && overlap >= 0) ;
             } else {
                 begin = end + config->overlap ; // overlap < 0
             }

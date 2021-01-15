@@ -10,7 +10,7 @@ SRC = $(wildcard *.cpp)
 OBJS = $(BIN) $(SRC:.cpp=.o)
 
 LOCAL_BUILD ?= 0
-ifneq (${LOCAL_BUILD}), 0)
+ifneq ($(LOCAL_BUILD), 0)
 	HPP += $(wildcard src/*.hpp)
 	SRC += $(wildcard src/*.cpp)
 	CXX += -Isrc -DLOCAL_BUILD

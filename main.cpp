@@ -24,6 +24,7 @@
 #include "shifter.hpp"
 #include "scanner.hpp"
 #include "extractor.hpp"
+#include "haplotype_shifter.hpp"
 #endif
 
 using namespace std ;
@@ -91,6 +92,12 @@ int main(int argc, char** argv) {
         create_workdir() ;
         auto extractor = new Extractor() ;
         extractor->run() ;
+        exit(0) ;
+    }
+    if (strcmp(argv[1], "haplotype-shifter") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        auto shifter = new HaplotypeShifter() ;
+        shifter->run() ;
         exit(0) ;
     }
     #endif
