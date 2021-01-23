@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
             pingpong->search() ;
             if (c->aggregate) {
                 auto aggregator = new Aggregator() ;
-                aggregator->num_batches = pingpong->num_output_batches - 1 ;
+                c->aggregate_batches = pingpong->num_output_batches ;
                 aggregator->run() ;
             }
         }

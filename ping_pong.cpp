@@ -142,7 +142,7 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
             assert(sfs_len == config->min_string_length || sfs_len == acc_len) ;
         }
         solutions.push_back(get_solution(fqe, begin, sfs_len)) ;
-        DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
+        //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         // prepare for next round
         if (begin == 0) {
             break ;
@@ -159,7 +159,7 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
             }
         }
     }
-    DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
+    //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
     delete[] seq ;
 }
 
