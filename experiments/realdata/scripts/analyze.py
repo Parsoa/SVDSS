@@ -70,7 +70,7 @@ def contigbased_precision():
     fq_path = sys.argv[3]
 
     total_specific = 0
-    for record in SeqIO.parse(fq_path, "fastq"):
+    for record in SeqIO.parse(fq_path, "fasta"):
         total_specific += 1
 
     perfect1 = set()

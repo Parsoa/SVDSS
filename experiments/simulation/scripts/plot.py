@@ -281,7 +281,7 @@ def plot_nal_by_err():
     plt.xlabel("# Base Differences", fontsize = 13)
 
     ax1.legend(loc=4, fancybox=True, shadow=True)
-    plt.savefig('plots/' + out_path)
+    plt.savefig(out_path, dpi = 300)
 
 def repmask():
     fa_path = sys.argv[1]
@@ -418,18 +418,41 @@ def plot_covering():
     plt.xticks()
     plt.xlabel("# Base Differences")
 
-    plt.savefig(out_path)
+    plt.savefig(out_path, dpi = 300)
 
 def plot_cutoff():
-    data_5x  = {'cutoff': [2, 3, 4, 5, 6], 'precision': [0.81, 0.97, 0.99, 0.99, 0.99], 'recall': [0.94, 0.82, 0.65, 0.48, 0.34]}
-    data_10x = {'cutoff': [2, 3, 4, 5, 6], 'precision': [0.66, 0.94, 0.99, 0.99, 0.99], 'recall': [0.98, 0.97, 0.95, 0.89, 0.78]}
-    data_20x = {'cutoff': [2, 3, 4, 5, 6], 'precision': [0.39, 0.82, 0.97, 0.99, 0.99], 'recall': [0.98, 0.98, 0.98, 0.98, 0.98]}
-    data_30x = {'cutoff': [2, 3, 4, 5, 6], 'precision': [0.24, 0.64, 0.91, 0.97, 0.97], 'recall': [0.99, 0.99, 0.99, 0.99, 0.99]}
+    events = 17595
+    data_5x = {'cutoff': [2, 3, 4, 5, 6],
+            'mapped': [1698507, 1681697, 1670331, 1649708, 1606824],
+            'unmapped': [2181981, 539619, 135258, 41708, 14624], 
+            'covered': [17354, 17344, 17291, 17190, 16944]}
+    data_10x = {'cutoff': [2, 3, 4, 5, 6],
+            'mapped': [1698507, 1681697, 1670331, 1649708, 1606824],
+            'unmapped': [2181981, 539619, 135258, 41708, 14624], 
+            'covered': [17354, 17344, 17291, 17190, 16944]}
+    data_20x = {'cutoff': [2, 3, 4, 5, 6],
+            'mapped': [1745333, 1712197, 1702999, 1700609, 1699879],
+            'unmapped': [6245298, 1957703, 486772, 133528, 43215], 
+            'covered': [17414, 17414, 17414, 17413, 17413]}
+    data_30x = {'cutoff': [2, 3, 4, 5, 6],
+            'mapped': [1767781, 1714017, 1695793, 1690675, 1689266],
+            'unmapped': [12136901, 4607079, 1286537, 361469, 131090], 
+            'covered': [17371, 17369, 17369, 17368, 17368]}
+    # Nono-overlapping
+    #data_5x  = {'cutoff': [2, 3, 4, 5, 6], 'precision': [0.81, 0.97, 0.99, 0.99, 0.99], 'recall': [0.94, 0.82, 0.65, 0.48, 0.34]}
+    #data_10x = {'cutoff': [2, 3, 4, 5, 6], 'precision': [0.66, 0.94, 0.99, 0.99, 0.99], 'recall': [0.98, 0.97, 0.95, 0.89, 0.78]}
+    #data_20x = {'cutoff': [2, 3, 4, 5, 6], 'precision': [0.39, 0.82, 0.97, 0.99, 0.99], 'recall': [0.98, 0.98, 0.98, 0.98, 0.98]}
+    #data_30x = {'cutoff': [2, 3, 4, 5, 6], 'precision': [0.24, 0.64, 0.91, 0.97, 0.97], 'recall': [0.99, 0.99, 0.99, 0.99, 0.99]}
 
     data = {'cutoff': data_5x['cutoff'] + data_10x['cutoff'] + data_20x['cutoff'] + data_30x['cutoff'],
-            'precision': data_5x['precision'] + data_10x['precision'] + data_20x['precision'] + data_30x['precision'],
-            'recall': data_5x['recall'] + data_10x['recall'] + data_20x['recall'] + data_30x['recall'],
+            'precision': [d['mapped'][i] / (d['mapped'][i] + d['unmapped'][i]) for d in [data_5x, data_10x, data_20x, data_30x] for i in [0, 1, 2, 3, 4]],
+            'recall': [d['covered'][i] / events for d in [data_5x, data_10x, data_20x, data_30x] for i in [0, 1, 2, 3, 4]],
             'coverage': [5] * 5 + [10] * 5 + [20] * 5 + [30] * 5}
+    
+    #data = {'cutoff': data_5x['cutoff'] + data_10x['cutoff'] + data_20x['cutoff'] + data_30x['cutoff'],
+    #        'precision': data_5x['precision'] + data_10x['precision'] + data_20x['precision'] + data_30x['precision'],
+    #        'recall': data_5x['recall'] + data_10x['recall'] + data_20x['recall'] + data_30x['recall'],
+    #        'coverage': [5] * 5 + [10] * 5 + [20] * 5 + [30] * 5}
 
     df = pd.DataFrame(data=data)
 
@@ -450,7 +473,7 @@ def plot_cutoff():
     plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
     plt.xticks()
     plt.xlabel('Cutoff', fontsize = 13)
-    plt.savefig('cutoff.png')
+    plt.savefig('cutoff.png', dpi = 300)
 
 if __name__ == "__main__":
     mode = sys.argv.pop(1)

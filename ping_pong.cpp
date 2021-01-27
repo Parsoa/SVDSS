@@ -47,7 +47,7 @@ static inline int kputsn(const char *p, int l, kstring_t *s) {
 }
 
 void seq_char2nt6(int l, unsigned char *s) {
-    int i;
+    int i ;
     for (i = 0; i < l; ++i) {
         s[i] = s[i] < 128? seq_nt6_table[s[i]] : 5 ;
     }
@@ -131,7 +131,6 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
         DEBUG(cerr << "Mismatch " << int2char[P[end]] << " (" << end << "). fmatches: " << fmatches << endl ;)
         // add solution
         DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
-        //solutions.push_back(get_solution(seq, qual, begin, end - begin + 1)) ;
         int acc_len = end - begin + 1 ;
         int sfs_len = end - begin + 1 ;
         if (config->min_string_length > 0) {
@@ -140,7 +139,9 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
                 sfs_len = acc_len ;
             }
             assert(sfs_len == config->min_string_length || sfs_len == acc_len) ;
+            DEBUG(cerr << "Adjusted length to " << sfs_len << "." << endl ;)
         }
+        DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
         solutions.push_back(get_solution(fqe, begin, sfs_len)) ;
         //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         // prepare for next round
