@@ -14,8 +14,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: ropebwt
-      run: cd ropebwt2 ; make ; cd ..
+      run: make
+      working-directory: ./ropebwt2
     - name: htslib
-      run: cd htslib ; make ; cd ..
+      run: make
+      working-directory: ./htslib
     - name: make
       run: make
