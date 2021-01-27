@@ -1,3 +1,5 @@
+![C/C++ CI](https://github.com/Parsoa/Stella/workflows/C/C++%20CI/badge.svg)
+
 # Sample-specific string detection from accurate long reads
 Efficient computation of A-specific string w.r.t. a set {B,C,...,Z} of other long reads samples. A A-specific string is a string which occur only in sample A and not in the others. 
 
