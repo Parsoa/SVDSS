@@ -43,7 +43,7 @@ The algorithm will output a set of files named `solution_batch_<number>.fastq` w
 
 3. Aggregate output to a single fastq file:
 ```
-./stella aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings> --batches <number of batches>
+./PingPong aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings> --batches <number of batches>
 ```
 
 The `--batches` option should be set to the number of `solution_batch_<number>.fastq` files produced, e.g if the last file is `solution_batch_5.fastq` then `--batches` should be set to 6 (batch file index starts from zero).
@@ -52,14 +52,14 @@ You can also directly aggregate output from the search step by adding `--aggrega
 
 ### PingPong Algorithm Usage
 ```
-Usage: stella PingPong index [--binary] [--append index] --fastq /path/to/fastq/file --index /path/to/output/index/file [--threads threads]
+Usage: PingPong index [--binary] [--append index] --fastq /path/to/fastq/file --index /path/to/output/index/file [--threads threads]
 
 Optional arguments:
     -b, --binary          output index in binary format
     -a, --append          append to existing index (must be stored in binary)
     -t, --threads         number of threads (default:1)
 
-Usage: stella PingPong search [--index /path/to/index/file] [--fastq fastq] [--threads threads]
+Usage: PingPong search [--index /path/to/index/file] [--fastq fastq] [--threads threads]
 
 Optional arguments:
     --aggregate         aggregate ouputs directly.
@@ -81,4 +81,4 @@ Optional arguments:
  ```
  
  ### Authors
- For inquiries on this software please open an [issue](https://github.com/Parsoa/Variation-Discovery/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
+ For inquiries on this software please open an [issue](https://github.com/Parsoa/PingPong/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
