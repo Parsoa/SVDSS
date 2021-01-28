@@ -18,17 +18,17 @@ endif
 
 $(info $(LOCAL_BUILD))
 
-all: stella 
+all: PingPong 
 debug: CXXFLAGS += -DDEBUG_MODE -g
-debug: stella 
+debug: PingPong 
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@ 
 
-stella: $(OBJS) $(HPP) 
+PingPong: $(OBJS) $(HPP) 
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LIBS)
 
 clean:
-	rm -f stella *.o
+	rm -f PingPong *.o
 .PHONY: clean
 

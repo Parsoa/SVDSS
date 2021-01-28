@@ -222,6 +222,14 @@ def plot_nal_by_err():
             deletions = al.get_cigar_stats()[0][2]
             errors = bad_bases + deletions
             data1.append(errors)
+    a = 0
+    b = 0
+    for e in data1:
+        if e == 0:
+            a += 1
+        else:
+            b += 1
+    print(a, b)
     print("bam1 limits: ", min(data1), max(data1))
     print(len(data1))
 
@@ -237,6 +245,14 @@ def plot_nal_by_err():
             deletions = al.get_cigar_stats()[0][2]
             errors = bad_bases + deletions
             data2.append(errors)
+    a = 0
+    b = 0
+    for e in data2:
+        if e == 0:
+            a += 1
+        else:
+            b += 1
+    print(a, b)
     print("bam2 limits: ", min(data2), max(data2))
     print(len(data2))
 
@@ -252,6 +268,14 @@ def plot_nal_by_err():
             deletions = al.get_cigar_stats()[0][2]
             errors = bad_bases + deletions
             data3.append(errors)
+    a = 0
+    b = 0
+    for e in data2:
+        if e == 0:
+            a += 1
+        else:
+            b += 1
+    print(a, b)
     print("bam3 limits: ", min(data3), max(data3))
     print(len(data3))
 
@@ -423,9 +447,9 @@ def plot_covering():
 def plot_cutoff():
     events = 17595
     data_5x = {'cutoff': [2, 3, 4, 5, 6],
-            'mapped': [1698507, 1681697, 1670331, 1649708, 1606824],
-            'unmapped': [2181981, 539619, 135258, 41708, 14624], 
-            'covered': [17354, 17344, 17291, 17190, 16944]}
+            'mapped': [1653730, 1540348, 1392183, 1197702, 972287],
+            'unmapped': [851955, 186632, 52135, 18135, 7233], 
+            'covered': [17140, 16546, 15481, 13995, 12369]}
     data_10x = {'cutoff': [2, 3, 4, 5, 6],
             'mapped': [1698507, 1681697, 1670331, 1649708, 1606824],
             'unmapped': [2181981, 539619, 135258, 41708, 14624], 

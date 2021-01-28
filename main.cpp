@@ -51,18 +51,18 @@ void create_workdir() {
 void print_help() {
     cerr << "Usage: " << endl;
     cerr << "\tTo index sample:" << endl ;
-    cerr << "stella pingpong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file [--threads threads] --index /path/to/output/index/file" << endl ;
+    cerr << "\t\tPingPong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file [--threads threads] --index /path/to/output/index/file" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
     cerr << "\t\t\t-b, --binary          output index in binary format" << endl ;
     cerr << "\t\t\t-a, --append          append to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly." << endl ;
     cerr << "\t\t\t-t, --threads         number of threads (default is 1)" << endl ;
     cerr << "\tTo search for specific strings:" << endl ;
-    cerr << "stella pingpong search [--index /path/to/index] [--fastq /path/to/fastq] [--threads threads] --workdir /output/directory" << endl ;
+    cerr << "\t\tPingPong search [--index /path/to/index] [--fastq /path/to/fastq] [--threads threads] --workdir /output/directory" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
     cerr << "\t\t\t--aggregate         aggregate ouputs directly." << endl ;
     cerr << "\t\t\t--cutof             sets cutoff for minimum string abundance (tau)" << endl ;
-    cerr << "\tTo aggregate specfici strings:" << endl ;
-    cerr << "\t\tstella aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings>" << endl ;
+    cerr << "\tTo aggregate specfic strings:" << endl ;
+    cerr << "\t\tPingPong aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings> --batches <number of output batches>" << endl ;
 }
 
 int main(int argc, char** argv) {
@@ -101,20 +101,21 @@ int main(int argc, char** argv) {
         exit(0) ;
     }
     #endif
-    if (strcmp(argv[1], "pingpong") == 0) {
-        c->parse(argc - 2, argv + 2) ;
+    if (strcmp(argv[1], "index") == 0) {
+        c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
         auto pingpong = new PingPong() ;
-        if (strcmp(argv[2], "index") == 0) {
-            pingpong->index() ;
-        }
-        if (strcmp(argv[2], "search") == 0) {
-            pingpong->search() ;
-            if (c->aggregate) {
-                auto aggregator = new Aggregator() ;
-                c->aggregate_batches = pingpong->num_output_batches ;
-                aggregator->run() ;
-            }
+        pingpong->index() ;
+    }
+    else if (strcmp(argv[1], "search") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto pingpong = new PingPong() ;
+        pingpong->search() ;
+        if (c->aggregate) {
+            auto aggregator = new Aggregator() ;
+            c->aggregate_batches = pingpong->num_output_batches ;
+            aggregator->run() ;
         }
     }
     else if (strcmp(argv[1], "aggregate") == 0) {

@@ -1,4 +1,4 @@
-![C/C++ CI](https://github.com/Parsoa/Stella/workflows/C/C++%20CI/badge.svg)
+![C/C++ CI](https://github.com/Parsoa/PingPong/workflows/C/C++%20CI/badge.svg)
 
 # Sample-specific string detection from accurate long reads
 Efficient computation of A-specific string w.r.t. a set {B,C,...,Z} of other long reads samples. A A-specific string is a string which occur only in sample A and not in the others. 
@@ -13,14 +13,14 @@ C++11-compliant compiler, [ropebwt2](https://github.com/lh3/ropebwt2) and [htsli
 
 ## Download and Installation
 ```
-git clone --recursive https://github.com/Parsoa/Stella.git
-cd Stella
+git clone --recursive https://github.com/Parsoa/PingPong.git
+cd PingPong 
 cd ropebwt2 ; make ; cd ..
 cd htslib ; make ; cd ..
 make
 ```
 
-You can now run Stella by adding the clone directory to PATH. Because the package uses an internal clone of htslib, the shared objects will be in non-standard locations and have to be manually specified before running:
+You can now run PingPong by adding the clone directory to PATH. Because the package uses an internal clone of htslib, the shared objects will be in non-standard locations and have to be manually specified before running:
 
 ```
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/clone/dir/htslib
@@ -31,12 +31,12 @@ Let's assume we have 3 samples A, B, and, C. To compute A-specific strings we ha
 
 1. Index samples B and C:
 ```
-./stella pingpong index --binary --fastq /path/to/sample/B --index B.index.bin
-./stella pingpong index --append B.index.bin --fastq /path/to/sample/C --index BC.index.fmd
+./PingPong index --binary --fastq /path/to/sample/B --index B.index.bin
+./PingPong index --append B.index.bin --fastq /path/to/sample/C --index BC.index.fmd
 ```
 2. Search for A-specific strings in the index
 ```
-./stella pingpong search --index [B.index.bin] --fastq /path/to/sample/A --threads [nthreads]
+./PingPong search --index [B.index.bin] --fastq /path/to/sample/A --threads [nthreads]
 ```
 
 The algorithm will output a set of files named `solution_batch_<number>.fastq` with the list of A-specific strings. This is done to keep the memory usage constant. A string maybe repeated in multiple files and abundances from all files should be aggregated to represent final numbers.
@@ -52,14 +52,14 @@ You can also directly aggregate output from the search step by adding `--aggrega
 
 ### PingPong Algorithm Usage
 ```
-Usage: stella pingpong index [--binary] [--append index] --fastq /path/to/fastq/file --index /path/to/output/index/file [--threads threads]
+Usage: stella PingPong index [--binary] [--append index] --fastq /path/to/fastq/file --index /path/to/output/index/file [--threads threads]
 
 Optional arguments:
     -b, --binary          output index in binary format
     -a, --append          append to existing index (must be stored in binary)
     -t, --threads         number of threads (default:1)
 
-Usage: stella pingpong search [--index /path/to/index/file] [--fastq fastq] [--threads threads]
+Usage: stella PingPong search [--index /path/to/index/file] [--fastq fastq] [--threads threads]
 
 Optional arguments:
     --aggregate         aggregate ouputs directly.
@@ -75,9 +75,9 @@ Optional arguments:
 ### Example
 
 ```
-./stella pingpong index --binary --fastq example/father.fq --index example/father.fq.bin
-./stella pingpong index --append example/father.fq.bin --fastq example/mother.fq --index example/index.fmd
-./stella pingpong search --index example/index.fmd --fastq example/child.fq --threads 4
+./PingPong index --binary --fastq example/father.fq --index example/father.fq.bin
+./PingPong index --append example/father.fq.bin --fastq example/mother.fq --index example/index.fmd
+./PingPong search --index example/index.fmd --fastq example/child.fq --threads 4
  ```
  
  ### Authors
