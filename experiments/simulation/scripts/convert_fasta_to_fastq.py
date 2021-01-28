@@ -1,7 +1,8 @@
 #!/usr/bin/python
+import sys
 
-with open('reads_edited.fa') as fasta_file:
-    with open('reads.fastq', 'w') as fastq_file:
+with open(sys.argv[1]) as fasta_file:
+    with open(sys.argv[2], 'w') as fastq_file:
         header = fasta_file.readline()
         seq = fasta_file.readline()
         while header:
