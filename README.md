@@ -20,6 +20,12 @@ cd htslib ; make ; cd ..
 make
 ```
 
+You can now run Stella by adding the clone directory to PATH. Because the package uses an internal clone of htslib, the shared objects will be in non-standard locations and have to be manually specified before running:
+
+```
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/clone/dir/htslib
+```
+
 ## How-To
 Let's assume we have 3 samples A, B, and, C. To compute A-specific strings we have to:
 
