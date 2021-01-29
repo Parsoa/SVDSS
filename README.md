@@ -52,18 +52,20 @@ You can also directly aggregate output from the search step by adding `--aggrega
 
 ### PingPong Algorithm Usage
 ```
-Usage: PingPong index [--binary] [--append index] --fastq /path/to/fastq/file --index /path/to/output/index/file [--threads threads]
+Usage: PingPong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq --index /path/to/output/index
 
 Optional arguments:
     -b, --binary          output index in binary format
     -a, --append          append to existing index (must be stored in binary)
-    -t, --threads         number of threads (default:1)
 
-Usage: PingPong search [--index /path/to/index/file] [--fastq fastq] [--threads threads]
+Usage: PingPong search --index /path/to/index/file --fastq /path/to/fastq [--threads threads]
 
 Optional arguments:
-    --aggregate         aggregate ouputs directly.
-    --cutof             sets cutoff for minimum string abundance (tau)
+    --aggregate           aggregate outputs directly
+    --cutoff              sets cutoff for minimum string abundance (tau, default:5)
+    --workdir             create output files in this directory (default:.)
+    --overlap -1/0        run the exact algorithm (-1) or the relaxed one (0) (default:0)
+    -t, --threads         number of threads (default:4)
 ```
 
 ##### Notes
@@ -77,8 +79,14 @@ Optional arguments:
 ```
 ./PingPong index --binary --fastq example/father.fq --index example/father.fq.bin
 ./PingPong index --append example/father.fq.bin --fastq example/mother.fq --index example/index.fmd
-./PingPong search --index example/index.fmd --fastq example/child.fq --threads 4
- ```
- 
+./PingPong search --index example/index.fmd --fastq example/child.fq --overlap -1 --workdir example --threads 1 --aggregate --cutoff 2
+```
+
+You can then check the correcteness of the output:
+```
+diff example/solution_aggregated.fastq example/child_specific.overlapping.fq
+```
+
+
  ### Authors
  For inquiries on this software please open an [issue](https://github.com/Parsoa/PingPong/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
