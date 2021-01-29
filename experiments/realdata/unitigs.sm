@@ -1,0 +1,27 @@
+rule create_unitigs:
+    input:
+        fa = pjoin(outdir, "kmers", "{k}mers", "specific.fa")
+    output:
+        fa = pjoin(outdir, "kmers", "{k}tigs", "specific.fa")
+    params:
+        odir = pjoin(outdir, "kmers", "{k}tigs"),
+        tdir = pjoin(outdir, "kmers", "{k}tigs" "bcalm-tmp"),
+        k = "{k}"
+    shell:
+        """
+        bcalm -in {input.fa} -kmer-size {params.k} -abundance-min 0 -out {output.fa} -out-dir {params.odir} -out-tmp {params.tdir}
+        mv {params.odir}/specific.fa.unitigs.fa {output.fa}
+        """
+
+rule extract_unitigs:
+    input:
+        pjoin(outdir, "kmers", "{k}tigs", "specific.fa")
+    output:
+        pjoin(outdir, "kmers", "{k}tigs", "specific.short.fa"),
+        pjoin(outdir, "kmers", "{k}tigs", "specific.long.fa")
+    params:
+        pjoin(outdir, "kmers", "{k}tigs", "specific")
+    shell:
+        """
+        {sdir}/split_fa {input} {params}
+        """

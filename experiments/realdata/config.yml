@@ -1,7 +1,11 @@
-root: /pasteur/projets/policy02/seqbio/luca/recomb2021real_snakeroot
+ref: "/pasteur/homes/ldenti/data/pingpong_ext/hg38.chroms.fa"
+vcf: "/pasteur/homes/ldenti/data/pingpong_ext/vcfs/all.known.nonoverlapping.vcf.gz"
+contigs:
+  ref: "/pasteur/homes/ldenti/data/recomb2021/NA19240_assembly.fa"
+  query: "/pasteur/homes/ldenti/data/recomb2021/HG00733_assembly.fa"
 samples:
-  - NA19240
-  - HG00733
-ref: hg38.chroms.fa
-vcf: CHS-PUR-YRI.assemblies.pangenome_hg38.20200508.all_variants.genotypes.vcf.gz
-threads: 8
+  ref: "/pasteur/homes/ldenti/data/recomb2021/pp/NA19240_nt_edited.fq"
+  query: "/pasteur/homes/ldenti/data/recomb2021/pp/HG00733_nt_edited.fq"
+outdir: "/pasteur/homes/ldenti/data/pingpong_ext/OUT"
+codedir: "/pasteur/homes/ldenti/code/Variation-Discovery"
+threads: 16

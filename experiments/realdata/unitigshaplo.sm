@@ -1,0 +1,124 @@
+rule kunitigs_haplobbmap:
+    input:
+        index = pjoin(outdir, "HG00733.haps.fa-bbmapindex"),
+        fq = pjoin(outdir, "kmers", "{k}tigs", "specific.short.fa")
+    output:
+        sam = pjoin(outdir, "kmers", "{k}tigs", "specific.short.hg-haps.sam")
+    threads: nths
+    shell:
+        """
+        bbmap.sh -Xmx90gb threads={threads} k=11 usequality=f ambiguous=all path={input.index} in={input.fq} outm={output.sam}
+        """
+
+rule kunitigs_haplominimap2:
+    input:
+        fa = pjoin(outdir, "HG00733.haps.fa"),
+        fq = pjoin(outdir, "kmers", "{k}tigs", "specific.long.fa")
+    output:
+        sam = pjoin(outdir, "kmers", "{k}tigs", "specific.long.hg-haps.sam")
+    threads: nths
+    shell:
+        """
+        minimap2 -t {threads} --split-prefix 1 -ax asm20 {input.fa} {input.fq} > {output.sam}
+        """
+
+rule kunitigs_recintersect:
+    input:
+        bed1 = pjoin(outdir, "HGspecificvars_1.bed"),
+        bed2 = pjoin(outdir, "HGspecificvars_2.bed"),
+        albed = pjoin(outdir, "kmers", "{k}tigs", "specific.{subset}.hg-haps.sam.bed")
+    output:
+        bed1 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_1.{subset}.bed"),
+        bed2 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_2.{subset}.bed")
+    shell:
+        """
+        bedtools intersect -c -a {input.bed1} -b {input.albed} > {output.bed1}
+        bedtools intersect -c -a {input.bed2} -b {input.albed} > {output.bed2}
+        """
+
+rule kunitigs_preintersect:
+    input:
+        bed1 = pjoin(outdir, "HGallvars_1.bed"),
+        bed2 = pjoin(outdir, "HGallvars_2.bed"),
+        albed = pjoin(outdir, "kmers", "{k}tigs", "specific.{subset}.hg-haps.sam.bed")
+    output:
+        bed1 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_1.{subset}.bed"),
+        bed2 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_2.{subset}.bed")
+    shell:
+        """
+        bedtools intersect -wao -b {input.bed1} -a {input.albed} > {output.bed1}
+        bedtools intersect -wao -b {input.bed2} -a {input.albed} > {output.bed2}
+        """
+
+rule kunitigs_combine_beds:
+    input:
+        recshort1 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_1.short.bed"),
+        recshort2 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_2.short.bed"),
+        reclong1 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_1.long.bed"),
+        reclong2 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_2.long.bed"),
+        preshort1 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_1.short.bed"),
+        preshort2 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_2.short.bed"),
+        prelong1 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_1.long.bed"),
+        prelong2 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_2.long.bed")
+    output:
+        rec1 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_1.all.bed"),
+        rec2 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_2.all.bed"),
+        pre1 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_1.all.bed"),
+        pre2 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_2.all.bed")
+    shell:
+        """
+        cat {input.recshort1} {input.reclong1} > {output.rec1}
+        cat {input.recshort2} {input.reclong2} > {output.rec2}
+        cat {input.preshort1} {input.prelong1} > {output.pre1}
+        cat {input.preshort2} {input.prelong2} > {output.pre2}
+        """
+
+rule kunitigs_recall:
+    input:
+        bed1 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_1.{subset}.bed"),
+        bed2 = pjoin(outdir, "kmers", "{k}tigs", "recintersect_2.{subset}.bed")
+    output:
+        txt = pjoin(outdir, "kmers", "{k}tigs", "recall.{subset}.txt")
+    shell:
+        """
+        python3 {sdir}/analyze.py rec {input.bed1} {input.bed2} 50 > {output.txt}
+        """
+
+rule kunitigsshort_precision:
+    input:
+        sample = pjoin(outdir, "kmers", "{k}tigs", "specific.short.fa"),
+        vcf = variants,
+        bed1 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_1.short.bed"),
+        bed2 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_2.short.bed"),
+    output:
+        txt = pjoin(outdir, "kmers", "{k}tigs", "precision.short.txt")
+    shell:
+        """
+        python3 {sdir}/analyze.py pre {input.sample} {input.vcf} {input.bed1} {input.bed2} > {output.txt}
+        """
+
+rule kunitigslong_precision:
+    input:
+        sample = pjoin(outdir, "kmers", "{k}tigs", "specific.long.fa"),
+        vcf = variants,
+        bed1 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_1.long.bed"),
+        bed2 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_2.long.bed"),
+    output:
+        txt = pjoin(outdir, "kmers", "{k}tigs", "precision.long.txt")
+    shell:
+        """
+        python3 {sdir}/analyze.py pre {input.sample} {input.vcf} {input.bed1} {input.bed2} > {output.txt}
+        """
+
+rule kunitigs_precision:
+    input:
+        sample = pjoin(outdir, "kmers", "{k}tigs", "specific.fa"),
+        vcf = variants,
+        bed1 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_1.all.bed"),
+        bed2 = pjoin(outdir, "kmers", "{k}tigs", "preintersect_2.all.bed"),
+    output:
+        txt = pjoin(outdir, "kmers", "{k}tigs", "precision.all.txt")
+    shell:
+        """
+        python3 {sdir}/analyze.py pre {input.sample} {input.vcf} {input.bed1} {input.bed2} > {output.txt}
+        """
