@@ -9,9 +9,10 @@ Efficient computation of A-specific string w.r.t. a set {B,C,...,Z} of other lon
 
 ## Dependencies
 
-C++11-compliant compiler, [ropebwt2](https://github.com/lh3/ropebwt2) and [htslib](https://github.com/samtools/htslib). For convenience, ropebwt2 and htslib are included in the repository.
+C++11-compliant compiler (GCC 8.2 or newer), [ropebwt2](https://github.com/lh3/ropebwt2) and [htslib](https://github.com/samtools/htslib). For convenience, ropebwt2 and htslib are included in the repository.
 
 ## Download and Installation
+
 ```
 git clone --recursive https://github.com/Parsoa/PingPong.git
 cd PingPong 
