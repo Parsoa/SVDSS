@@ -1,0 +1,50 @@
+rule sam2bed:
+    input:
+        "{fpre}.sam"
+    output:
+        "{fpre}.sam.bed"
+    shell:
+        """
+        python3 {sdir}/sam2bed.py {input} > {output}
+        """
+
+rule plot_samples_hist:
+    input:
+        na = rsample,
+        hg = qsample
+    output:
+        pjoin(outdir, "samples.hist.png")
+    shell:
+        """
+        python3 {sdir}/analyze.py sampleshist {input.hg} {input.na} {output}
+        """
+
+rule plot:
+    input:
+        fq = pjoin(outdir, "pp", "{over}", "sspecific.fq"),
+        hgcontigsshort_sam = pjoin(outdir, "pp", "{over}", "sspecific.short.hg-contigs.cleared.sam"),
+        hgcontigslong_sam = pjoin(outdir, "pp", "{over}", "sspecific.long.hg-contigs.sam"),
+        nacontigsshort_sam = pjoin(outdir, "pp", "{over}", "sspecific.short.na-contigs.cleared.sam"),
+        nacontigslong_sam = pjoin(outdir, "pp", "{over}", "sspecific.long.na-contigs.sam"),
+        shortuncovering_txt = pjoin(outdir, "pp", "{over}", "nonhaplostrings.short.txt"),
+        longuncovering_txt = pjoin(outdir, "pp", "{over}", "nonhaplostrings.long.txt"),
+        hghaploshort_sam = pjoin(outdir, "pp", "{over}", "sspecific.short.hg-haps.cleared.sam"),
+        hghaplolong_sam = pjoin(outdir, "pp", "{over}", "sspecific.long.hg-haps.sam"),
+        hgcontigsshort_subsam = pjoin(outdir, "pp", "{over}", "sspecific.short.hg-contigs.cleared.nonhaplo.sam"),
+        hgcontigslong_subsam = pjoin(outdir, "pp", "{over}", "sspecific.long.hg-contigs.nonhaplo.sam"),
+        nacontigsshort_subsam = pjoin(outdir, "pp", "{over}", "sspecific.short.na-contigs.cleared.nonhaplo.sam"),
+        nacontigslong_subsam = pjoin(outdir, "pp", "{over}", "sspecific.long.na-contigs.nonhaplo.sam")
+    output:
+        png = pjoin(outdir, "pp", "{over}", "4paneplot.png")
+    threads: 1
+    shell:
+        """
+        python3 {sdir}/plot_paperimage.py {input.fq} \
+            {input.hgcontigsshort_sam} {input.hgcontigslong_sam} \
+            {input.nacontigsshort_sam} {input.nacontigslong_sam} \
+            {input.shortuncovering_txt} {input.longuncovering_txt} \
+            {input.hghaploshort_sam} {input.hghaplolong_sam} \
+            {input.hgcontigsshort_subsam} {input.hgcontigslong_subsam} \
+            {input.nacontigsshort_subsam} {input.nacontigslong_subsam} \
+            {output.png}
+        """

@@ -21,10 +21,12 @@ __pycache__/
 *.json
 *.FASTQ
 *.fastq
+*.fasta
 *.bam
 *.txt
 *.o
 
+PingPong
 stella
 main
 debug

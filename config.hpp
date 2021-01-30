@@ -19,7 +19,7 @@ public:
 
     int cutoff = 5 ;
     int overlap = 0 ;
-    int threads = 48 ;
+    int threads = 4 ;
     int coverage = 50 ;
     int batch_size = 1000 ;
     int aggregate_batches = 5 ;

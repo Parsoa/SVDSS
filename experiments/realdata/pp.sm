@@ -1,0 +1,73 @@
+rule index:
+    input:
+        rsample
+    output:
+        rsample + ".fmd"
+    shell:
+        """
+        {stellabin} pingpong index --fastq {input} --index {output}
+        """
+
+rule pp:
+    input:
+        index = rsample + ".fmd",
+        sample = qsample
+    output:
+        pjoin(outdir, "pp", "nonover", "solution_batch_0.fastq")
+    params:
+        wd = pjoin(outdir, "pp", "nonover")
+    threads: nths
+    shell:
+        """
+        {stellabin} pingpong search --index {input.index} --fastq {input.sample} --threads {threads} --workdir {params.wd} --overlap 0
+        """
+
+rule pp_overlapping:
+    input:
+        index = rsample + ".fmd",
+        sample = qsample
+    output:
+        pjoin(outdir, "pp", "over", "solution_batch_0.fastq")
+    params:
+        wd = pjoin(outdir, "pp", "over")
+    threads: nths
+    shell:
+        """
+        {stellabin} pingpong search --index {input.index} --fastq {input.sample} --threads {threads} --workdir {params.wd} --overlap -1
+        """
+
+rule pp_aggregate:
+    input:
+        pjoin(outdir, "pp", "{over}", "solution_batch_0.fastq")
+    output:
+        pjoin(outdir, "pp", "{over}", "sspecific.fq")
+    threads: nths
+    shell:
+        """
+        n=$(ls {outdir}/solution_batch_*.fastq | wc -l)
+        {stellabin} aggregate --threads {threads} --workdir {outdir} --batches ${{n}} --cutoff 5
+        mv {outdir}/solution_aggregated.fastq {output}
+        """
+
+rule split_specific:
+    input:
+        pjoin(outdir, "pp", "{over}", "sspecific.fq")
+    output:
+        pjoin(outdir, "pp", "{over}", "sspecific.short.fq"),
+        pjoin(outdir, "pp", "{over}", "sspecific.long.fq")
+    params:
+        pjoin(outdir, "pp", "{over}", "sspecific")
+    shell:
+        """
+        {sdir}/split {input} {params}
+        """
+
+rule plot_corr:
+    input:
+        pjoin(outdir, "pp", "{over}", "sspecific.fq")
+    output:
+        pjoin(outdir, "pp", "{over}", "correlation.png")
+    shell:
+        """
+        python3 {sdir}/analyze.py specorr {input} {output}
+        """

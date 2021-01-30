@@ -2,6 +2,8 @@ import sys
 
 import pysam
 
+# sometimes bbmap reports the best alignment as secondary alignment (a secondary alignment has less error than primary one)
+
 def get_errors(al, read_len):
     good_bases = al.get_cigar_stats()[0][7]
     bad_bases = read_len - good_bases

@@ -1,0 +1,68 @@
+rule kmc_query:
+    input:
+        qsample
+    output:
+        pjoin(outdir, "kmers", "{k}mers", "HG00733.kmc_suf")
+    params:
+        kmc_prefix = pjoin(outdir, "kmers", "{k}mers", "HG00733"),
+        tmp_fold = pjoin(outdir, "kmers", "{k}mers", "HG00733_tmp"),
+        k = "{k}"
+    threads: nths
+    log:
+        time = pjoin(outdir, "kmers", "{k}mers", "HG00733.time")
+    shell:
+        """
+        mkdir -p {params.tmp_fold}
+        /usr/bin/time -vo {log.time} kmc -t{threads} -k{params.k} -ci5 -fm {input} {params.kmc_prefix} {params.tmp_fold}
+        rm -r {params.tmp_fold}
+        """
+
+rule kmc_ref:
+    input:
+        rsample
+    output:
+        pjoin(outdir, "kmers", "{k}mers", "NA19240.kmc_suf")
+    params:
+        kmc_prefix = pjoin(outdir, "kmers", "{k}mers", "NA19240"),
+        tmp_fold = pjoin(outdir, "kmers", "{k}mers", "NA19240_tmp"),
+        k = "{k}"
+    threads: nths
+    log:
+        time = pjoin(outdir, "kmers", "{k}mers", "NA19240.time")
+    shell:
+        """
+        mkdir -p {params.tmp_fold}
+        /usr/bin/time -vo {log.time} kmc -t{threads} -k{params.k} -ci5 -fm {input} {params.kmc_prefix} {params.tmp_fold}
+        rm -r {params.tmp_fold}
+        """
+
+rule kmc_sub:
+    input:
+        pjoin(outdir, "kmers", "{k}mers", "HG00733.kmc_suf"),
+        pjoin(outdir, "kmers", "{k}mers", "NA19240.kmc_suf")
+    output:
+        pjoin(outdir, "kmers", "{k}mers", "specific.kmc_suf")
+    params:
+        rprefix = pjoin(outdir, "kmers", "{k}mers", "NA19240"),
+        qprefix = pjoin(outdir, "kmers", "{k}mers", "HG00733"),
+        oprefix = pjoin(outdir, "kmers", "{k}mers", "specific")
+    log:
+        time = pjoin(outdir, "kmers", "{k}mers", "kmctools_diff.time")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} kmc_tools simple {params.qprefix} {params.rprefix} kmers_subtract {params.oprefix}
+        """
+
+rule kmc2fa:
+    input:
+        pjoin(outdir, "kmers", "{k}mers", "specific.kmc_suf")
+    output:
+        pjoin(outdir, "kmers", "{k}mers", "specific.fa")
+    params:
+        prefix = pjoin(outdir, "kmers", "{k}mers", "specific")
+    log:
+        time = pjoin(outdir, "kmers", "{k}mers", "kmcdump.time")
+    shell:
+        """
+        /usr/bin/time -vo {log.time} {sdir}/kmc2fa {params.prefix} > {output}
+        """

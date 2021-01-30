@@ -37,6 +37,8 @@ def main():
             read_lens[al.query_name] = read_len
         errors = get_errors(al, read_len)
 
+        if al.get_cigar_stats()[0][2] > 30:
+            continue
         print(ref, al_start, al_end, ridx, errors, strand, sep='\t')
 
 if __name__ == "__main__":

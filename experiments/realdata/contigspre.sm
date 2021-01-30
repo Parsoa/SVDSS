@@ -1,0 +1,41 @@
+rule bwa_index_qcontigs:
+    input:
+        qcontigs
+    output:
+        qcontigs + ".amb"
+    shell:
+        """
+        bwa index {input}
+        """
+
+rule bwa_index_rcontigs:
+    input:
+        rcontigs
+    output:
+        rcontigs + ".amb"
+    shell:
+        """
+        bwa index {input}
+        """
+
+rule bbmap_index_qcontigs:
+    input:
+        fa = qcontigs
+    output:
+        index = directory(f"{qcontigs}-bbmapindex")
+    threads: nths
+    shell:
+        """
+        bbmap.sh threads={threads} k=11 ref={input.fa} path={output.index}
+        """
+
+rule bbmap_index_rcontigs:
+    input:
+        fa = rcontigs
+    output:
+        index = directory(f"{rcontigs}-bbmapindex")
+    threads: nths
+    shell:
+        """
+        bbmap.sh threads={threads} k=11 ref={input.fa} path={output.index}
+        """

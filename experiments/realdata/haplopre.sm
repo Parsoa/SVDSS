@@ -1,0 +1,72 @@
+rule build_haplo:
+    input:
+        fa = ref,
+        vcf = variants
+    output:
+        fa = pjoin(outdir, "HG00733.haps.fa")
+    params:
+        hap1 = pjoin(outdir, "HG00733.hap1.fa"),
+        hap2 = pjoin(outdir, "HG00733.hap2.fa")
+    shell:
+        """
+        bcftools consensus -s HG00733 -H 1 -f {input.fa} {input.vcf} > {params.hap1}
+        bcftools consensus -s HG00733 -H 2 -f {input.fa} {input.vcf} > {params.hap2}
+        cat {params.hap1} {params.hap2} | reformat.sh in=stdin.fa out={output.fa} uniquenames=t
+        """
+
+rule index_haplo_bbmap:
+    input:
+        fa = pjoin(outdir, "HG00733.haps.fa")
+    output:
+        index = directory(pjoin(outdir, "HG00733.haps.fa-bbmapindex"))
+    threads: nths
+    shell:
+        """
+        bbmap.sh threads={threads} k=11 ref={input.fa} path={output.index}
+        """
+
+rule index_haplo_bwa:
+    input:
+        pjoin(outdir, "HG00733.haps.fa")
+    output:
+        pjoin(outdir, "HG00733.haps.fa.amb")
+    shell:
+        """
+        bwa index {input}
+        """
+
+# rule index_haplo_minimap2:
+#     input:
+#         pjoin(outdir, "HG00733.haps.fa")
+#     output:
+#         pjoin(outdir, "HG00733.haps.fa.mmi")
+#     shell:
+#         """
+#         minimap2 -x asm20 -d {output} {input}
+#         """
+
+rule uniquevars:
+    input:
+        vcf = variants
+    output:
+        pjoin(outdir, "HGspecificvars_1.bed"),
+        pjoin(outdir, "HGspecificvars_2.bed")
+    params:
+        oprefix = pjoin(outdir, "HGspecificvars")
+    shell:
+        """
+        python3 {sdir}/vcf2uniquehaplobeds.py {input.vcf} HG00733 NA19240 {params.oprefix}
+        """
+
+rule allvars:
+    input:
+        vcf = variants
+    output:
+        pjoin(outdir, "HGallvars_1.bed"),
+        pjoin(outdir, "HGallvars_2.bed")
+    params:
+        oprefix = pjoin(outdir, "HGallvars")
+    shell:
+        """
+        python3 {sdir}/vcf2uniquehaplobeds.py {input.vcf} HG00733 NA19240 {params.oprefix} all
+        """
