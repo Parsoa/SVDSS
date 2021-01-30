@@ -26,11 +26,6 @@ __pycache__/
 *.txt
 *.o
 
-PingPong
-stella
-main
-debug
-
 *.bin
 *.fmd
 *.fmdi
@@ -38,18 +33,20 @@ debug
 main
 debug
 aggregate
+PingPong
 
 *.ct
 *.out
 *.log
 .nfs*
-output/
 data/
 misc/
 test/
+output/
 .vscode/
 src/cpp/*.o
 src/cpp/*.out
+experiments/simulation/
 
 !requirements.txt
 !example/mother.fq
