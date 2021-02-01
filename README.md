@@ -83,11 +83,5 @@ Optional arguments:
 ./PingPong search --index example/index.fmd --fastq example/child.fq --overlap -1 --workdir example --threads 1 --aggregate --cutoff 2
 ```
 
-You can then check the correcteness of the output:
-```
-diff example/solution_aggregated.fastq example/child_specific.overlapping.fq
-```
-
-
  ### Authors
  For inquiries on this software please open an [issue](https://github.com/Parsoa/PingPong/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
