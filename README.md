@@ -51,6 +51,9 @@ The `--batches` option should be set to the number of `solution_batch_<number>.f
 
 You can also directly aggregate output from the search step by adding `--aggregate --cutoff <value>` to the command in step 2 and then skip step 3.
 
+##### Additional output
+The algorithm will also output a set of files named `read_ids_batch_<number>.fasta` (and `read_ids_aggregated.fasta` if option `--aggregate` is used) containing for each specific string (odd lines) the identifiers (separated by a `$`) of the reads they come from (even lines).
+
 ### PingPong Algorithm Usage
 ```
 Usage: PingPong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq --index /path/to/output/index
@@ -82,6 +85,8 @@ Optional arguments:
 ./PingPong index --append example/father.fq.bin --fastq example/mother.fq --index example/index.fmd
 ./PingPong search --index example/index.fmd --fastq example/child.fq --overlap -1 --workdir example --threads 1 --aggregate --cutoff 2
 ```
+
+This will output strings that are specific to `child.fq` in `example/solution_aggregated.fastq`.
 
  ### Authors
  For inquiries on this software please open an [issue](https://github.com/Parsoa/PingPong/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
