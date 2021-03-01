@@ -82,7 +82,7 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
 }
 
 //void PingPong::ping_pong_search(rld_t *index, const char* seq, const char* qual, vector<fastq_entry_t>& solutions) {
-void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_entry_t>& solutions) {
+void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<std::pair<uint,uint>>& solutions) {
     int l = fqe.seq.size() ;
     //int l = strlen(seq) ;
     if (l <= 10) {
@@ -142,7 +142,8 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
             DEBUG(cerr << "Adjusted length to " << sfs_len << "." << endl ;)
         }
         DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
-        solutions.push_back(get_solution(fqe, begin, sfs_len)) ;
+        solutions.push_back(make_pair(begin, sfs_len));
+        // solutions.push_back(get_solution(fqe, begin, sfs_len)) ;
         //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         // prepare for next round
         if (begin == 0) {
@@ -211,10 +212,11 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
     return true ;
 }
 
-vector<fastq_entry_t> PingPong::process_batch_fastq(rld_t* index, vector<fastq_entry_t> fastq_entries) {
-    vector<fastq_entry_t> solutions ;
+map<string,vector<pair<uint,uint>>> PingPong::process_batch_fastq(rld_t* index, vector<fastq_entry_t> fastq_entries) {
+    map<string,vector<pair<uint,uint>>> solutions ;
     for (const auto fastq_entry : fastq_entries) {
-        ping_pong_search(index, fastq_entry, solutions) ;
+        solutions.insert(make_pair(fastq_entry.head, vector<pair<uint,uint>>()));
+        ping_pong_search(index, fastq_entry, solutions[fastq_entry.head]) ;
     }
     return solutions ;
 }
@@ -245,33 +247,15 @@ vector<fastq_entry_t> PingPong::process_batch_bam(rld_t* index, vector<bam1_t*> 
 }
 
 void PingPong::output_batch(void* args) {
-    auto c = Configuration::getInstance() ;
-    int batch = ((OutputBatchArgs*) args)->batch ;
-    string path = c->workdir + "/solution_batch_" + std::to_string(batch - 1) + ".fastq" ;
-    cout << "Outputting to " << path << endl ;
-    std::ofstream o(path) ;
-    for (const auto it : search_solutions[batch - 1]) {
-        fastq_entry_t fastq_entry = it.first ;
-        o << "@" << fastq_entry.head << ".css" << "_" << fastq_entry.start << ":"
-            << fastq_entry.start + fastq_entry.len - 1 << ":" << it.second << endl
-            << fastq_entry.seq << endl
-            << "+" << endl
-            << fastq_entry.qual << endl ;
-    }
-    search_solutions[batch - 1].clear() ;
-    // output read ids
-    path = c->workdir + "/read_ids_batch_" + std::to_string(batch - 1) + ".fasta" ;
-    cout << "Outputting to " << path << endl ;
-    std::ofstream f(path) ;
-    for (const auto it : read_ids[batch - 1]) {
-        fastq_entry_t fastq_entry = it.first ;
-        f << ">" << fastq_entry.seq << endl ;
-        for (auto id: it.second) {
-            f << id << "$" ;
-        }
-        f << endl ;
-    }
-    read_ids[batch - 1].clear() ;
+    auto c = Configuration::getInstance();
+    int batch = ((OutputBatchArgs*) args)->batch;
+    string path = c->workdir + "/solution_batch_" + std::to_string(batch - 1) + ".sfs";
+    cout << "Outputting to " << path << endl;
+    std::ofstream o(path);
+    for(const auto &batch : batches[((OutputBatchArgs*) args)->p])
+        for(const auto &it : batch)
+            for(const auto &info : it.second)
+                o << it.first << " " << info.first << " " << info.second << " " << 1 << endl;
 }
 
 int PingPong::search() {
@@ -298,15 +282,10 @@ int PingPong::search() {
     cout << "Overlap = " << config->overlap << endl ;
     cout << "Minimum length = " << config->min_string_length << endl ;
     // load first batch
-    unordered_map<fastq_entry_t, int> s ;
-    search_solutions.push_back(s) ;
-    unordered_map<fastq_entry_t, vector<string>> r ;
-    read_ids.push_back(r) ;
-    vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
         fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // current and next output
-        batches.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // previous and current output
+        batches.push_back(std::vector<std::map<std::string,std::vector<std::pair<uint,uint>>>>(config->threads)) ; // previous and current output
     }
     int p = 0 ;
     int batch_size = 10000 ;
@@ -341,8 +320,8 @@ int PingPong::search() {
                 break ;
             }
         }
-        #pragma omp parallel for num_threads(config->threads + 2)
-        for(int i = 0; i < config->threads + 2; i++) {
+        #pragma omp parallel for num_threads(config->threads + 1)
+        for(int i = 0; i < config->threads + 1; i++) {
             if (i == 0) {
                 // load next batch of entries
                 if (mode == 0) {
@@ -351,39 +330,19 @@ int PingPong::search() {
                     should_continue = load_batch_bam(config->threads, batch_size, (p + 1) % 2) ;
                 }
                 cerr << "Loaded." << endl ;
-            } else if (i == 1) {
-                // merge output of previous batch
-                if (b >= 1) {
-                    int y = 0 ;
-                    for (const auto &batch : batches[(p + 1) % 2]) {
-                        y += batch.size() ;
-                        for (const auto fastq_entry : batch) {
-                            if (search_solutions[current_batch].find(fastq_entry) == search_solutions[current_batch].end()) {
-                                search_solutions[current_batch][fastq_entry] = 0 ;
-                            }
-                            search_solutions[current_batch][fastq_entry] += 1 ;
-                            read_ids[current_batch][fastq_entry].push_back(fastq_entry.head) ;
-                        }
-                    }
-                    cerr << y << " total sequences." << endl ;
-                }
-                cerr << "Merged. " << search_solutions[current_batch].size() << " unique sequences." << endl ;
             } else {
                 // process current batch
-                batches[p][i - 2] = process_batch_fastq(index, fastq_entries[p][i - 2]) ;
+                batches[p][i - 1] = process_batch_fastq(index, fastq_entries[p][i - 1]) ;
             }
         }
-        if (search_solutions[current_batch].size() >= 10000000) {
-            cerr << "Memory limit reached, dumping output batch " << current_batch << ".." << endl ;
-            current_batch += 1 ;
-            unordered_map<fastq_entry_t, int> s ;
-            search_solutions.push_back(s) ;
-            unordered_map<fastq_entry_t, vector<string>> r ;
-            read_ids.push_back(r) ;
-            OutputBatchArgs* b_args = new OutputBatchArgs() ;
-            b_args->batch = current_batch ;
-            output_batch((void*) b_args) ;
-        }
+
+        cerr << "Dumping output batch " << current_batch << "..." << endl ;
+        current_batch += 1 ;
+        OutputBatchArgs* b_args = new OutputBatchArgs() ;
+        b_args->batch = current_batch ;
+        b_args->p = p ;
+        output_batch((void*) b_args) ;
+
         p += 1 ;
         p %= 2 ;
         b += 1 ;
@@ -398,22 +357,7 @@ int PingPong::search() {
             break ;
         }
     }
-    int y = 0 ;
-    for (const auto &batch : batches[(p + 1) % 2]) {
-        y += batch.size() ;
-        for (const auto fastq_entry : batch) {
-            if (search_solutions[current_batch].find(fastq_entry) == search_solutions[current_batch].end()) {
-                search_solutions[current_batch][fastq_entry] = 0 ;
-            }
-            search_solutions[current_batch][fastq_entry] += 1 ;
-            read_ids[current_batch][fastq_entry].push_back(fastq_entry.head) ;
-        }
-    }
-    // last batch
-    current_batch += 1 ;
-    OutputBatchArgs* b_args = new OutputBatchArgs() ;
-    b_args->batch = current_batch ;
-    output_batch((void*) b_args) ;
+
     // cleanup
     kseq_destroy(fastq_iterator) ;
     gzclose(fastq_file) ;
