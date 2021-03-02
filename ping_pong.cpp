@@ -258,6 +258,21 @@ void PingPong::output_batch(void* args) {
                 o << it.first << " " << info.first << " " << info.second << " " << 1 << endl;
 }
 
+void PingPong::store_output_batch(uint p)
+{
+    for(const auto &batch : batches[p])
+    {
+        for(const auto &it : batch)
+        {
+            for(const auto &info : it.second)
+            {
+                ostream << it.first << " " << info.first << " " << info.second << " " << 1 << "\n";
+                ++ostreamsize;
+            }
+        }
+    }
+}
+
 int PingPong::search() {
     config = Configuration::getInstance() ;
     // parse arguments
@@ -309,6 +324,9 @@ int PingPong::search() {
     int b = 0 ;
     uint64_t u = 0 ;
     bool should_continue = true ;
+    // output file
+    string path = config->workdir + "/subfreespecstr.svs";
+    ofstream ofile (path);
     while (true) {
         cerr << "Beginning batch " << b + 1 << endl ;
         uint64_t v = u ;
@@ -320,8 +338,8 @@ int PingPong::search() {
                 break ;
             }
         }
-        #pragma omp parallel for num_threads(config->threads + 1)
-        for(int i = 0; i < config->threads + 1; i++) {
+        #pragma omp parallel for num_threads(config->threads + 2)
+        for(int i = 0; i < config->threads + 2; i++) {
             if (i == 0) {
                 // load next batch of entries
                 if (mode == 0) {
@@ -330,18 +348,25 @@ int PingPong::search() {
                     should_continue = load_batch_bam(config->threads, batch_size, (p + 1) % 2) ;
                 }
                 cerr << "Loaded." << endl ;
-            } else {
+            } else if (i == 1) {
+                // store previous output
+                store_output_batch((p+1)%2);
+            } else
+            {
                 // process current batch
-                batches[p][i - 1] = process_batch_fastq(index, fastq_entries[p][i - 1]) ;
+                batches[p][i - 2] = process_batch_fastq(index, fastq_entries[p][i - 2]) ;
             }
         }
 
-        cerr << "Dumping output batch " << current_batch << "..." << endl ;
-        current_batch += 1 ;
-        OutputBatchArgs* b_args = new OutputBatchArgs() ;
-        b_args->batch = current_batch ;
-        b_args->p = p ;
-        output_batch((void*) b_args) ;
+        // dump output to file
+        if (ostreamsize > 1000000)
+        {
+            cout << "Dumping to " << path << endl;
+            ofile << ostream.str();
+            ostreamsize = 0;
+            ostream.str("");
+            ostream.clear();
+        }
 
         p += 1 ;
         p %= 2 ;
@@ -356,6 +381,17 @@ int PingPong::search() {
             cout << "Should not continue." << endl ;
             break ;
         }
+    }
+
+    // store and dump last output
+    store_output_batch((p+1)%2);
+    if (ostreamsize > 0)
+    {
+        cout << "Dumping to " << path << endl;
+        ofile << ostream.str();
+        ostreamsize = 0;
+        ostream.str("");
+        ostream.clear();
     }
 
     // cleanup

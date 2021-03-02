@@ -8,6 +8,7 @@
 #include <map>
 #include <iterator>
 #include <unordered_map>
+#include <sstream>
 
 #include "rle.h"
 #include "rld0.h"
@@ -75,10 +76,13 @@ private:
     fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l) ;
 
     std::vector<std::vector<std::map<std::string,std::vector<std::pair<uint,uint>>>>> batches ;
+    std::ostringstream ostream;
+    uint ostreamsize;
     // std::vector<std::unordered_map<fastq_entry_t, std::vector<std::string>>> read_ids ;
     //void ping_pong_search(rld_t *index, const char* seq, const char* qual, std::vector<fastq_entry_t>& solutions) ;
     void ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<std::pair<uint,uint>>& solutions) ;
     void output_batch(void* args) ;
+    void store_output_batch(uint p);
     
     bool backward_search(rld_t *index, const uint8_t *P, int p2) ;
     bool check_solution(rld_t* index, std::string S) ;
