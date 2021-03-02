@@ -133,16 +133,19 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, vector<fastq_en
         DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
         int acc_len = end - begin + 1 ;
         int sfs_len = end - begin + 1 ;
-        if (config->min_string_length > 0) {
-            sfs_len = acc_len > config->min_string_length ? acc_len : config->min_string_length ;
-            if (begin + sfs_len >= l - 1) {
-                sfs_len = acc_len ;
-            }
-            assert(sfs_len == config->min_string_length || sfs_len == acc_len) ;
-            DEBUG(cerr << "Adjusted length to " << sfs_len << "." << endl ;)
-        }
+        //if (config->min_string_length > 0) {
+        //    sfs_len = acc_len > config->min_string_length ? acc_len : config->min_string_length ;
+        //    if (begin + sfs_len >= l - 1) {
+        //        sfs_len = acc_len ;
+        //    }
+        //    assert(sfs_len == config->min_string_length || sfs_len == acc_len) ;
+        //    DEBUG(cerr << "Adjusted length to " << sfs_len << "." << endl ;)
+        //}
         DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
         solutions.push_back(get_solution(fqe, begin, sfs_len)) ;
+        if (!check_solution(index, fqe.seq.substr(begin, sfs_len))) {
+            cerr << "Invalid SFS: " << sfs_len << endl ;
+        } ;
         //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         // prepare for next round
         if (begin == 0) {

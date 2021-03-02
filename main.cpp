@@ -73,13 +73,6 @@ int main(int argc, char** argv) {
         exit(0) ;
     }
     #ifdef LOCAL_BUILD
-    if (strcmp(argv[1], "scan") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto scanner = new Scanner() ;
-        scanner->run() ;
-        exit(0) ;
-    }
     if (strcmp(argv[1], "find") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
@@ -98,6 +91,12 @@ int main(int argc, char** argv) {
         c->parse(argc - 1, argv + 1) ;
         auto shifter = new HaplotypeShifter() ;
         shifter->run() ;
+        exit(0) ;
+    }
+    if (strcmp(argv[1], "shift-bed") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        auto shifter = new HaplotypeShifter() ;
+        shifter->shift_bed_file() ;
         exit(0) ;
     }
     #endif
