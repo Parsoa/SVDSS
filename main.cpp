@@ -18,12 +18,14 @@
 #include "ping_pong.hpp"
 #include "aggregator.hpp"
 #include "chromosomes.hpp"
+#include "snp_corrector.hpp"
 
 #ifdef LOCAL_BUILD
 #include "finder.hpp"
 #include "shifter.hpp"
 #include "scanner.hpp"
 #include "extractor.hpp"
+#include "kmer_finder.hpp"
 #include "haplotype_shifter.hpp"
 #endif
 
@@ -80,6 +82,13 @@ int main(int argc, char** argv) {
         finder->run() ;
         exit(0) ;
     }
+    if (strcmp(argv[1], "kmer") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto finder = new KmerFinder() ;
+        finder->run() ;
+        exit(0) ;
+    }
     if (strcmp(argv[1], "extract") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
@@ -90,7 +99,7 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "haplotype-shifter") == 0) {
         c->parse(argc - 1, argv + 1) ;
         auto shifter = new HaplotypeShifter() ;
-        shifter->run() ;
+        shifter->load_tracks() ;
         exit(0) ;
     }
     if (strcmp(argv[1], "shift-bed") == 0) {
@@ -116,6 +125,12 @@ int main(int argc, char** argv) {
             c->aggregate_batches = pingpong->num_output_batches ;
             aggregator->run() ;
         }
+    }
+    else if (strcmp(argv[1], "correct") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto snp_corrector = new SnpCorrector() ;
+        snp_corrector->run() ;
     }
     else if (strcmp(argv[1], "aggregate") == 0) {
         c->parse(argc - 1, argv + 1) ;
