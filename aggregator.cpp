@@ -81,7 +81,7 @@ void Aggregator::load_sequences() {
     num_batches = c->aggregate_batches ;
     cout << "Loading sequences from " << num_batches << " batches.." << endl ;
     vector<unordered_map<string, int>> _sequences(num_batches) ;
-    vector<unordered_map<string, string>> _read_ids(num_batches) ;
+    vector<unordered_map<string, unordered_map<string, int>>> _read_ids(num_batches) ;
     int e = 0 ;
     // cout first pass
     #pragma omp parallel for num_threads(num_batches)
@@ -125,7 +125,7 @@ void Aggregator::load_sequences() {
             if (i == 1) {
                 int hash = std::hash<std::string>()(canon) ;
                 if (sequence_index.find(hash) != sequence_index.end()) {
-                    _read_ids[j][canon] = line ;
+                    _read_ids[j][canon][line] += 1 ;
                 }
             }
             i++ ;
@@ -142,7 +142,7 @@ void Aggregator::load_sequences() {
                 sequences[it->first] = 0 ;
             }
             sequences[it->first] += it->second ;
-            read_ids[it->first].push_back(_read_ids[j][it->first]) ;
+            read_ids[it->first].insert(_read_ids[j][it->first].begin(), _read_ids[j][it->first].end()) ;
         }
         _sequences[j].clear() ;
     }
@@ -170,7 +170,7 @@ void Aggregator::dump_sequences() {
             // read ids
             id_o << it->first << endl ;
             for (auto s: read_ids[it->first]) {
-                id_o << s ;
+                id_o << s.first ;
             }
             id_o << endl ;
             //
