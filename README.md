@@ -77,6 +77,7 @@ Optional arguments:
 * An index built with `--binary` cannot be queried. Use `--binary` only for indices that are meant to be later appended to.
 * The search output is stored in multiple `solution_batch_*.fastq` files (created in the current directory)
 * Even when indexing a FASTA file, pass it with the `--fastq` option.
+* When aggregating, final results will consist of the canonical version of the specific strings found (lexicographical minimum between the string and its reverse-and-complement)
 
 ### Example
 
