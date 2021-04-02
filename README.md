@@ -89,5 +89,11 @@ Optional arguments:
 
 This will output strings that are specific to `child.fq` in `example/solution_aggregated.fastq`.
 
- ### Authors
- For inquiries on this software please open an [issue](https://github.com/Parsoa/PingPong/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
+### Authors
+For inquiries on this software please open an [issue](https://github.com/Parsoa/PingPong/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
+
+### Citation
+
+The PingPong is currently pending journal publication. The pre-print is availble below:
+
+https://doi.org/10.1101/2021.03.23.436571
