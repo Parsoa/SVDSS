@@ -1,9 +1,11 @@
+#include <math.h>
 #include <string>
 #include <fstream>
 #include <sstream>
 #include <iterator>
 #include <stdlib.h>
 #include <iostream>
+#include <algorithm>
 
 #include "vcf.hpp"
 
@@ -36,13 +38,16 @@ unordered_map<string, vector<vcf_variant_t>> load_vcf_file(string path) {
             vcf_variant.pos = std::stoi(tokens[1]) ;
             vcf_variant.ref = tokens[3] ;
             if (i != 0 && vcf_variants[chrom][i] == vcf_variant) {
-                vcf_variant.alleles[1] = tokens[4] ;
+                vcf_variants[chrom][i].alleles[1] = tokens[4] ;
+                vcf_variants[chrom][i].svlen = max(vcf_variants[chrom][i].svlen, int(tokens[4].length() - tokens[3].length())) ;
             } else {
                 vcf_variant.alleles[0] = tokens[4] ;
                 vcf_variant.alleles[1] = "$" ;
                 vcf_variants[chrom].push_back(vcf_variant) ;
+                vcf_variants[chrom][i].svlen = tokens[4].length() - tokens[3].length() ;
             }
             n++ ;
+            i++ ;
         }
     }
     cout << "Loaded " << n << " variants from " << path << endl ;

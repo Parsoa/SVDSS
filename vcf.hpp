@@ -15,6 +15,7 @@ struct vcf_variant_t {
     int pos ;
     std::string ref ;
     std::string alleles[2] ;
+    int svlen ;
     
     bool operator==(const vcf_variant_t& v) const {
         return chrom == v.chrom && pos == v.pos ; 

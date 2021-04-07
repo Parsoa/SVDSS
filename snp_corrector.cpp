@@ -9,6 +9,7 @@
 #include <pthread.h>
 
 #include "config.hpp"
+#include "chromosomes.hpp"
 #include "snp_corrector.hpp"
 
 using namespace std ;
@@ -25,7 +26,13 @@ void SnpCorrector::run() {
     // First pass: For each variant check how many of the reads including it actually have one of its alleles
     // Second pass: For each variant with enough coverage, correct all the reads that have it, this can be integrerated into ping-pong directly to save time but for now let's dump a new BAM file
     auto c = Configuration::getInstance() ;
-    this->vcf_variants = load_vcf_file(c->vcf) ;
+    load_chromosomes(c->reference) ;
+    auto _variants = load_vcf_file(c->vcf) ;
+    for (const auto& chrom: _variants) {
+        vcf_variants[chrom.first] ;
+        // Keep small INDELs only
+        std::copy_if (chrom.second.begin(), chrom.second.end(), std::back_inserter(vcf_variants[chrom.first]), [](const vcf_variant_t& v){ return v.svlen <= 5; } );
+    }
     pass(0) ;
 }
 
@@ -35,10 +42,11 @@ int binary_search(vector<vcf_variant_t>& a, int begin, int end, int q, int dir) 
     if (begin == end || m == begin) {
         return  -1 ;
     }
-    if (a[m].pos == q) {
+    if (a[m].pos + a[m].svlen >= q && a[m].pos <= q) {
+        // for SNPs this is the as checking a[m].pos == q
         return m ;
     }
-    if (a[m].pos < q) {
+    if (a[m].pos < q && a[m].pos + a[m].svlen < q) {
         if (m != a.size() - 1) {
             if (a[m + 1].pos >= q) {
                 if (dir == 0) {
@@ -74,6 +82,7 @@ int binary_search(vector<vcf_variant_t>& a, int begin, int end, int q, int dir) 
             }
         }
     }
+    assert("Shouldn't be here.") ;
     return -1 ;
 }
 
@@ -226,7 +235,18 @@ unordered_map<vcf_variant_t, int> SnpCorrector::process_batch_1(vector<bam1_t*> 
         int group_offset = 0 ;
         int soft_clip_offset = 0 ;
         int ref_index = 0 ;
+        // first indel only partially overlap
+        int f = limits.first ;
+        int first_variant_offset = 0 ;
+        auto& first_var = vcf_variants[chrom][f] ;
+        if (first_var.pos < pos) {
+            first_variant_offset = pos - first_var.pos ;
+        }
+        // iterate over all variants in read
         for (int i = limits.first; i <= limits.second; i++) {
+            if (i != limits.first) {
+                first_variant_offset = 0 ;
+            }
             auto& var = vcf_variants[chrom][i] ;
             //cout << "Finding alleles for " << var.pos << endl ;
             // find position in read corresponding to variant's reference position
