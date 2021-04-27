@@ -48,7 +48,7 @@ class PingPong {
 public:
 
     int index() ;
-    int query() ;
+    bool query(std::string) ;
     int search() ;
 
     int num_output_batches ;

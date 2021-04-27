@@ -27,12 +27,13 @@ void SnpCorrector::run() {
     // Second pass: For each variant with enough coverage, correct all the reads that have it, this can be integrerated into ping-pong directly to save time but for now let's dump a new BAM file
     auto c = Configuration::getInstance() ;
     load_chromosomes(c->reference) ;
-    auto _variants = load_vcf_file(c->vcf) ;
-    for (const auto& chrom: _variants) {
-        vcf_variants[chrom.first] ;
-        // Keep small INDELs only
-        std::copy_if (chrom.second.begin(), chrom.second.end(), std::back_inserter(vcf_variants[chrom.first]), [](const vcf_variant_t& v){ return v.svlen <= 5; } );
-    }
+    //vcf_variants = load_vcf_file(c->vcf) ;
+    //auto _variants = load_vcf_file(c->vcf) ;
+    //for (const auto& chrom: _variants) {
+    //    vcf_variants[chrom.first] ;
+    //    // Keep small INDELs only
+    //    std::copy_if (chrom.second.begin(), chrom.second.end(), std::back_inserter(vcf_variants[chrom.first]), [](const vcf_variant_t& v){ return v.svlen <= 5; } );
+    //}
     pass(0) ;
 }
 
@@ -169,13 +170,223 @@ vector<pair<int, int>> calc_cigar_offsets(bam1_t* read) {
     return cigar_offests ;
 }
 
-unordered_map<vcf_variant_t, int> SnpCorrector::process_batch_1(vector<bam1_t*> bam_entries) {
-    unordered_map<vcf_variant_t, int> output ;
+//void correct_snps(bam1_t* alignment, std::pair<int, int> limits, char* read_seq, string chrom) {
+//    // if read mapped to reverse strand
+//    //if ((alignment->core.flag & ((uint16_t) 16)) != 0) {
+//        //cout << "Reverse complementing read.." << endl ;
+//        //reverse_complement_read(seq) ;
+//    //}
+//    // finding matching variants
+//    //char* neq_seq = (char*) malloc(sizeof(char) * (l + 1)) ;
+//    int m = 0 ;
+//    int offset = 0 ;
+//    int ins_offset = 0 ;
+//    int del_offset = 0 ;
+//    int group_offset = 0 ; // offset inside the current M group
+//    int soft_clip_offset = 0 ;
+//    int ref_index = 0 ;
+//    int pos = alignment->core.pos + 1 ; // this is 0-based, variant cpoordinates are 1-based
+//    // first indel only partially overlap
+//    int f = limits.first ;
+//    int first_variant_offset = 0 ;
+//    auto& first_var = vcf_variants[chrom][f] ;
+//    if (first_var.pos < pos) {
+//        first_variant_offset = pos - first_var.pos ;
+//    }
+//    // iterate over all variants in read
+//    for (int i = limits.first; i <= limits.second; i++) {
+//        if (i != limits.first) {
+//            first_variant_offset = 0 ;
+//        }
+//        auto& var = vcf_variants[chrom][i] ;
+//        //cout << "Finding alleles for " << var.pos << endl ;
+//        // find position in read corresponding to variant's reference position
+//        // This is very tricky. Assume for simplicity that all SNPs are included inside M segments. and so will be sequencing errors.
+//        // Now indels may go inside DEL/INS
+//        // BAM_CIGAR_TYPE  QUERY  REFERENCE
+//        // --------------------------------
+//        // BAM_CMATCH      1      1
+//        // BAM_CINS        1      0
+//        // BAM_CDEL        0      1
+//        // BAM_CREF_SKIP   0      1
+//        // BAM_CSOFT_CLIP  1      0
+//        // BAM_CHARD_CLIP  0      0
+//        // BAM_CPAD        0      0
+//        // BAM_CEQUAL      1      1
+//        // BAM_CDIFF       1      1
+//        // BAM_CBACK       0      0
+//        // --------------------------------
+//        bool fail = false ;
+//        while (true) {
+//            int diff = var.pos - pos - (offset + del_offset) ;
+//            //cout << "Diff: " << diff << ", ref offset: " << offset + del_offset << ", read offset: " << soft_clip_offset + ins_offset + offset << " CIGAR at " << m << "/" << cigar_offests.size() << endl ;
+//            if (m == cigar_offests.size()) {
+//                //TODO: some late SNPs
+//                break ;
+//            }
+//            if (cigar_offests[m].second == BAM_CMATCH || cigar_offests[m].second == BAM_CEQUAL || cigar_offests[m].second == BAM_CDIFF) {
+//                if (diff == 0) {
+//                    break ;
+//                } else if (diff < 0) {
+//                    // overshot, probably because of a large deletion in the read somewhere, can't do this variant anymore
+//                    fail = true ;
+//                    break ;
+//                } else {
+//                    if (cigar_offests[m].first - group_offset <= diff) {
+//                        // use entire block
+//                        strncpy(ref_seq + ref_index, seq + soft_clip_offset + offset + ins_offset, cigar_offests[m].first - group_offset) ;
+//                        ref_index += cigar_offests[m].first - group_offset ;
+//                        offset += cigar_offests[m].first - group_offset ;
+//                    } else {
+//                        // use block partially and remain in block for next pass
+//                        offset += diff ;
+//                        group_offset += diff ;
+//                        break ;
+//                    }
+//                }
+//            } else if (cigar_offests[m].second == BAM_CINS) {
+//                ins_offset += cigar_offests[m].first ;
+//            } else if (cigar_offests[m].second == BAM_CDEL) {
+//                del_offset += cigar_offests[m].first ;
+//                for (int j = 0; j < cigar_offests[m].first; j++) {
+//                    ref_seq[ref_index] = 'N' ;
+//                    ref_index++ ;
+//                }
+//            } else if (cigar_offests[m].second == BAM_CSOFT_CLIP) {
+//                if (m == 0) {
+//                    soft_clip_offset += cigar_offests[m].first ;
+//                }
+//            } else if (cigar_offests[m].second == BAM_CREF_SKIP) {
+//                // What is even this?
+//            } else {//if (cigar_offests[m].second == BAM_CPAD || cigar_offests[m].second == BAM_CHARD_CLIP || cigar_offests[m].second == BAM_CBACK) {
+//                // pass
+//            }
+//            m += 1 ;
+//            group_offset = 0 ;
+//        }
+//        ref_seq[ref_index] = '\0' ;
+//        if (fail) {
+//            continue ;
+//        }
+//        int match = -1 ;
+//        for (int k = 0; k < 2; k++) {
+//            if (var.alleles[k] == "$") {
+//                break ;
+//            }
+//            match = k ;
+//            int l = var.alleles[k].length() ;
+//            for (int j = 0; j < l; j++) {
+//                if (seq[soft_clip_offset + ins_offset + offset + j] != var.alleles[k][j]) {
+//                    match = -1 ;
+//                    break ;
+//                }
+//            }
+//            if (match != -1) {
+//                // rewrite BAM seq
+//                // won't change CIGAR and won't change quality scores
+//                for (int j = 0; j < l; j++) {
+//                    int index = soft_clip_offset + ins_offset + offset + j ;
+//                    //cout << "Modified position " << index << " from " << var.alleles[k][j] << " to " << var.ref[j] << endl ;
+//                    bam_set_seqi(q, index, seq_nt16_table[(unsigned char) var.ref[j]]) ;
+//                }
+//                //bam_write1(out_bam_file->fp.bgzf, alignment) ;
+//                //should_quit = true ;
+//                break ;
+//            }
+//        }
+//        if (match) {
+//            //cout << "Matched " << var.pos << "@" << var.chrom << ".." << endl ;
+//        }
+//        if (!match) {
+//            //cout << "Not matched " << var.pos << "@" << var.chrom << ".." << endl ;
+//            output[var] += 1 ; // initializes to 0
+//        }
+//    }
+//}
+
+fastq_entry_t SnpCorrector::correct_read(bam1_t* alignment, char* read_seq, string chrom) {
+    auto cigar_offests = calc_cigar_offsets(alignment) ;
+    int l = 0 ;
+    for (auto p: cigar_offests) {
+        l += p.first ;
+    }
+    //
+    int n = 0 ;
+    int m = 0 ;
+    int ref_offset = alignment->core.pos ;
+    int ins_offset = 0 ;
+    int del_offset = 0 ;
+    int match_offset = 0 ;
+    int soft_clip_offset = 0 ;
+    char* new_seq = (char*) malloc(sizeof(char) * (l + 1)) ;
+    int pos = alignment->core.pos + 1 ; // this is 0-based, variant cpoordinates are 1-based
+    while (true) {
+        if (m == cigar_offests.size()) {
+            break ;
+        }
+        if (cigar_offests[m].second == BAM_CMATCH || cigar_offests[m].second == BAM_CEQUAL || cigar_offests[m].second == BAM_CDIFF) {
+            for (int j = 0; j < cigar_offests[m].first; j++) {
+                new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
+                n++ ;
+            }
+            ref_offset += cigar_offests[m].first ;
+            match_offset += cigar_offests[m].first ;
+        } else if (cigar_offests[m].second == BAM_CINS) {
+            if (cigar_offests[m].first <= 10) {
+                // if a short INDEL then just don't add it to read
+            } else {
+                // for long INS, this is probably a SV so add it to the read
+                for (int j = 0; j < cigar_offests[m].first; j++) {
+                    new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
+                    n++ ;
+                }
+            }
+            ins_offset += cigar_offests[m].first ;
+        } else if (cigar_offests[m].second == BAM_CDEL) {
+            if (cigar_offests[m].first <= 10) {
+                // if a short DEL so let's just fix it
+                for (int j = 0; j < cigar_offests[m].first; j++) {
+                    new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
+                    n++ ;
+                }
+            } else {
+                // for long DEL, this is probably a SV so let it be what it was
+            }
+            del_offset += cigar_offests[m].first ;
+            ref_offset += cigar_offests[m].first ;
+        } else if (cigar_offests[m].second == BAM_CSOFT_CLIP) {
+            for (int j = 0; j < cigar_offests[m].first; j++) {
+                new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
+                n++ ;
+            }
+            soft_clip_offset += cigar_offests[m].first ;
+        } else if (cigar_offests[m].second == BAM_CREF_SKIP) {
+            // What is even this?
+        } else {//if (cigar_offests[m].second == BAM_CPAD || cigar_offests[m].second == BAM_CHARD_CLIP || cigar_offests[m].second == BAM_CBACK) {
+            // pass
+        }
+        m += 1 ;
+    }
+    new_seq[n] = '\0' ;
+    //cout << read_seq << endl ;
+    //cout << new_seq << endl ;
+    //char* substr = (char*) malloc(1000) ;
+    //strncpy(substr, chromosome_seqs[chrom] + pos - 1, 999) ;
+    //substr[999] = '\0' ;
+    //cout << substr << endl ; 
+    //
+    string s(new_seq) ;
+    string qname(bam_get_qname(alignment)) ;
+    fastq_entry_t f {qname, s, s, pos, n} ;
+    free(new_seq) ;
+    return f ;
+}
+
+vector<fastq_entry_t> SnpCorrector::process_batch_1(vector<bam1_t*> bam_entries) {
+    vector<fastq_entry_t> output ;
     char* seq = (char*) malloc(10000) ;
-    char* ref_seq = (char*) malloc(sizeof(char) * (10000)) ;
     uint32_t len = 0 ;
     bam1_t* alignment ;
-    bool should_quit = false ;
     for (int b = 0; b < bam_entries.size(); b++) {
         alignment = bam_entries[b] ;
         if (alignment == nullptr) {
@@ -186,11 +397,9 @@ unordered_map<vcf_variant_t, int> SnpCorrector::process_batch_1(vector<bam1_t*> 
         if (l > len) {
             if (len > 0) {
                 free(seq) ;
-                free(ref_seq) ;
             }
             len = l ;
             seq = (char*) malloc(l + 1) ;
-            ref_seq = (char*) malloc(l + 1) ;
         }
         uint8_t *q = bam_get_seq(alignment) ; //quality string
         for (int i = 0; i < l; i++){
@@ -204,164 +413,12 @@ unordered_map<vcf_variant_t, int> SnpCorrector::process_batch_1(vector<bam1_t*> 
         if (alignment->core.tid < 0) {
             continue ;
         }
-        // find list of variants
-        int pos = alignment->core.pos + 1 ; // this is 0-based, variant cpoordinates are 1-based
-        string chrom = string(bam_header->target_name[alignment->core.tid]) ;
-        //cout << "Read " << chrom << "@" << pos << "-" << pos + alignment->core.l_qseq << endl ;
-        auto limits = find_variants_in_read(pos, alignment->core.l_qseq, chrom) ;
-        //cout << "First match at " << vcf_variants[chrom][limits.first].pos << ", last match at " << vcf_variants[chrom][limits.second].pos << endl ;
-        if (limits.first == -1 || limits.second == -1) {
-            continue ;
-        }
-        if (limits.second < limits.first) {
-            continue ;
-        }
-        //if (vcf_variants[chrom][limits.first].pos < 248797345) {
-        //    continue ;
-        //}
-        auto cigar_offests = calc_cigar_offsets(alignment) ;
-        // if read mapped to reverse strand
-        //if ((alignment->core.flag & ((uint16_t) 16)) != 0) {
-            //cout << "Reverse complementing read.." << endl ;
-            //reverse_complement_read(seq) ;
-        //}
-        //cout << bam_get_qname(alignment) << " with " << strlen(seq) << " bases." << endl ;
-        // finding matching variants
-        //char* neq_seq = (char*) malloc(sizeof(char) * (l + 1)) ;
-        int m = 0 ;
-        int offset = 0 ;
-        int ins_offset = 0 ;
-        int del_offset = 0 ;
-        int group_offset = 0 ;
-        int soft_clip_offset = 0 ;
-        int ref_index = 0 ;
-        // first indel only partially overlap
-        int f = limits.first ;
-        int first_variant_offset = 0 ;
-        auto& first_var = vcf_variants[chrom][f] ;
-        if (first_var.pos < pos) {
-            first_variant_offset = pos - first_var.pos ;
-        }
-        // iterate over all variants in read
-        for (int i = limits.first; i <= limits.second; i++) {
-            if (i != limits.first) {
-                first_variant_offset = 0 ;
-            }
-            auto& var = vcf_variants[chrom][i] ;
-            //cout << "Finding alleles for " << var.pos << endl ;
-            // find position in read corresponding to variant's reference position
-            // This is very tricky. Assume for simplicity that all SNPs are included inside M segments. and so will be sequencing errors.
-            // Now indels may go inside DEL/INS
-            // BAM_CIGAR_TYPE  QUERY  REFERENCE
-            // --------------------------------
-            // BAM_CMATCH      1      1
-            // BAM_CINS        1      0
-            // BAM_CDEL        0      1
-            // BAM_CREF_SKIP   0      1
-            // BAM_CSOFT_CLIP  1      0
-            // BAM_CHARD_CLIP  0      0
-            // BAM_CPAD        0      0
-            // BAM_CEQUAL      1      1
-            // BAM_CDIFF       1      1
-            // BAM_CBACK       0      0
-            // --------------------------------
-            bool fail = false ;
-            while (true) {
-                int diff = var.pos - pos - (offset + del_offset) ;
-                //cout << "Diff: " << diff << ", ref offset: " << offset + del_offset << ", read offset: " << soft_clip_offset + ins_offset + offset << " CIGAR at " << m << "/" << cigar_offests.size() << endl ;
-                if (m == cigar_offests.size()) {
-                    //TODO: some late SNPs mq
-                    break ;
-                }
-                if (cigar_offests[m].second == BAM_CMATCH || cigar_offests[m].second == BAM_CEQUAL || cigar_offests[m].second == BAM_CDIFF) {
-                    if (diff == 0) {
-                        break ;
-                    } else if (diff < 0) {
-                        // overshot, probably because of a large deletion in the read somewhere, can't do this variant anymore
-                        fail = true ;
-                        break ;
-                    } else {
-                        if (cigar_offests[m].first - group_offset <= diff) {
-                            // use entire block
-                            strncpy(ref_seq + ref_index, seq + soft_clip_offset + offset + ins_offset, cigar_offests[m].first - group_offset) ;
-                            ref_index += cigar_offests[m].first - group_offset ;
-                            offset += cigar_offests[m].first - group_offset ;
-                        } else {
-                            // use block partially and remain in block for next pass
-                            offset += diff ;
-                            group_offset += diff ;
-                            break ;
-                        }
-                    }
-                } else if (cigar_offests[m].second == BAM_CINS) {
-                    ins_offset += cigar_offests[m].first ;
-                } else if (cigar_offests[m].second == BAM_CDEL) {
-                    del_offset += cigar_offests[m].first ;
-                    for (int j = 0; j < cigar_offests[m].first; j++) {
-                        ref_seq[ref_index] = 'N' ;
-                        ref_index++ ;
-                    }
-                } else if (cigar_offests[m].second == BAM_CSOFT_CLIP) {
-                    if (m == 0) {
-                        soft_clip_offset += cigar_offests[m].first ;
-                    }
-                } else if (cigar_offests[m].second == BAM_CREF_SKIP) {
-                    // What is even this?
-                } else {//if (cigar_offests[m].second == BAM_CPAD || cigar_offests[m].second == BAM_CHARD_CLIP || cigar_offests[m].second == BAM_CBACK) {
-                    // pass
-                }
-                m += 1 ;
-                group_offset = 0 ;
-            }
-            ref_seq[ref_index] = '\0' ;
-            //cout << ref_seq << endl ;
-            if (fail) {
-                //cout << "Overshot " << var.pos << "@" << var.chrom << ".." << endl ;
-                continue ;
-            }
-            int match = -1 ;
-            for (int k = 0; k < 2; k++) {
-                if (var.alleles[k] == "$") {
-                    break ;
-                }
-                match = k ;
-                int l = var.alleles[k].length() ;
-                for (int j = 0; j < l; j++) {
-                    if (seq[soft_clip_offset + ins_offset + offset + j] != var.alleles[k][j]) {
-                        match = -1 ;
-                        break ;
-                    }
-                }
-                if (match != -1) {
-                    // rewrite BAM seq
-                    // won't change CIGAR and won't change quality scores
-                    for (int j = 0; j < l; j++) {
-                        int index = soft_clip_offset + ins_offset + offset + j ;
-                        //cout << "Modified position " << index << " from " << var.alleles[k][j] << " to " << var.ref[j] << endl ;
-                        bam_set_seqi(q, index, seq_nt16_table[(unsigned char) var.ref[j]]) ;
-                    }
-                    //bam_write1(out_bam_file->fp.bgzf, alignment) ;
-                    //should_quit = true ;
-                    break ;
-                }
-            }
-            if (match) {
-                //cout << "Matched " << var.pos << "@" << var.chrom << ".." << endl ;
-            }
-            if (!match) {
-                //cout << "Not matched " << var.pos << "@" << var.chrom << ".." << endl ;
-                output[var] += 1 ; // initializes to 0
-            }
-        }
-    }
-    if (should_quit) {
-        sam_close(out_bam_file) ;
-        cout << "Exiting.." << endl ;
-        exit(0) ;
+        string chrom(bam_header->target_name[alignment->core.tid]) ;
+        //correct_snps(alignment, limits, seq, chrom) ;
+        fastq_entry_t fastq_entry = correct_read(alignment, seq, chrom) ;
+        output.push_back(fastq_entry) ;
     }
     free(seq) ;
-    free(ref_seq) ;
-    cout << "Finished." << endl ;
     return output ;
 }
 
@@ -372,19 +429,21 @@ int SnpCorrector::pass(int index) {
     // parse arguments
     bam_file = hts_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
-    auto out_path = config->workdir + "/corrected.bam" ;
-    cout << "Writing correct BAM to " << out_path << endl ;
-    out_bam_file = sam_open(out_path.c_str(), "wb") ;
-    int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
-    //int r = sam_hdr_write(fp, bam_header) ;
-    if (r < 0) {
-        cerr << "Can't write corrected BAM header, aborting.." << endl ;
-    }
+    auto out_path = config->workdir + "/corrected.fastq" ;
+    //cout << "Writing correct BAM to " << out_path << endl ;
+    //out_bam_file = sam_open(out_path.c_str(), "wb") ;
+    //int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
+    //if (r < 0) {
+    //    cerr << "Can't write corrected BAM header, aborting.." << endl ;
+    //}
+    std::ofstream out_file(out_path) ;
     // confidence scores 
-    vector<vector<unordered_map<vcf_variant_t, int>>> batches ;
+    //vector<vector<unordered_map<vcf_variant_t, int>>> batches ;
+    vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
-        batches.push_back(vector<unordered_map<vcf_variant_t, int>>(config->threads)) ; // previous and current output
+        //batches.push_back(vector<unordered_map<vcf_variant_t, int>>(config->threads)) ; // previous and current output
+        batches.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // previous and current output
     }
     int p = 0 ;
     int batch_size = 10000 ;
@@ -423,16 +482,11 @@ int SnpCorrector::pass(int index) {
                 if (b >= 1) {
                     int ret ;
                     for (int j = 0; j < config->threads; j++) {
-                        for (int k = 0; k < batch_size / config->threads; k++) {
-                            if (bam_entries[(p + 1) % 2][j][k] != nullptr) {
-                                //ret = sam_write1(fp, bam_header, bam_entries[(p + 1) % 2][j][k]);
-                                ret = bam_write1(out_bam_file->fp.bgzf, bam_entries[(p + 1) % 2][j][k]);
-                                if (ret < 0) {
-                                    cerr << "Can't write corrected BAM record, aborting.." << endl ;
-                                }
-                            } else {
-                                break ;
-                            }
+                        for (auto& fastq_entry: batches[(p + 1) % 2][j]) {
+                            out_file << "@" << fastq_entry.head << endl
+                                << fastq_entry.seq << endl
+                                << "+" << endl
+                                << fastq_entry.seq << endl ;
                         }
                     }
                 }
@@ -447,17 +501,18 @@ int SnpCorrector::pass(int index) {
                 }
             } else if (i == 1) {
                 // merge output of previous batch
-                if (b >= 1) {
-                    int y = 0 ;
-                    for (const auto &batch : batches[(p + 1) % 2]) {
-                        y += batch.size() ;
-                        for (auto it = batch.begin(); it != batch.end() ;it++) {
-                            confidence_scores[it->first] += it->second ;
-                        }
-                    }
-                    cerr << y << " total sequences." << endl ;
-                }
-                cerr << "Merged. " << confidence_scores.size() << " unique sequences." << endl ;
+                // nothing to be merged
+                //if (b >= 1) {
+                //    int y = 0 ;
+                //    for (const auto &batch : batches[(p + 1) % 2]) {
+                //        y += batch.size() ;
+                //       for (auto it = batch.begin(); it != batch.end() ;it++) {
+                //            confidence_scores[it->first] += it->second ;
+                //        }
+                //    }
+                //    cerr << y << " total sequences." << endl ;
+                //}
+                //cerr << "Merged. " << confidence_scores.size() << " unique sequences." << endl ;
             } else {
                 // process current batch
                 if (should_process) {
@@ -483,7 +538,7 @@ int SnpCorrector::pass(int index) {
     }
     cout << "Done." << endl ;
     sam_close(bam_file) ;
-    sam_close(out_bam_file) ;
+    //sam_close(out_bam_file) ;
     return 0 ;
 }
 

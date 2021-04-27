@@ -31,23 +31,22 @@ unordered_map<string, vector<vcf_variant_t>> load_vcf_file(string path) {
             vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
             if (chrom != tokens[0]) {
                 chrom = tokens[0] ;
-                i = 0 ;
             }
             vcf_variant_t vcf_variant ;
             vcf_variant.chrom = tokens[0] ;
             vcf_variant.pos = std::stoi(tokens[1]) ;
             vcf_variant.ref = tokens[3] ;
-            if (i != 0 && vcf_variants[chrom][i] == vcf_variant) {
-                vcf_variants[chrom][i].alleles[1] = tokens[4] ;
-                vcf_variants[chrom][i].svlen = max(vcf_variants[chrom][i].svlen, int(tokens[4].length() - tokens[3].length())) ;
+            int l = vcf_variants[chrom].size() ;
+            if (l != 0 && vcf_variants[chrom][l - 1] == vcf_variant) {
+                vcf_variants[chrom][l - 1].alleles[1] = tokens[4] ;
+                vcf_variants[chrom][l - 1].svlen = max(vcf_variants[chrom][l - 1].svlen, int(tokens[4].length() - tokens[3].length())) ;
             } else {
                 vcf_variant.alleles[0] = tokens[4] ;
                 vcf_variant.alleles[1] = "$" ;
                 vcf_variants[chrom].push_back(vcf_variant) ;
-                vcf_variants[chrom][i].svlen = tokens[4].length() - tokens[3].length() ;
+                vcf_variants[chrom][l - 1].svlen = tokens[4].length() - tokens[3].length() ;
             }
             n++ ;
-            i++ ;
         }
     }
     cout << "Loaded " << n << " variants from " << path << endl ;

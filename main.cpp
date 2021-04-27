@@ -115,6 +115,12 @@ int main(int argc, char** argv) {
         auto pingpong = new PingPong() ;
         pingpong->index() ;
     }
+    else if (strcmp(argv[1], "query") == 0) {
+        c->parse(argc - 2, argv + 2) ;
+        auto pingpong = new PingPong() ;
+        bool b = pingpong->query(string(argv[2])) ;
+        cout << (b ? "SFS" : "Not SFS") << endl ;
+    }
     else if (strcmp(argv[1], "search") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
