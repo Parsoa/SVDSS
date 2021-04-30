@@ -392,6 +392,11 @@ vector<fastq_entry_t> SnpCorrector::process_batch_1(vector<bam1_t*> bam_entries)
         if (alignment == nullptr) {
             break ;
         }
+
+        // skip if unmapped, supplementary or secondary
+        if (alignment->core.flag & BAM_FUNMAP || alignment->core.flag & BAM_FSUPPLEMENTARY || alignment->core.flag & BAM_FSECONDARY)
+          continue;
+
         // recover sequence
         uint32_t l = alignment->core.l_qseq ; //length of the read
         if (l > len) {
@@ -415,8 +420,10 @@ vector<fastq_entry_t> SnpCorrector::process_batch_1(vector<bam1_t*> bam_entries)
         }
         string chrom(bam_header->target_name[alignment->core.tid]) ;
         //correct_snps(alignment, limits, seq, chrom) ;
-        fastq_entry_t fastq_entry = correct_read(alignment, seq, chrom) ;
-        output.push_back(fastq_entry) ;
+        if (chromosome_seqs.find(chrom) != chromosome_seqs.end()) {
+          fastq_entry_t fastq_entry = correct_read(alignment, seq, chrom) ;
+          output.push_back(fastq_entry) ;
+        }
     }
     free(seq) ;
     return output ;
