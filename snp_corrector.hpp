@@ -32,19 +32,18 @@ public:
     std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
 
     // variant processing
+    int correct_reads() ;
     bool load_batch_bam(int threads, int batch_size, int p) ;
-    std::vector<fastq_entry_t> process_batch_1(std::vector<bam1_t*> bam_entries) ;
-    int pass(int index) ;
-    void stats() ;
+    std::vector<fastq_entry_t> process_batch(std::vector<bam1_t*> bam_entries) ;
     fastq_entry_t correct_read(bam1_t* alignment, char* read_seq, std::string chrom) ;
-    void correct_snps(bam1_t* alignment, std::pair<int, int> limits, char* read_seq, std::string chrom) ;
 
-    std::unordered_map<vcf_variant_t, int> confidence_scores ;
+    //std::unordered_map<vcf_variant_t, int> confidence_scores ;
     // ordered list of variants
-    std::unordered_map<std::string, std::vector<vcf_variant_t>> vcf_variants ;
+    //std::unordered_map<std::string, std::vector<vcf_variant_t>> vcf_variants ;
     // pass functions (minimize code redundancy)
-    std::unordered_map<vcf_variant_t, int> (* pass_functions [2])(std::vector<bam1_t*>) ;
-    std::pair<int, int> find_variants_in_read(int pos, int len, std::string chrom) ;
+    //std::unordered_map<vcf_variant_t, int> (* pass_functions [2])(std::vector<bam1_t*>) ;
+    //std::pair<int, int> find_variants_in_read(int pos, int len, std::string chrom) ;
+    //void correct_snps(bam1_t* alignment, std::pair<int, int> limits, char* read_seq, std::string chrom) ;
 
 };
 

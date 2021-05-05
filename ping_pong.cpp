@@ -175,6 +175,20 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
     int n = 0 ;
     while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
         auto alignment = bam_entries[p][n % threads][i] ;
+        if (alignment == nullptr) {
+            break ;
+        }
+        // these reads have not been reconstructed
+        if (alignment->core.flag & BAM_FUNMAP || alignment->core.flag & BAM_FSUPPLEMENTARY || alignment->core.flag & BAM_FSECONDARY) {
+            continue ;
+        }
+        if (alignment->core.l_qseq < 2) {
+            //cerr << "Read too short, ignoring.." << endl ;
+            continue ;
+        }
+        if (alignment->core.tid < 0) {
+            continue ;
+        }
         uint32_t l = alignment->core.l_qseq ; //length of the read
         char* seq = (char*) malloc(l + 1) ;
         uint8_t *q = bam_get_seq(alignment) ; //quality string

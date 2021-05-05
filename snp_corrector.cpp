@@ -21,89 +21,78 @@ using namespace std ;
 #define bam_set_seqi(s,i,b) ((s)[(i)>>1] = ((s)[(i)>>1] & (0xf0 >> ((~(i)&1)<<2))) | ((b)<<((~(i)&1)<<2)))
 
 void SnpCorrector::run() {
-    // load all variants
-    // two pass approach
-    // First pass: For each variant check how many of the reads including it actually have one of its alleles
-    // Second pass: For each variant with enough coverage, correct all the reads that have it, this can be integrerated into ping-pong directly to save time but for now let's dump a new BAM file
     auto c = Configuration::getInstance() ;
     load_chromosomes(c->reference) ;
-    //vcf_variants = load_vcf_file(c->vcf) ;
-    //auto _variants = load_vcf_file(c->vcf) ;
-    //for (const auto& chrom: _variants) {
-    //    vcf_variants[chrom.first] ;
-    //    // Keep small INDELs only
-    //    std::copy_if (chrom.second.begin(), chrom.second.end(), std::back_inserter(vcf_variants[chrom.first]), [](const vcf_variant_t& v){ return v.svlen <= 5; } );
-    //}
-    pass(0) ;
+    correct_reads() ;
 }
 
-int binary_search(vector<vcf_variant_t>& a, int begin, int end, int q, int dir) {
-    //cout << "Binary search between " << begin << " and " << end << endl ;
-    int m = (begin + end) / 2 ;
-    if (begin == end || m == begin) {
-        return  -1 ;
-    }
-    if (a[m].pos + a[m].svlen >= q && a[m].pos <= q) {
-        // for SNPs this is the as checking a[m].pos == q
-        return m ;
-    }
-    if (a[m].pos < q && a[m].pos + a[m].svlen < q) {
-        if (m != a.size() - 1) {
-            if (a[m + 1].pos >= q) {
-                if (dir == 0) {
-                    return m + 1 ;
-                } else {
-                    return m ;
-                }
-            }
-            return binary_search(a, m, end, q, dir) ;
-        } else {
-            if (dir == 1) {
-                return m ;
-            } else {
-                return -1 ;
-            }
-        }
-    }
-    if (a[m].pos > q) {
-        if (m != 0) {
-            if (a[m - 1].pos <= q) {
-                if (dir == 0) {
-                    return m ;
-                } else {
-                    return m - 1 ;
-                }
-            }
-            return binary_search(a, begin, m, q, dir) ;
-        } else {
-            if (dir == 0) {
-                return m ;
-            } else {
-                return -1 ;
-            }
-        }
-    }
-    assert("Shouldn't be here.") ;
-    return -1 ;
-}
-
-std::pair<int, int> SnpCorrector::find_variants_in_read(int pos, int len, string chrom) {
-    if (vcf_variants.find(chrom) == vcf_variants.end()) {
-        return std::make_pair(-1, -1) ;
-    }
-    // bonary search in variants on the given chromosome
-    vector<vcf_variant_t>& chrom_variants = vcf_variants[chrom] ;
-    //cout << "Searching for read @" << chrom << " between " << pos << " - " << pos + len << " among " << chrom_variants.size() << " variants." << endl ;
-    int begin = binary_search(chrom_variants, 0, chrom_variants.size() - 1, pos, 0) ;
-    if (begin == -1) {
-        return std::make_pair(-1, -1) ;
-    }
-    int end = binary_search(chrom_variants, begin + 1, chrom_variants.size() - 1, pos + len - 1, 1) ;
-    if (begin != -1 && end != -1) {
-        assert(chrom_variants[begin].pos >= pos && chrom_variants[end].pos <= pos + len - 1) ;
-    }
-    return std::make_pair(begin, end) ;
-} 
+//int binary_search(vector<vcf_variant_t>& a, int begin, int end, int q, int dir) {
+//    //cout << "Binary search between " << begin << " and " << end << endl ;
+//    int m = (begin + end) / 2 ;
+//    if (begin == end || m == begin) {
+//        return  -1 ;
+//    }
+//    if (a[m].pos + a[m].svlen >= q && a[m].pos <= q) {
+//        // for SNPs this is the as checking a[m].pos == q
+//        return m ;
+//    }
+//    if (a[m].pos < q && a[m].pos + a[m].svlen < q) {
+//        if (m != a.size() - 1) {
+//            if (a[m + 1].pos >= q) {
+//                if (dir == 0) {
+//                    return m + 1 ;
+//                } else {
+//                    return m ;
+//                }
+//            }
+//            return binary_search(a, m, end, q, dir) ;
+//        } else {
+//            if (dir == 1) {
+//                return m ;
+//            } else {
+//                return -1 ;
+//            }
+//        }
+//    }
+//    if (a[m].pos > q) {
+//        if (m != 0) {
+//            if (a[m - 1].pos <= q) {
+//                if (dir == 0) {
+//                    return m ;
+//                } else {
+//                    return m - 1 ;
+//                }
+//            }
+//            return binary_search(a, begin, m, q, dir) ;
+//        } else {
+//            if (dir == 0) {
+//                return m ;
+//            } else {
+//                return -1 ;
+//            }
+//        }
+//    }
+//    assert("Shouldn't be here.") ;
+//    return -1 ;
+//}
+//
+//std::pair<int, int> SnpCorrector::find_variants_in_read(int pos, int len, string chrom) {
+//    if (vcf_variants.find(chrom) == vcf_variants.end()) {
+//        return std::make_pair(-1, -1) ;
+//    }
+//    // bonary search in variants on the given chromosome
+//    vector<vcf_variant_t>& chrom_variants = vcf_variants[chrom] ;
+//    //cout << "Searching for read @" << chrom << " between " << pos << " - " << pos + len << " among " << chrom_variants.size() << " variants." << endl ;
+//    int begin = binary_search(chrom_variants, 0, chrom_variants.size() - 1, pos, 0) ;
+//    if (begin == -1) {
+//        return std::make_pair(-1, -1) ;
+//    }
+//    int end = binary_search(chrom_variants, begin + 1, chrom_variants.size() - 1, pos + len - 1, 1) ;
+//    if (begin != -1 && end != -1) {
+//        assert(chrom_variants[begin].pos >= pos && chrom_variants[end].pos <= pos + len - 1) ;
+//    }
+//    return std::make_pair(begin, end) ;
+//} 
 
 char reverse_complement_base(char base) {
     if (base == 'C' || base == 'c') {
@@ -153,161 +142,113 @@ string print_cigar_symbol(int type) {
     return "X" ;
 }
 
-vector<pair<int, int>> calc_cigar_offsets(bam1_t* read) {
+uint32_t cigar_len_mask = 0xFFFFFFF0 ;
+uint32_t cigar_type_mask = 0xF ;
+
+vector<pair<uint32_t, uint32_t>> decode_cigar(bam1_t* read) {
     // get CIGAR
-    vector<pair<int, int>> cigar_offests ;
+    vector<pair<uint32_t, uint32_t>> cigar_offsets ;
     uint32_t* cigar = bam_get_cigar(read) ;
-    uint32_t cigar_len_mask = 0xFFFFFFF0 ;
-    uint32_t cigar_type_mask = 0xF ;
     int offset = 0 ;
     for (int i = 0; i < read->core.n_cigar; i++) {
         uint32_t type = cigar[i] & cigar_type_mask ;
-        uint32_t length = (cigar[i] & cigar_len_mask) >> 4 ;
-        cigar_offests.push_back(make_pair(length, type)) ;
+        uint32_t length = cigar[i] >> 4 ;
+        cigar_offsets.push_back(make_pair(length, type)) ;
         //cout << length << print_cigar_symbol(type) ;
     }
     //cout << endl ;
-    return cigar_offests ;
+    return cigar_offsets ;
 }
 
-//void correct_snps(bam1_t* alignment, std::pair<int, int> limits, char* read_seq, string chrom) {
-//    // if read mapped to reverse strand
-//    //if ((alignment->core.flag & ((uint16_t) 16)) != 0) {
-//        //cout << "Reverse complementing read.." << endl ;
-//        //reverse_complement_read(seq) ;
-//    //}
-//    // finding matching variants
-//    //char* neq_seq = (char*) malloc(sizeof(char) * (l + 1)) ;
-//    int m = 0 ;
-//    int offset = 0 ;
-//    int ins_offset = 0 ;
-//    int del_offset = 0 ;
-//    int group_offset = 0 ; // offset inside the current M group
-//    int soft_clip_offset = 0 ;
-//    int ref_index = 0 ;
-//    int pos = alignment->core.pos + 1 ; // this is 0-based, variant cpoordinates are 1-based
-//    // first indel only partially overlap
-//    int f = limits.first ;
-//    int first_variant_offset = 0 ;
-//    auto& first_var = vcf_variants[chrom][f] ;
-//    if (first_var.pos < pos) {
-//        first_variant_offset = pos - first_var.pos ;
-//    }
-//    // iterate over all variants in read
-//    for (int i = limits.first; i <= limits.second; i++) {
-//        if (i != limits.first) {
-//            first_variant_offset = 0 ;
-//        }
-//        auto& var = vcf_variants[chrom][i] ;
-//        //cout << "Finding alleles for " << var.pos << endl ;
-//        // find position in read corresponding to variant's reference position
-//        // This is very tricky. Assume for simplicity that all SNPs are included inside M segments. and so will be sequencing errors.
-//        // Now indels may go inside DEL/INS
-//        // BAM_CIGAR_TYPE  QUERY  REFERENCE
-//        // --------------------------------
-//        // BAM_CMATCH      1      1
-//        // BAM_CINS        1      0
-//        // BAM_CDEL        0      1
-//        // BAM_CREF_SKIP   0      1
-//        // BAM_CSOFT_CLIP  1      0
-//        // BAM_CHARD_CLIP  0      0
-//        // BAM_CPAD        0      0
-//        // BAM_CEQUAL      1      1
-//        // BAM_CDIFF       1      1
-//        // BAM_CBACK       0      0
-//        // --------------------------------
-//        bool fail = false ;
-//        while (true) {
-//            int diff = var.pos - pos - (offset + del_offset) ;
-//            //cout << "Diff: " << diff << ", ref offset: " << offset + del_offset << ", read offset: " << soft_clip_offset + ins_offset + offset << " CIGAR at " << m << "/" << cigar_offests.size() << endl ;
-//            if (m == cigar_offests.size()) {
-//                //TODO: some late SNPs
-//                break ;
-//            }
-//            if (cigar_offests[m].second == BAM_CMATCH || cigar_offests[m].second == BAM_CEQUAL || cigar_offests[m].second == BAM_CDIFF) {
-//                if (diff == 0) {
-//                    break ;
-//                } else if (diff < 0) {
-//                    // overshot, probably because of a large deletion in the read somewhere, can't do this variant anymore
-//                    fail = true ;
-//                    break ;
-//                } else {
-//                    if (cigar_offests[m].first - group_offset <= diff) {
-//                        // use entire block
-//                        strncpy(ref_seq + ref_index, seq + soft_clip_offset + offset + ins_offset, cigar_offests[m].first - group_offset) ;
-//                        ref_index += cigar_offests[m].first - group_offset ;
-//                        offset += cigar_offests[m].first - group_offset ;
-//                    } else {
-//                        // use block partially and remain in block for next pass
-//                        offset += diff ;
-//                        group_offset += diff ;
-//                        break ;
-//                    }
-//                }
-//            } else if (cigar_offests[m].second == BAM_CINS) {
-//                ins_offset += cigar_offests[m].first ;
-//            } else if (cigar_offests[m].second == BAM_CDEL) {
-//                del_offset += cigar_offests[m].first ;
-//                for (int j = 0; j < cigar_offests[m].first; j++) {
-//                    ref_seq[ref_index] = 'N' ;
-//                    ref_index++ ;
-//                }
-//            } else if (cigar_offests[m].second == BAM_CSOFT_CLIP) {
-//                if (m == 0) {
-//                    soft_clip_offset += cigar_offests[m].first ;
-//                }
-//            } else if (cigar_offests[m].second == BAM_CREF_SKIP) {
-//                // What is even this?
-//            } else {//if (cigar_offests[m].second == BAM_CPAD || cigar_offests[m].second == BAM_CHARD_CLIP || cigar_offests[m].second == BAM_CBACK) {
-//                // pass
-//            }
-//            m += 1 ;
-//            group_offset = 0 ;
-//        }
-//        ref_seq[ref_index] = '\0' ;
-//        if (fail) {
-//            continue ;
-//        }
-//        int match = -1 ;
-//        for (int k = 0; k < 2; k++) {
-//            if (var.alleles[k] == "$") {
-//                break ;
-//            }
-//            match = k ;
-//            int l = var.alleles[k].length() ;
-//            for (int j = 0; j < l; j++) {
-//                if (seq[soft_clip_offset + ins_offset + offset + j] != var.alleles[k][j]) {
-//                    match = -1 ;
-//                    break ;
-//                }
-//            }
-//            if (match != -1) {
-//                // rewrite BAM seq
-//                // won't change CIGAR and won't change quality scores
-//                for (int j = 0; j < l; j++) {
-//                    int index = soft_clip_offset + ins_offset + offset + j ;
-//                    //cout << "Modified position " << index << " from " << var.alleles[k][j] << " to " << var.ref[j] << endl ;
-//                    bam_set_seqi(q, index, seq_nt16_table[(unsigned char) var.ref[j]]) ;
-//                }
-//                //bam_write1(out_bam_file->fp.bgzf, alignment) ;
-//                //should_quit = true ;
-//                break ;
-//            }
-//        }
-//        if (match) {
-//            //cout << "Matched " << var.pos << "@" << var.chrom << ".." << endl ;
-//        }
-//        if (!match) {
-//            //cout << "Not matched " << var.pos << "@" << var.chrom << ".." << endl ;
-//            output[var] += 1 ; // initializes to 0
-//        }
-//    }
-//}
+uint8_t* encode_cigar(vector<pair<uint32_t, uint32_t>> cigar) {
+    uint32_t* cigar_bytes = (uint32_t*) malloc(sizeof(uint32_t) * cigar.size()) ;
+    for (int i = 0; i < cigar.size(); i++) {
+        cigar_bytes[i] = (cigar[i].first << 4) | (cigar[i].second & cigar_type_mask) ; 
+    }
+    return (uint8_t*) cigar_bytes ;
+}
+
+uint8_t* encode_bam_seq(char* seq) {
+    int n = (strlen(seq) + 1) >> 1 ;
+    int l_seq = strlen(seq) ;
+    //cout << "l_seq: " << l_seq << " " << n << endl ;
+    uint8_t* seq_bytes = (uint8_t*) malloc(sizeof(uint8_t) * n) ;
+    int i = 0 ;
+    n = 0 ;
+    for (i = 0; i + 1 < l_seq; i += 2) {
+        seq_bytes[n] = (seq_nt16_table[(unsigned char)seq[i]] << 4) | seq_nt16_table[(unsigned char)seq[i + 1]];
+        n += 1 ;
+    }
+    for (; i < l_seq; i++) {
+        seq_bytes[n] = seq_nt16_table[(unsigned char)seq[i]] << 4;
+        n += 1 ;
+    }
+    //cout << "i " << i << " " << n << endl ;
+    return seq_bytes ;
+}
+
+//typedef struct bam1_t {
+//    bam1_core_t core; // won't change
+//    uint64_t id;      // won't change
+//    uint8_t *data;    // has to reallocate
+//    int l_data;       // will change
+//    uint32_t m_data;  // won't change
+//    uint32_t mempolicy:2, :30 /* Reserved */;
+//} bam1_t;
+
+//typedef struct bam1_core_t {
+//    hts_pos_t pos;      // won't change 
+//    int32_t tid;        // won't change
+//    uint16_t bin;       // TODO 
+//    uint8_t qual;       // won't change
+//    uint8_t l_extranul; // won't change 
+//    uint16_t flag;      // won't change
+//    uint16_t l_qname;   // won't change
+//    uint32_t n_cigar;   // will change
+//    int32_t l_qseq;     // will change
+//    int32_t mtid;       // TODO won't change
+//    hts_pos_t mpos;     // TODO won't change
+//    hts_pos_t isize;    // may or may ont change?
+//} bam1_core_t;
+
+void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<uint32_t, uint32_t>> cigar) {
+    int data_size = 0 ;
+    // update core
+    alignment->core.n_cigar = cigar.size() ;
+    alignment->core.l_qseq = strlen(seq) ;
+    int l = strlen(seq) ;
+    // rebuild data
+    alignment->l_data = alignment->core.l_qname + (4 * alignment->core.n_cigar) + ((l + 1) >> 1) + l ; // bam_get_l_aux(alignment) ;
+    //uint8_t* new_data = (uint8_t*) malloc(sizeof(uint8_t) * alignment->l_data) ;
+    //sam_realloc_bam_data(alignment, alignment->l_data) ;
+    //
+    // copy qname
+    int offset = alignment->core.l_qname ;
+    //memcpy(new_data, alignment->data, offset) ;
+    // copy cigar
+    uint8_t* cigar_encoded = encode_cigar(cigar) ;
+    memcpy(alignment->data + offset, cigar_encoded, 4 * alignment->core.n_cigar) ;
+    offset += 4 * alignment->core.n_cigar ;
+    free(cigar_encoded) ;
+    // copy seq data - have to convert seq
+    uint8_t* seq_bytes = encode_bam_seq(seq) ;
+    memcpy(alignment->data + offset, seq_bytes, (l + 1) >> 1) ;
+    free(seq_bytes) ;
+    offset += ((l + 1) >> 1) ;
+    // copy quality
+    memcpy(alignment->data + offset, qual, l) ;
+    offset += l ;
+    // don't copy aux
+    // memcpy(new_data + offset, bam_get_aux(alignment), bam_get_l_aux(alignment)) ;
+    //
+    //free(alignment->data) ;
+    //alignment->data = new_data ;
+}
 
 fastq_entry_t SnpCorrector::correct_read(bam1_t* alignment, char* read_seq, string chrom) {
-    auto cigar_offests = calc_cigar_offsets(alignment) ;
+    auto cigar_offsets = decode_cigar(alignment) ;
     int l = 0 ;
-    for (auto p: cigar_offests) {
+    for (auto p: cigar_offsets) {
         l += p.first ;
     }
     //
@@ -319,62 +260,79 @@ fastq_entry_t SnpCorrector::correct_read(bam1_t* alignment, char* read_seq, stri
     int match_offset = 0 ;
     int soft_clip_offset = 0 ;
     char* new_seq = (char*) malloc(sizeof(char) * (l + 1)) ;
+    uint8_t* qual = bam_get_qual(alignment) ;
+    uint8_t* new_qual = (uint8_t*) malloc(sizeof(char) * (l + 1)) ;
     int pos = alignment->core.pos + 1 ; // this is 0-based, variant cpoordinates are 1-based
+    // Modify current bam1_t* struct
+    auto& core = alignment->core ;
+    vector<pair<uint32_t, uint32_t>> new_cigar ;
+    int m_diff = 0 ;
     while (true) {
-        if (m == cigar_offests.size()) {
+        if (m == cigar_offsets.size()) {
             break ;
         }
-        if (cigar_offests[m].second == BAM_CMATCH || cigar_offests[m].second == BAM_CEQUAL || cigar_offests[m].second == BAM_CDIFF) {
-            for (int j = 0; j < cigar_offests[m].first; j++) {
+        if (cigar_offsets[m].second == BAM_CMATCH || cigar_offsets[m].second == BAM_CEQUAL || cigar_offsets[m].second == BAM_CDIFF) {
+            for (int j = 0; j < cigar_offsets[m].first; j++) {
                 new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
+                new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
                 n++ ;
             }
-            ref_offset += cigar_offests[m].first ;
-            match_offset += cigar_offests[m].first ;
-        } else if (cigar_offests[m].second == BAM_CINS) {
-            if (cigar_offests[m].first <= 10) {
+            ref_offset += cigar_offsets[m].first ;
+            match_offset += cigar_offsets[m].first ;
+            if (new_cigar.size() >= 1 && new_cigar[new_cigar.size() - 1].second == BAM_CMATCH) {
+                new_cigar[new_cigar.size() - 1].first += cigar_offsets[m].first + m_diff ;
+            } else {
+                new_cigar.push_back(make_pair(cigar_offsets[m].first + m_diff, BAM_CMATCH)) ;
+            }
+            m_diff = 0 ;
+        } else if (cigar_offsets[m].second == BAM_CINS) {
+            if (cigar_offsets[m].first <= 10) {
                 // if a short INDEL then just don't add it to read
             } else {
                 // for long INS, this is probably a SV so add it to the read
-                for (int j = 0; j < cigar_offests[m].first; j++) {
+                for (int j = 0; j < cigar_offsets[m].first; j++) {
                     new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
+                    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ; // bases are in read
                     n++ ;
                 }
+                new_cigar.push_back(cigar_offsets[m]) ;
             }
-            ins_offset += cigar_offests[m].first ;
-        } else if (cigar_offests[m].second == BAM_CDEL) {
-            if (cigar_offests[m].first <= 10) {
+            ins_offset += cigar_offsets[m].first ;
+        } else if (cigar_offsets[m].second == BAM_CDEL) {
+            if (cigar_offsets[m].first <= 10) {
                 // if a short DEL so let's just fix it
-                for (int j = 0; j < cigar_offests[m].first; j++) {
+                for (int j = 0; j < cigar_offsets[m].first; j++) {
                     new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
+                    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset] ; // just use last observed quality
                     n++ ;
                 }
+                m_diff += cigar_offsets[m].first ;
             } else {
                 // for long DEL, this is probably a SV so let it be what it was
+                new_cigar.push_back(cigar_offsets[m]) ;
             }
-            del_offset += cigar_offests[m].first ;
-            ref_offset += cigar_offests[m].first ;
-        } else if (cigar_offests[m].second == BAM_CSOFT_CLIP) {
-            for (int j = 0; j < cigar_offests[m].first; j++) {
+            del_offset += cigar_offsets[m].first ;
+            ref_offset += cigar_offsets[m].first ;
+        } else if (cigar_offsets[m].second == BAM_CSOFT_CLIP) {
+            for (int j = 0; j < cigar_offsets[m].first; j++) {
                 new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
+                new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
                 n++ ;
             }
-            soft_clip_offset += cigar_offests[m].first ;
-        } else if (cigar_offests[m].second == BAM_CREF_SKIP) {
+            soft_clip_offset += cigar_offsets[m].first ;
+            new_cigar.push_back(cigar_offsets[m]) ;
+        } else if (cigar_offsets[m].second == BAM_CREF_SKIP) {
             // What is even this?
-        } else {//if (cigar_offests[m].second == BAM_CPAD || cigar_offests[m].second == BAM_CHARD_CLIP || cigar_offests[m].second == BAM_CBACK) {
+        } else {//if (cigar_offsets[m].second == BAM_CPAD || cigar_offsets[m].second == BAM_CHARD_CLIP || cigar_offsets[m].second == BAM_CBACK) {
             // pass
         }
         m += 1 ;
     }
     new_seq[n] = '\0' ;
-    //cout << read_seq << endl ;
-    //cout << new_seq << endl ;
-    //char* substr = (char*) malloc(1000) ;
-    //strncpy(substr, chromosome_seqs[chrom] + pos - 1, 999) ;
-    //substr[999] = '\0' ;
-    //cout << substr << endl ; 
-    //
+    new_qual[n] = '\0' ;
+    //cout << "old seq length: " << strlen(read_seq) << " new seq len: " << n << endl ;
+    //cout << "old CIGAR length: " << cigar_offsets.size() << " new CIGAR len: " << new_cigar.size() << endl ;
+    rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar) ;
     string s(new_seq) ;
     string qname(bam_get_qname(alignment)) ;
     fastq_entry_t f {qname, s, s, pos, n} ;
@@ -382,7 +340,7 @@ fastq_entry_t SnpCorrector::correct_read(bam1_t* alignment, char* read_seq, stri
     return f ;
 }
 
-vector<fastq_entry_t> SnpCorrector::process_batch_1(vector<bam1_t*> bam_entries) {
+vector<fastq_entry_t> SnpCorrector::process_batch(vector<bam1_t*> bam_entries) {
     vector<fastq_entry_t> output ;
     char* seq = (char*) malloc(10000) ;
     uint32_t len = 0 ;
@@ -391,6 +349,16 @@ vector<fastq_entry_t> SnpCorrector::process_batch_1(vector<bam1_t*> bam_entries)
         alignment = bam_entries[b] ;
         if (alignment == nullptr) {
             break ;
+        }
+        if (alignment->core.flag & BAM_FUNMAP || alignment->core.flag & BAM_FSUPPLEMENTARY || alignment->core.flag & BAM_FSECONDARY) {
+            continue ;
+        }
+        if (alignment->core.l_qseq < 2) {
+            //cerr << "Read too short, ignoring.." << endl ;
+            continue ;
+        }
+        if (alignment->core.tid < 0) {
+            continue ;
         }
         // recover sequence
         uint32_t l = alignment->core.l_qseq ; //length of the read
@@ -406,13 +374,6 @@ vector<fastq_entry_t> SnpCorrector::process_batch_1(vector<bam1_t*> bam_entries)
             seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
         }
         seq[l] = '\0' ; // null terminate
-        if (l < 2) {
-            //cerr << "Read too short, ignoring.." << endl ;
-            continue ;
-        }
-        if (alignment->core.tid < 0) {
-            continue ;
-        }
         string chrom(bam_header->target_name[alignment->core.tid]) ;
         //correct_snps(alignment, limits, seq, chrom) ;
         fastq_entry_t fastq_entry = correct_read(alignment, seq, chrom) ;
@@ -423,31 +384,30 @@ vector<fastq_entry_t> SnpCorrector::process_batch_1(vector<bam1_t*> bam_entries)
 }
 
 // BAM writing based on https://www.biostars.org/p/181580/
-int SnpCorrector::pass(int index) {
+int SnpCorrector::correct_reads() {
     cout << "Running first pass.." << endl ;
     auto config = Configuration::getInstance() ;
     // parse arguments
     bam_file = hts_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
     auto out_path = config->workdir + "/corrected.fastq" ;
+    auto out_bam_path = config->workdir + "/corrected.bam" ;
     //cout << "Writing correct BAM to " << out_path << endl ;
-    //out_bam_file = sam_open(out_path.c_str(), "wb") ;
-    //int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
-    //if (r < 0) {
-    //    cerr << "Can't write corrected BAM header, aborting.." << endl ;
-    //}
+    out_bam_file = sam_open(out_bam_path.c_str(), "wb") ;
+    int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
+    if (r < 0) {
+        cerr << "Can't write corrected BAM header, aborting.." << endl ;
+    }
     std::ofstream out_file(out_path) ;
     // confidence scores 
-    //vector<vector<unordered_map<vcf_variant_t, int>>> batches ;
     vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
-        //batches.push_back(vector<unordered_map<vcf_variant_t, int>>(config->threads)) ; // previous and current output
         batches.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // previous and current output
     }
     int p = 0 ;
     int batch_size = 10000 ;
-    cerr << "Loading first batch" << endl ;
+    cerr << "Loading first batch.." << endl ;
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < config->threads; j++) {
             for (int k = 0; k <= batch_size / config->threads; k++) {
@@ -463,7 +423,9 @@ int SnpCorrector::pass(int index) {
     bool loaded_last_batch = false ;
     bool should_load = true ;
     bool should_process = true ;
+    bool should_terminate = false ;
     uint64_t u = 0 ;
+    int num_reads = 0 ;
     while (true) {
         cerr << "Beginning batch " << b + 1 << endl ;
         for (int i = 0 ; i < config->threads ; i++) {
@@ -480,13 +442,33 @@ int SnpCorrector::pass(int index) {
             if (i == 0) {
                 // write previous batch
                 if (b >= 1) {
-                    int ret ;
-                    for (int j = 0; j < config->threads; j++) {
-                        for (auto& fastq_entry: batches[(p + 1) % 2][j]) {
-                            out_file << "@" << fastq_entry.head << endl
-                                << fastq_entry.seq << endl
-                                << "+" << endl
-                                << fastq_entry.seq << endl ;
+                    // write FASTQ
+                    //for (int j = 0; j < config->threads; j++) {
+                    //    for (auto& fastq_entry: batches[(p + 1) % 2][j]) {
+                    //        out_file << "@" << fastq_entry.head << endl
+                    //            << fastq_entry.seq << endl
+                    //            << "+" << endl
+                    //            << fastq_entry.seq << endl ;
+                    //    }
+                    //}
+                    // write BAM
+                    int ret = 0 ;
+                    for (int k = 0; k < batch_size / config->threads; k++) {
+                        for (int j = 0; j < config->threads; j++) {
+                            if (bam_entries[(p + 1) % 2][j][k] != nullptr) {
+                                auto alignment = bam_entries[(p + 1) % 2][j][k] ;
+                                //if (alignment->core.flag & BAM_FUNMAP || alignment->core.flag & BAM_FSUPPLEMENTARY || alignment->core.flag & BAM_FSECONDARY) {
+                                //    continue ;
+                                //}
+                                ret = bam_write1(out_bam_file->fp.bgzf, bam_entries[(p + 1) % 2][j][k]);
+                                num_reads++ ;
+                                if (ret < 0) {
+                                    cerr << "Can't write corrected BAM record, aborting.." << endl ;
+                                    should_terminate = true ;
+                                }
+                            } else {
+                                break ;
+                            }
                         }
                     }
                 }
@@ -499,26 +481,18 @@ int SnpCorrector::pass(int index) {
                         cerr << "Loaded." << endl ;
                     }
                 }
+                //loaded_last_batch = true ;
             } else if (i == 1) {
                 // merge output of previous batch
-                // nothing to be merged
-                //if (b >= 1) {
-                //    int y = 0 ;
-                //    for (const auto &batch : batches[(p + 1) % 2]) {
-                //        y += batch.size() ;
-                //       for (auto it = batch.begin(); it != batch.end() ;it++) {
-                //            confidence_scores[it->first] += it->second ;
-                //        }
-                //    }
-                //    cerr << y << " total sequences." << endl ;
-                //}
-                //cerr << "Merged. " << confidence_scores.size() << " unique sequences." << endl ;
             } else {
                 // process current batch
                 if (should_process) {
-                    batches[p][i - 2] = process_batch_1(bam_entries[p][i - 2]) ;
+                    batches[p][i - 2] = process_batch(bam_entries[p][i - 2]) ;
                 }
             }
+        }
+        if (should_terminate) {
+            cerr << "Something went wrong, aborting.." << endl ;
         }
         if (!should_load) {
             cout << "Processed last batch of inputs." << endl ;
@@ -538,7 +512,8 @@ int SnpCorrector::pass(int index) {
     }
     cout << "Done." << endl ;
     sam_close(bam_file) ;
-    //sam_close(out_bam_file) ;
+    sam_close(out_bam_file) ;
+    cout << "Wrote " << num_reads << " reads." << endl ;
     return 0 ;
 }
 
@@ -547,7 +522,7 @@ bool SnpCorrector::load_batch_bam(int threads, int batch_size, int p) {
     int i = 0 ;
     while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
         n += 1 ;
-        if (n % threads == threads - 1) {
+        if (n % threads == 0) {
             i += 1 ;
         }
         if (n == batch_size) {
@@ -565,15 +540,3 @@ bool SnpCorrector::load_batch_bam(int threads, int batch_size, int p) {
     return n == batch_size ;
 }
 
-void write_bam_entry(bam1_t* b) {
-
-}
-
-void SnpCorrector::stats() {
-    int n = 0;
-    for (auto it = vcf_variants.begin(); it != vcf_variants.end(); it++) {
-        n += it->second.size() ;
-    }
-    cout << n << " total variants." << ends ;
-    cout << confidence_scores.size() << " variants with missing reads.." << endl ;
-}
