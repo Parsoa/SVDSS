@@ -25,6 +25,7 @@ __pycache__/
 *.bam
 *.txt
 *.o
+*.bed
 
 *.bin
 *.fmd

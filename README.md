@@ -40,19 +40,11 @@ Let's assume we have 3 samples A, B, and, C. To compute A-specific strings we ha
 ./PingPong search --index [B.index.bin] --fastq /path/to/sample/A --threads [nthreads]
 ```
 
-The algorithm will output a set of files named `solution_batch_<number>.fastq` with the list of A-specific strings. This is done to keep the memory usage constant. A string maybe repeated in multiple files and abundances from all files should be aggregated to represent final numbers.
-
-3. Aggregate output to a single fastq file:
-```
-./PingPong aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings> --batches <number of batches>
-```
-
-The `--batches` option should be set to the number of `solution_batch_<number>.fastq` files produced, e.g if the last file is `solution_batch_5.fastq` then `--batches` should be set to 6 (batch file index starts from zero).
-
-You can also directly aggregate output from the search step by adding `--aggregate --cutoff <value>` to the command in step 2 and then skip step 3.
-
-##### Additional output
-The algorithm will also output a set of files named `read_ids_batch_<number>.fasta` (and `read_ids_aggregated.fasta` if option `--aggregate` is used) containing for each specific string (odd lines) the identifiers (separated by a `$`) of the reads they come from (even lines).
+The algorithm will output a [BED]() file named `subfreespecstrings.bed` with the list of A-specific strings. Each string is defined in terms of:
+* identifier of the read it comes from
+* starting position on the read
+* length
+* number of occurrences (we note that from this first pass, this number is always set to 1)
 
 ### PingPong Algorithm Usage
 ```
@@ -65,8 +57,6 @@ Optional arguments:
 Usage: PingPong search --index /path/to/index/file --fastq /path/to/fastq [--threads threads]
 
 Optional arguments:
-    --aggregate           aggregate outputs directly
-    --cutoff              sets cutoff for minimum string abundance (tau, default:5)
     --workdir             create output files in this directory (default:.)
     --overlap -1/0        run the exact algorithm (-1) or the relaxed one (0) (default:0)
     -t, --threads         number of threads (default:4)
@@ -75,19 +65,18 @@ Optional arguments:
 ##### Notes
 * To append (`-a`) to an existing index, the existing index must be stored in binary format (`-b` option)
 * An index built with `--binary` cannot be queried. Use `--binary` only for indices that are meant to be later appended to.
-* The search output is stored in multiple `solution_batch_*.fastq` files (created in the current directory)
+* The output file iscreated in the current directory (if `--workdir` is not set)
 * Even when indexing a FASTA file, pass it with the `--fastq` option.
-* When aggregating, final results will consist of the canonical version of the specific strings found (lexicographical minimum between the string and its reverse-and-complement)
 
 ### Example
 
 ```
 ./PingPong index --binary --fastq example/father.fq --index example/father.fq.bin
 ./PingPong index --append example/father.fq.bin --fastq example/mother.fq --index example/index.fmd
-./PingPong search --index example/index.fmd --fastq example/child.fq --overlap -1 --workdir example --threads 1 --aggregate --cutoff 2
+./PingPong search --index example/index.fmd --fastq example/child.fq --overlap -1 --workdir example --threads 1
 ```
 
-This will output strings that are specific to `child.fq` in `example/solution_aggregated.fastq`.
+This will output strings that are specific to `child.fq` in `example/subfreespecstrings.bed`.
 
 ### Authors
 For inquiries on this software please open an [issue](https://github.com/Parsoa/PingPong/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
