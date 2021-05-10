@@ -3,6 +3,8 @@
 # Sample-specific string detection from accurate long reads
 Efficient computation of A-specific string w.r.t. a set {B,C,...,Z} of other long reads samples. A A-specific string is a string which occur only in sample A and not in the others. 
 
+**Note:** if you are looking for the _biorxiv_ implementation, please refer to [this release](https://github.com/Parsoa/PingPong/releases/tag/v1.0.0-pingpong).
+
 ##### Use-Cases
 * compute strings specific to child w.r.t. parents
 * compute strings specific to individual A from population P<sub>A</sub> w.r.t. individual B from population P<sub>B</sub>

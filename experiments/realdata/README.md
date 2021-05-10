@@ -26,6 +26,11 @@ g++ -std=c++11 -I ~/miniconda3/include/ -o kmc2fa kmc2fa.cpp -L ~/miniconda3/lib
 cd ..
 ```
 
+Move to PingPong v1.0.0:
+```
+git checkout v1.0.0-pingpong
+```
+
 ### Data download
 Get reference, contigs, and vcfs:
 ```
