@@ -42,11 +42,16 @@ Let's assume we have 3 samples A, B, and, C. To compute A-specific strings we ha
 ./PingPong search --index [B.index.bin] --fastq /path/to/sample/A --threads [nthreads]
 ```
 
-The algorithm will output a [BED]() file named `subfreespecstrings.bed` with the list of A-specific strings. Each string is defined in terms of:
+The algorithm will output a BED file named `subfreespecstrings.bed` with the list of A-specific strings. Each string is defined in terms of:
 * identifier of the read it comes from
 * starting position on the read
 * length
 * number of occurrences (we note that from this first pass, this number is always set to 1)
+
+3. Convert the BED to FASTQ (output to stdout):
+```
+./PingPong convert --fastq /path/to/sample/A --bed /path/to/subfreespecstrings.bed --cutoff 0 > subfreespecstrings.fq
+```
 
 ### PingPong Algorithm Usage
 ```

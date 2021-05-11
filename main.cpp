@@ -19,6 +19,7 @@
 #include "aggregator.hpp"
 #include "chromosomes.hpp"
 #include "snp_corrector.hpp"
+#include "converter.hpp"
 
 #ifdef LOCAL_BUILD
 #include "finder.hpp"
@@ -143,6 +144,12 @@ int main(int argc, char** argv) {
         create_workdir() ;
         auto aggregator = new Aggregator() ;
         aggregator->run() ;
+    }
+    else if (strcmp(argv[1], "convert") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        // create_workdir() ;
+        auto converter = new Converter() ;
+        converter->run() ;
     } else {
         print_help() ;
     }
