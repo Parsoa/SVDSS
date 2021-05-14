@@ -1,16 +1,4 @@
-#include <omp.h>
-#include <iomanip>
-#include <stdio.h>
-#include <fstream>
-#include <iostream>
-#include <stdlib.h>
-#include <assert.h>
-#include <string_view>
-
 #include "aggregator.hpp"
-#include "chromosomes.hpp"
-
-using namespace std ;
 
 void Aggregator::run() {
     auto c = Configuration::getInstance() ;

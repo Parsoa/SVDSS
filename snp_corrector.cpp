@@ -1,24 +1,4 @@
-#include <omp.h>
-#include <ctime>
-#include <chrono>
-#include <thread>
-#include <fstream>
-#include <iomanip>
-#include <assert.h>
-#include <iostream>
-#include <pthread.h>
-
-#include "config.hpp"
-#include "chromosomes.hpp"
 #include "snp_corrector.hpp"
-
-using namespace std ;
-
-#define BAM_CIGAR_MASK  0xf
-#define BAM_CIGAR_TYPE  0x3C1A7
-
-//TODO: why did I have to redefine this?
-#define bam_set_seqi(s,i,b) ((s)[(i)>>1] = ((s)[(i)>>1] & (0xf0 >> ((~(i)&1)<<2))) | ((b)<<((~(i)&1)<<2)))
 
 void SnpCorrector::run() {
     auto c = Configuration::getInstance() ;

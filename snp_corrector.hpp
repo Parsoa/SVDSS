@@ -4,18 +4,34 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-
+#include <omp.h>
+#include <ctime>
+#include <chrono>
+#include <thread>
+#include <fstream>
+#include <iomanip>
+#include <assert.h>
+#include <iostream>
+#include <pthread.h>
 #include <zlib.h>
 #include <htslib/hts.h>
 #include <htslib/sam.h>
 #include <htslib/bgzf.h>
 #include <htslib/hfile.h>
-#include "htslib/hfile.h"
-#include "htslib/hts_endian.h"
+#include <htslib/hts_endian.h>
 
+#include "chromosomes.hpp"
 #include "vcf.hpp"
 #include "fastq.hpp"
 #include "config.hpp"
+
+using namespace std ;
+
+#define BAM_CIGAR_MASK  0xf
+#define BAM_CIGAR_TYPE  0x3C1A7
+
+//TODO: why did I have to redefine this?
+#define bam_set_seqi(s,i,b) ((s)[(i)>>1] = ((s)[(i)>>1] & (0xf0 >> ((~(i)&1)<<2))) | ((b)<<((~(i)&1)<<2)))
 
 class SnpCorrector {
 

@@ -1,13 +1,4 @@
-#include "omp.h"
-#include <vector>
-#include <fstream>
-#include <sstream>
-#include <iostream>
-
-#include "config.hpp"
 #include "counter.hpp"
-
-using namespace std ;
 
 void Counter::load_counts(string base) {
     auto c = Configuration::getInstance() ;

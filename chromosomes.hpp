@@ -5,8 +5,11 @@
 #include <string>
 #include <fstream>
 #include <unordered_map>
+#include <iomanip>
 
 #include "config.hpp"
+
+using namespace std ;
 
 extern std::vector<std::string> chromosomes ;
 extern std::unordered_map<std::string, char*> chromosome_seqs ;

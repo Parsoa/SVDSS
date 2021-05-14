@@ -1,13 +1,4 @@
-#include <string>
-#include <fstream>
-#include <stdlib.h>
-#include <iostream>
-#include <assert.h>
-#include <unordered_map>
-
 #include "bed_utils.hpp"
-
-using namespace std ;
 
 bool track_comparator(Track a, Track b) {
     if (a.chrom[3] == b.chrom[3]) {

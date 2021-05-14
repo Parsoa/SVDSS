@@ -4,6 +4,18 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <omp.h>
+#include <iomanip>
+#include <stdio.h>
+#include <fstream>
+#include <iostream>
+#include <stdlib.h>
+#include <assert.h>
+#include <string_view>
+
+#include "chromosomes.hpp"
+
+using namespace std ;
 
 class Aggregator {
 

@@ -1,9 +1,4 @@
-#include <string>
-#include <iostream>
-
 #include "config.hpp"
-
-using namespace std ;
 
 Configuration* Configuration::instance = nullptr ;
 

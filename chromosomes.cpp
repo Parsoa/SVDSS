@@ -1,8 +1,4 @@
-#include <iomanip>
-
 #include "chromosomes.hpp"
-
-using namespace std ;
 
 std::vector<std::string> chromosomes ;
 std::unordered_map<std::string, char*> chromosome_seqs ;

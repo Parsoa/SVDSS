@@ -9,6 +9,17 @@
 #include <iterator>
 #include <unordered_map>
 #include <sstream>
+#include <omp.h>
+#include <ctime>
+#include <chrono>
+#include <string>
+#include <vector>
+#include <thread>
+#include <fstream>
+#include <iomanip>
+#include <assert.h>
+#include <iostream>
+#include <pthread.h>
 
 #include "rle.h"
 #include "rld0.h"
@@ -23,6 +34,16 @@
 #include "htslib/hts_endian.h"
 #include "fastq.hpp"
 #include "config.hpp"
+
+using namespace std ;
+
+#ifdef DEBUG_MODE
+#  define DEBUG(x) x
+#  define NEBUG(x)
+#else
+#  define DEBUG(x)
+#  define NEBUG(x) x
+#endif
 
 #define fm6_comp(a) ((a) >= 1 && (a) <= 4? 5 - (a) : (a))
 
