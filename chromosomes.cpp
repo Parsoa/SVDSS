@@ -1,5 +1,7 @@
 #include "chromosomes.hpp"
 
+KSEQ_INIT(gzFile, gzread)
+
 std::vector<std::string> chromosomes ;
 std::unordered_map<std::string, char*> chromosome_seqs ;
 
@@ -37,43 +39,22 @@ int get_reference_size(ifstream &fasta_file) {
 
 void load_chromosomes(string path) {
   lprint({"Loading reference genome from", path, ".."});
-    ifstream fasta_file ;
-    fasta_file.open(path, ios::binary) ;
-    // maximum size of a chromosome, kinda arbitrary
-    char* buffer = (char*) malloc(sizeof(char) * 300000000) ;
-    int state ;
-    uint64_t n = 0 ;
-    std::string line ;
-    std::getline(fasta_file, line) ;
-    while (true) {
-        if (line.substr(0, 4) == ">chr") {
-            int l = line.length() ;
-                if (line[4] == 'X' || line[4] == 'Y' || (line[4] >= '1' && line[4] <= '9')) {
-                    string chrom = line.substr(1, l - 1) ;
-                    //cout << "Collecting " << chrom << ".." << endl ;
-                    while(std::getline(fasta_file, line)) {
-                         if (line[0] == '>') {
-                             break ;
-                         }
-                         for (int i = 0; i < line.length(); i++) {
-                            line[i] = toupper(line[i]) ;
-                         }
-                         memcpy(buffer + n, line.c_str(), line.length()) ;
-                         n += line.length() ;
-                    }
-                    buffer[n] = '\0' ;
-                    cerr << "[I] Extracted " << std::setw(6) << std::left << chrom << " with " << std::setw(11) << left << n << " bases." << endl ;
-                    char* s = (char*) malloc(sizeof(char) * (n + 1)) ;
-                    memcpy(s, buffer, n + 1) ;
-                    chromosomes.push_back(chrom) ;
-                    chromosome_seqs[chrom] = s ;
-                    n = 0 ;
-                    continue ;
-                }
-        } 
-        if (!std::getline(fasta_file, line)) {
-            break ;
-        }
-    }
-    free(buffer) ;
+  gzFile fp = gzopen(path.c_str(), "r");
+  kseq_t *seq = kseq_init(fp);
+  int l;
+  while ((l = kseq_read(seq)) >= 0) {
+    lprint({"Extracted", seq->name.s, "with", to_string(l), "bases"});
+    for(uint i = 0; i<l; ++i)
+      seq->seq.s[i] = toupper(seq->seq.s[i]);
+    chromosomes.push_back(seq->name.s);
+    char* s = (char*) malloc(sizeof(char) * (l + 1)) ;
+    memcpy(s, seq->seq.s, l + 1) ;
+    s[l] = '\0';
+    chromosome_seqs[seq->name.s] = s;
+  }
+  kseq_destroy(seq);
+  gzclose(fp);
+
+  for(const auto s : chromosomes)
+    cerr << s << endl;
 }
