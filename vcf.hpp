@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <math.h>
 
+#include "lprint.hpp"
+
 using namespace std ;
 
 struct vcf_variant_t {

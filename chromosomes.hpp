@@ -8,6 +8,7 @@
 #include <iomanip>
 
 #include "config.hpp"
+#include "lprint.hpp"
 
 using namespace std ;
 

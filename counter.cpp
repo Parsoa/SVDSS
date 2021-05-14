@@ -2,7 +2,7 @@
 
 void Counter::load_counts(string base) {
     auto c = Configuration::getInstance() ;
-    cout << "loading counts.." << endl ;
+    lprint({"loading counts.."});
     vector<unordered_map<string, int>> _counts(c->batch_size) ;
     #pragma omp parallel for num_threads(c->threads)
     for (int j = 0; j < c->batch_size; j++) {
@@ -27,7 +27,7 @@ void Counter::load_counts(string base) {
         }
         txt_file.close() ;
     }
-    cout << "Merging.." << endl ;
+    lprint({"Merging.."});
     for (int j = 0; j < c->batch_size; j++) {
         for (auto it = _counts[j].begin(); it != _counts[j].end(); it++) {
             if (counts.find(it->first) == counts.end()) {
@@ -36,5 +36,5 @@ void Counter::load_counts(string base) {
             counts[it->first] += it->second ;
         }
     }
-    cout << "Loaded " << counts.size() << " counts." << endl ;
+    lprint({"Loaded", to_string(counts.size()), "counts."});
 }

@@ -180,7 +180,7 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
             return true ;
         }
     }
-    cout << "Loaded " << n << " BAM reads.." << endl ;
+    lprint({"Loaded", to_string(n), "BAM reads.."});
     return n != 0 ? true : false ;
 }
 
@@ -194,11 +194,11 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
         fastq_entries[p][n % threads].push_back(fastq_entry_t(fastq_iterator->name.s, fastq_iterator->seq.s, fastq_iterator->qual.s)) ;
         n += 1 ;
         if (n == batch_size) {
-          cout << "Loaded " << n << " FASTQ reads.." << endl ;
+          lprint({"Loaded", to_string(n), "FASTQ reads.."});
             return true ;
         }
     }
-    cout << "Loaded " << n << " FASTQ reads.." << endl ;
+    lprint({"Loaded", to_string(n), "FASTQ reads.."});
     return n != 0 ? true : false ;
 }
 
@@ -240,7 +240,7 @@ void PingPong::output_batch(void* args) {
     auto c = Configuration::getInstance();
     int batch = ((OutputBatchArgs*) args)->batch;
     string path = c->workdir + "/solution_batch_" + std::to_string(batch - 1) + ".sfs";
-    cout << "Outputting to " << path << endl;
+    lprint({"Outputting to", path});
     std::ofstream o(path);
     for(const auto &batch : batches[((OutputBatchArgs*) args)->p])
         for(const auto &it : batch)
@@ -266,26 +266,26 @@ void PingPong::store_output_batch(uint p)
 int PingPong::search() {
     config = Configuration::getInstance() ;
     // parse arguments
-    cout << "Restoring index.." << endl ;
+    lprint({"Restoring index.."});
     rld_t *index = rld_restore(config->index.c_str()) ;
-    cout << "Done." << endl ;
+    lprint({"Done."});
     int mode = 0 ;
     if (config->fastq != "") {
-        cout << "FASTQ input: " << config->fastq << endl ;
+      lprint({"FASTQ input:", config->fastq});
         fastq_file = gzopen(config->fastq.c_str(), "r") ;
         fastq_iterator = kseq_init(fastq_file) ;
     } else if (config->bam != "") {
-        cout << "BAM input.." << endl ;
+      lprint({"BAM input.."});
         bam_file = hts_open(config->bam.c_str(), "r") ;
         bam_header = sam_hdr_read(bam_file) ; //read header
         mode = 1 ;
     } else {
-        cerr << "No input file provided, aborting.." << endl ;
+      lprint({"No input file provided, aborting.."}, 2);
         exit(1) ;
     }
-    cout << "Extracting SFS strings.." << endl ;
-    cout << "Overlap = " << config->overlap << endl ;
-    cout << "Minimum length = " << config->min_string_length << endl ;
+    lprint({"Extracting SFS strings.."});
+    lprint({"Overlap =", to_string(config->overlap)});
+    lprint({"Minimum length =", to_string(config->min_string_length)});
     // load first batch
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
@@ -294,11 +294,11 @@ int PingPong::search() {
     }
     int p = 0 ;
     int batch_size = 10000 ;
-    cerr << "Loading first batch" << endl ;
+    lprint({"Loading first batch"});
     if (mode == 0) {
         load_batch_fastq(config->threads, batch_size, p) ;
     } else {
-        cout << "Allocating BAM buffers.." << endl ;
+        lprint({"Allocating BAM buffers.."});
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < config->threads; j++) {
                 for (int k = 0; k <= batch_size / config->threads; k++) {
@@ -322,7 +322,7 @@ int PingPong::search() {
     ofstream ofile (path);
 
     while (true) {
-        cerr << "Beginning batch " << b + 1 << endl ;
+      lprint({"Beginning batch", to_string(b + 1)});
         uint64_t v = u ;
         for (int i = 0 ; i < config->threads ; i++) {
             u += fastq_entries[p][i].size() ;
@@ -343,7 +343,7 @@ int PingPong::search() {
                     } else {
                         loaded_last_batch = !load_batch_bam(config->threads, batch_size, (p + 1) % 2) ;
                     }
-                    cerr << "Loaded." << endl ;
+                    lprint({"Loaded."});
                 }
             } else if (i == 1) {
                 // store previous output
@@ -357,11 +357,11 @@ int PingPong::search() {
         }
 
 	if (!should_load) {
-	  cout << "Processed last batch of inputs." << endl ;
+	  lprint({"Processed last batch of inputs."});
         }
 
 	// dump output to file
-	cout << "Dumping to " << path << endl;
+	lprint({"Dumping to", path});
 	ofile << ostream.str();
 	ostreamsize = 0;
 	ostream.str("");
@@ -379,13 +379,13 @@ int PingPong::search() {
         if (s - t == 0) {
             s += 1 ;
         }
-        cerr << "Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+        cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
     }
 
     // dump last output
     // store_output_batch((p+1)%2);
     if (ostreamsize > 0) {
-      cout << "Dumping to " << path << endl;
+      lprint({"Dumping to", path});
       ofile << ostream.str();
       ostreamsize = 0;
       ostream.str("");
@@ -417,9 +417,9 @@ int PingPong::index() {
     bool binary_output = c->binary ;
     if (c->append != "") {
         FILE *fp ;
-        cout << "Appending index: " << c->append << endl ;
+        lprint({"Appending index:", c->append});
         if ((fp = fopen(c->append.c_str(), "rb")) == 0) {
-            cerr << "Failed to open file " << c->append << endl ;
+	  lprint({"Failed to open file", c->append}, 2);
             return 1 ;
         }
         mr = mr_restore(fp) ;
@@ -513,7 +513,7 @@ int PingPong::index() {
 bool PingPong::query(string q) {
     config = Configuration::getInstance() ;
     // parse arguments
-    cout << "Restoring index.." << endl ;
+    lprint({"Restoring index.."});
     rld_t *index = rld_restore(config->index.c_str()) ;
     int l = q.length() ;
     uint8_t *p = (uint8_t*) q.c_str() ;

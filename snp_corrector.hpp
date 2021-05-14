@@ -24,6 +24,7 @@
 #include "vcf.hpp"
 #include "fastq.hpp"
 #include "config.hpp"
+#include "lprint.hpp"
 
 using namespace std ;
 

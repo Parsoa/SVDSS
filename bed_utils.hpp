@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "lprint.hpp"
+
 using namespace std ;
 
 struct Locus {

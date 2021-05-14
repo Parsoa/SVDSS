@@ -15,6 +15,7 @@
 #include <unordered_map>
 
 #include "config.hpp"
+#include "lprint.hpp"
 #include "ping_pong.hpp"
 #include "aggregator.hpp"
 #include "chromosomes.hpp"
@@ -40,12 +41,12 @@ using namespace std ;
 void create_workdir() {
     auto c = Configuration::getInstance() ;
     struct stat info ;
-    cout << c->workdir << endl ;
+    lprint({c->workdir}, 0);
     if (stat(c->workdir.c_str(), &info) != 0) {
-        cout << "Working directory does not exist. creating.." << endl ;
+      lprint({"Working directory does not exist. creating.."}, 0);
         int check = mkdir(c->workdir.c_str(), 0777) ;
         if (check != 0) {
-            cerr << "Failed to create output directory, aborting.." << endl ;
+	  lprint({"Failed to create output directory, aborting.."}, 2);
             exit(check) ;
         }
     }
@@ -69,7 +70,7 @@ void print_help() {
 }
 
 int main(int argc, char** argv) {
-    cout << "Ping-pong, comparative genome analysis using sample-specific string detection in accurate long reads." << endl ;
+    cerr << "Ping-pong, comparative genome analysis using sample-specific string detection in accurate long reads." << endl ;
     auto c = Configuration::getInstance() ;
     if (argc == 1) {
         print_help() ;
@@ -120,7 +121,7 @@ int main(int argc, char** argv) {
         c->parse(argc - 2, argv + 2) ;
         auto pingpong = new PingPong() ;
         bool b = pingpong->query(string(argv[2])) ;
-        cout << (b ? "SFS" : "Not SFS") << endl ;
+        cerr << (b ? "SFS" : "Not SFS") << endl ;
     }
     else if (strcmp(argv[1], "search") == 0) {
         c->parse(argc - 1, argv + 1) ;

@@ -365,7 +365,7 @@ vector<fastq_entry_t> SnpCorrector::process_batch(vector<bam1_t*> bam_entries) {
 
 // BAM writing based on https://www.biostars.org/p/181580/
 int SnpCorrector::correct_reads() {
-    cout << "Running first pass.." << endl ;
+  lprint({"Running first pass.."});
     auto config = Configuration::getInstance() ;
     // parse arguments
     bam_file = hts_open(config->bam.c_str(), "r") ;
@@ -376,7 +376,7 @@ int SnpCorrector::correct_reads() {
     out_bam_file = sam_open(out_bam_path.c_str(), "wb") ;
     int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
     if (r < 0) {
-        cerr << "Can't write corrected BAM header, aborting.." << endl ;
+      lprint({"Can't write corrected BAM header, aborting.."}, 2);
     }
     std::ofstream out_file(out_path) ;
     // confidence scores 
@@ -387,7 +387,7 @@ int SnpCorrector::correct_reads() {
     }
     int p = 0 ;
     int batch_size = 10000 ;
-    cerr << "Loading first batch.." << endl ;
+    lprint({"Loading first batch.."});
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < config->threads; j++) {
             for (int k = 0; k <= batch_size / config->threads; k++) {
@@ -407,7 +407,7 @@ int SnpCorrector::correct_reads() {
     uint64_t u = 0 ;
     int num_reads = 0 ;
     while (true) {
-        cerr << "Beginning batch " << b + 1 << endl ;
+      lprint({"Beginning batch", to_string(b + 1)});
         for (int i = 0 ; i < config->threads ; i++) {
             u += bam_entries[p][i].size() ;
         }
@@ -443,7 +443,7 @@ int SnpCorrector::correct_reads() {
                                 ret = bam_write1(out_bam_file->fp.bgzf, bam_entries[(p + 1) % 2][j][k]);
                                 num_reads++ ;
                                 if (ret < 0) {
-                                    cerr << "Can't write corrected BAM record, aborting.." << endl ;
+				  lprint({"Can't write corrected BAM record, aborting.."}, 2);
                                     should_terminate = true ;
                                 }
                             } else {
@@ -456,9 +456,9 @@ int SnpCorrector::correct_reads() {
                 if (should_load) {
                     loaded_last_batch = !load_batch_bam(config->threads, batch_size, (p + 1) % 2) ;
                     if (loaded_last_batch) {
-                        cout << "Last input batch loaded." << endl ;
+		      lprint({"Last input batch loaded."});
                     } else {
-                        cerr << "Loaded." << endl ;
+		      lprint({"Loaded."});
                     }
                 }
                 //loaded_last_batch = true ;
@@ -472,10 +472,10 @@ int SnpCorrector::correct_reads() {
             }
         }
         if (should_terminate) {
-            cerr << "Something went wrong, aborting.." << endl ;
+	  lprint({"Something went wrong, aborting.."}, 2);
         }
         if (!should_load) {
-            cout << "Processed last batch of inputs." << endl ;
+	  lprint({"Processed last batch of inputs."});
         }
         if (!should_process) {
             break ;
@@ -488,12 +488,12 @@ int SnpCorrector::correct_reads() {
         if (s - t == 0) {
             s += 1 ;
         }
-        cerr << "Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+        cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
     }
-    cout << "Done." << endl ;
+	   lprint({"Done."});
     sam_close(bam_file) ;
     sam_close(out_bam_file) ;
-    cout << "Wrote " << num_reads << " reads." << endl ;
+    lprint({"Wrote", to_string(num_reads), "reads."});
     return 0 ;
 }
 
@@ -516,7 +516,7 @@ bool SnpCorrector::load_batch_bam(int threads, int batch_size, int p) {
             bam_entries[p][j][i + 1] = nullptr ;
         }
     }
-    cout << "Loaded " << n << " BAM reads.." << endl ;
+    lprint({"Loaded", to_string(n), "BAM reads.."});
     return n == batch_size ;
 }
 

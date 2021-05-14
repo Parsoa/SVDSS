@@ -34,6 +34,7 @@
 #include "htslib/hts_endian.h"
 #include "fastq.hpp"
 #include "config.hpp"
+#include "lprint.hpp"
 
 using namespace std ;
 

@@ -10,7 +10,7 @@ void Aggregator::run() {
 void Aggregator::find_high_abundance_sequences() {
     auto c = Configuration::getInstance() ;
     num_batches = c->aggregate_batches ;
-    cout << "Finding high-abundance strings from " << num_batches << " batches.." << endl ;
+    lprint({"Finding high-abundance strings from", to_string(num_batches), "batches.."});
     vector<unordered_map<int, int>> _sequences(num_batches) ;
     int e = 0 ;
     // cout first pass
@@ -41,9 +41,9 @@ void Aggregator::find_high_abundance_sequences() {
         }
         txt_file.close() ;
     }
-    cout << "Merging batches.." << endl ;
+    lprint({"Merging batches.."});
     for (int j = 0; j < num_batches; j++) {
-        cout << "Batch " << j << " with " << _sequences[j].size() << " sequences." << endl ;
+      lprint({"Batch", to_string(j), "with", to_string(_sequences[j].size()), "sequences."});
         for (auto it = _sequences[j].begin(); it != _sequences[j].end(); it++) {
             if (sequence_index.find(it->first) == sequence_index.end()) {
                 sequence_index[it->first] = 0 ;
@@ -52,7 +52,7 @@ void Aggregator::find_high_abundance_sequences() {
         }
         _sequences[j].clear() ;
     }
-    cout << "Loaded " << sequence_index.size() << " SFS sequences." << endl ;
+    lprint({"Loaded", to_string(sequence_index.size()), "SFS sequences."});
     auto it = sequence_index.begin();
     while (it != sequence_index.end()) {
         if (it->second < c->cutoff) {
@@ -61,13 +61,13 @@ void Aggregator::find_high_abundance_sequences() {
             it++ ;
         }
     }
-    cout << sequence_index.size() << " high-abundance sequences found." << endl ;
+    lprint({to_string(sequence_index.size()), "high-abundance sequences found."});;
 }
 
 void Aggregator::load_sequences() {
     auto c = Configuration::getInstance() ;
     num_batches = c->aggregate_batches ;
-    cout << "Loading sequences from " << num_batches << " batches.." << endl ;
+    lprint({"Loading sequences from", to_string(num_batches), "batches.."});
     vector<unordered_map<string, int>> _sequences(num_batches) ;
     vector<unordered_map<string, unordered_map<string, int>>> _read_ids(num_batches) ;
     int e = 0 ;
@@ -122,9 +122,9 @@ void Aggregator::load_sequences() {
         txt_file.close() ;
         id_txt_file.close() ;
     }
-    cout << "Merging.." << endl ;
+    lprint({"Merging.."});
     for (int j = 0; j < num_batches; j++) {
-        cout << "Batch " << j << " with " << _sequences[j].size() << " sequences." << endl ;
+      lprint({"Batch", to_string(j), "with", to_string(_sequences[j].size()), "sequences."});
         for (auto it = _sequences[j].begin(); it != _sequences[j].end(); it++) {
             if (sequences.find(it->first) == sequences.end()) {
                 sequences[it->first] = 0 ;
@@ -134,12 +134,12 @@ void Aggregator::load_sequences() {
         }
         _sequences[j].clear() ;
     }
-    cout << "Loaded " << sequences.size() << " seuqences." << endl ;
+    lprint({"Loaded", to_string(sequences.size()), "seuqences."});
 }
 
 void Aggregator::dump_sequences() {
     auto c = Configuration::getInstance() ;
-    cout << "Dumping aggregated counts.." << endl ;
+    lprint({"Dumping aggregated counts.."});
     string path = c->workdir + "/solution_aggregated.fastq" ;
     string id_path = c->workdir + "/read_ids_aggregated.fasta" ;
     ofstream o(path) ;
@@ -166,5 +166,5 @@ void Aggregator::dump_sequences() {
         }
         i += 1 ;
     }
-    cout << n << " useful sequences remaining." << endl ;
+    lprint({to_string(n), "useful sequences remaining."});
 }

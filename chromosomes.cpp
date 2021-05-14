@@ -36,7 +36,7 @@ int get_reference_size(ifstream &fasta_file) {
 }
 
 void load_chromosomes(string path) {
-    cout << "Loading reference genome from " << path << ".." << endl ;
+  lprint({"Loading reference genome from", path, ".."});
     ifstream fasta_file ;
     fasta_file.open(path, ios::binary) ;
     // maximum size of a chromosome, kinda arbitrary
@@ -62,7 +62,7 @@ void load_chromosomes(string path) {
                          n += line.length() ;
                     }
                     buffer[n] = '\0' ;
-                    cout << "Extracted " << std::setw(6) << std::left << chrom << " with " << std::setw(11) << left << n << " bases." << endl ;
+                    cerr << "[I] Extracted " << std::setw(6) << std::left << chrom << " with " << std::setw(11) << left << n << " bases." << endl ;
                     char* s = (char*) malloc(sizeof(char) * (n + 1)) ;
                     memcpy(s, buffer, n + 1) ;
                     chromosomes.push_back(chrom) ;

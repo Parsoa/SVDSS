@@ -13,7 +13,7 @@ string Track::get_name() const {
 }
 
 std::vector<Track> load_tracks_from_file(string path) {
-    cout << "Parsing BED file: " << path << ".." << endl ;
+  lprint({"Parsing BED file:", path, ".."});
     std::ifstream bed_file(path) ;
     std::string line ;
     int i = 0 ;
@@ -23,7 +23,7 @@ std::vector<Track> load_tracks_from_file(string path) {
         istringstream iss(line) ;
         if (i == 0) {
             if (line[0] != '#') {
-                cout << "BED header not present (first line doesn't begin with #). Aborting.." << endl ;
+	      lprint({"BED header not present (first line doesn't begin with #). Aborting.."}, 2);
             }
             vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
             for (int i = 0; i < tokens.size(); i++) {
@@ -41,7 +41,7 @@ std::vector<Track> load_tracks_from_file(string path) {
             tracks.push_back(track) ;
         }
     }
-    cout << "Loaded " << tracks.size() << " tracks." << endl ;
+    lprint({"Loaded", to_string(tracks.size()), "tracks."});
     return tracks ;
 }
 
