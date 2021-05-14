@@ -3,6 +3,16 @@
 
 #include <string>
 #include <unordered_map>
+#include "omp.h"
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+
+#include "config.hpp"
+#include "lprint.hpp"
+
+using namespace std ;
 
 class Counter {
 

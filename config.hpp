@@ -3,9 +3,12 @@
 
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "cxxopts.hpp"
 #include "bed_utils.hpp"
+
+using namespace std ;
 
 class Configuration {
 

@@ -2,13 +2,19 @@
 #define VCF_HPP
 
 #include <vector>
-#include <string> 
+#include <string>
+#include <iterator>
 #include <fstream>
 #include <sstream>
 #include <stdlib.h>
 #include <iostream>
 #include <algorithm>
 #include <unordered_map>
+#include <math.h>
+
+#include "lprint.hpp"
+
+using namespace std ;
 
 struct vcf_variant_t {
     std::string chrom ;

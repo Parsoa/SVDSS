@@ -3,10 +3,18 @@
 
 #include <vector>
 #include <string>
+#include <unordered_map>
 #include <sstream>
 #include <iostream>
 #include <iterator>
 #include <algorithm>
+#include <fstream>
+#include <stdlib.h>
+#include <assert.h>
+
+#include "lprint.hpp"
+
+using namespace std ;
 
 struct Locus {
     std::string chrom ;

@@ -5,8 +5,14 @@
 #include <string>
 #include <fstream>
 #include <unordered_map>
+#include <iomanip>
+#include <zlib.h>
 
+#include "kseq.h"
 #include "config.hpp"
+#include "lprint.hpp"
+
+using namespace std ;
 
 extern std::vector<std::string> chromosomes ;
 extern std::unordered_map<std::string, char*> chromosome_seqs ;

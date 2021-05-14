@@ -1,15 +1,4 @@
-#include <math.h>
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <iterator>
-#include <stdlib.h>
-#include <iostream>
-#include <algorithm>
-
 #include "vcf.hpp"
-
-using namespace std ;
 
 unordered_map<string, vector<vcf_variant_t>> load_vcf_file(string path) {
     std::unordered_map<std::string, std::vector<vcf_variant_t>> vcf_variants ;
@@ -49,6 +38,6 @@ unordered_map<string, vector<vcf_variant_t>> load_vcf_file(string path) {
             n++ ;
         }
     }
-    cout << "Loaded " << n << " variants from " << path << endl ;
+    lprint({"Loaded", to_string(n), "variants from", path});
     return vcf_variants ;
 }
