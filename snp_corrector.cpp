@@ -17,82 +17,11 @@ using namespace std ;
 #define BAM_CIGAR_MASK  0xf
 #define BAM_CIGAR_TYPE  0x3C1A7
 
-//TODO: why did I have to redefine this?
-#define bam_set_seqi(s,i,b) ((s)[(i)>>1] = ((s)[(i)>>1] & (0xf0 >> ((~(i)&1)<<2))) | ((b)<<((~(i)&1)<<2)))
-
 void SnpCorrector::run() {
     auto c = Configuration::getInstance() ;
     load_chromosomes(c->reference) ;
     correct_reads() ;
 }
-
-//int binary_search(vector<vcf_variant_t>& a, int begin, int end, int q, int dir) {
-//    //cout << "Binary search between " << begin << " and " << end << endl ;
-//    int m = (begin + end) / 2 ;
-//    if (begin == end || m == begin) {
-//        return  -1 ;
-//    }
-//    if (a[m].pos + a[m].svlen >= q && a[m].pos <= q) {
-//        // for SNPs this is the as checking a[m].pos == q
-//        return m ;
-//    }
-//    if (a[m].pos < q && a[m].pos + a[m].svlen < q) {
-//        if (m != a.size() - 1) {
-//            if (a[m + 1].pos >= q) {
-//                if (dir == 0) {
-//                    return m + 1 ;
-//                } else {
-//                    return m ;
-//                }
-//            }
-//            return binary_search(a, m, end, q, dir) ;
-//        } else {
-//            if (dir == 1) {
-//                return m ;
-//            } else {
-//                return -1 ;
-//            }
-//        }
-//    }
-//    if (a[m].pos > q) {
-//        if (m != 0) {
-//            if (a[m - 1].pos <= q) {
-//                if (dir == 0) {
-//                    return m ;
-//                } else {
-//                    return m - 1 ;
-//                }
-//            }
-//            return binary_search(a, begin, m, q, dir) ;
-//        } else {
-//            if (dir == 0) {
-//                return m ;
-//            } else {
-//                return -1 ;
-//            }
-//        }
-//    }
-//    assert("Shouldn't be here.") ;
-//    return -1 ;
-//}
-//
-//std::pair<int, int> SnpCorrector::find_variants_in_read(int pos, int len, string chrom) {
-//    if (vcf_variants.find(chrom) == vcf_variants.end()) {
-//        return std::make_pair(-1, -1) ;
-//    }
-//    // bonary search in variants on the given chromosome
-//    vector<vcf_variant_t>& chrom_variants = vcf_variants[chrom] ;
-//    //cout << "Searching for read @" << chrom << " between " << pos << " - " << pos + len << " among " << chrom_variants.size() << " variants." << endl ;
-//    int begin = binary_search(chrom_variants, 0, chrom_variants.size() - 1, pos, 0) ;
-//    if (begin == -1) {
-//        return std::make_pair(-1, -1) ;
-//    }
-//    int end = binary_search(chrom_variants, begin + 1, chrom_variants.size() - 1, pos + len - 1, 1) ;
-//    if (begin != -1 && end != -1) {
-//        assert(chrom_variants[begin].pos >= pos && chrom_variants[end].pos <= pos + len - 1) ;
-//    }
-//    return std::make_pair(begin, end) ;
-//} 
 
 char reverse_complement_base(char base) {
     if (base == 'C' || base == 'c') {
@@ -154,9 +83,7 @@ vector<pair<uint32_t, uint32_t>> decode_cigar(bam1_t* read) {
         uint32_t type = cigar[i] & cigar_type_mask ;
         uint32_t length = cigar[i] >> 4 ;
         cigar_offsets.push_back(make_pair(length, type)) ;
-        //cout << length << print_cigar_symbol(type) ;
     }
-    //cout << endl ;
     return cigar_offsets ;
 }
 
@@ -360,6 +287,10 @@ vector<fastq_entry_t> SnpCorrector::process_batch(vector<bam1_t*> bam_entries) {
         if (alignment->core.tid < 0) {
             continue ;
         }
+        string chrom(bam_header->target_name[alignment->core.tid]) ;
+        if (chromosome_seqs.find(chrom) == chromosome_seqs.end()) {
+            continue ;
+        }
         // recover sequence
         uint32_t l = alignment->core.l_qseq ; //length of the read
         if (l > len) {
@@ -374,8 +305,8 @@ vector<fastq_entry_t> SnpCorrector::process_batch(vector<bam1_t*> bam_entries) {
             seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
         }
         seq[l] = '\0' ; // null terminate
-        string chrom(bam_header->target_name[alignment->core.tid]) ;
         //correct_snps(alignment, limits, seq, chrom) ;
+        //cout << bam_get_qname(alignment) << " " << bam_header->target_name[alignment->core.tid] << " " << alignment->core.mpos << endl ;
         fastq_entry_t fastq_entry = correct_read(alignment, seq, chrom) ;
         output.push_back(fastq_entry) ;
     }
@@ -390,15 +321,15 @@ int SnpCorrector::correct_reads() {
     // parse arguments
     bam_file = hts_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
-    auto out_path = config->workdir + "/corrected.fastq" ;
-    auto out_bam_path = config->workdir + "/corrected.bam" ;
+    //auto out_path = config->workdir + "/reconstructed.fastq" ;
+    auto out_bam_path = config->workdir + "/reconstructed.bam" ;
     //cout << "Writing correct BAM to " << out_path << endl ;
     out_bam_file = sam_open(out_bam_path.c_str(), "wb") ;
     int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
     if (r < 0) {
-        cerr << "Can't write corrected BAM header, aborting.." << endl ;
+        cerr << "Can't write reconstructed BAM header, aborting.." << endl ;
     }
-    std::ofstream out_file(out_path) ;
+    //std::ofstream out_file(out_path) ;
     // confidence scores 
     vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
@@ -406,6 +337,7 @@ int SnpCorrector::correct_reads() {
         batches.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // previous and current output
     }
     int p = 0 ;
+    int b = 0 ;
     int batch_size = 10000 ;
     cerr << "Loading first batch.." << endl ;
     for (int i = 0; i < 2; i++) {
@@ -419,11 +351,10 @@ int SnpCorrector::correct_reads() {
     // main loop
     time_t t ;
     time(&t) ;
-    int b = 0 ;
-    bool loaded_last_batch = false ;
     bool should_load = true ;
     bool should_process = true ;
     bool should_terminate = false ;
+    bool loaded_last_batch = false ;
     uint64_t u = 0 ;
     int num_reads = 0 ;
     while (true) {
