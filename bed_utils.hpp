@@ -3,14 +3,14 @@
 
 #include <vector>
 #include <string>
-#include <unordered_map>
+#include <fstream>
 #include <sstream>
 #include <iostream>
 #include <iterator>
-#include <algorithm>
-#include <fstream>
 #include <stdlib.h>
 #include <assert.h>
+#include <algorithm>
+#include <unordered_map>
 
 #include "lprint.hpp"
 

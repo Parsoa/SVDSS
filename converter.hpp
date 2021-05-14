@@ -1,17 +1,19 @@
 #ifndef CONVERTER_HPP
 #define CONVERTER_HPP
 
-#include "config.hpp"
-#include "kseq.h"
-#include "sfsutils.hpp"
 #include <algorithm>
+
+#include "kseq.h"
 #include <zlib.h>
+
+#include "config.hpp"
+#include "sfsutils.hpp"
 
 using namespace std;
 
 class Converter {
 public:
-  void run();
+    void run();
 };
 
 #endif
