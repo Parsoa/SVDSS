@@ -6,7 +6,9 @@
 #include <fstream>
 #include <unordered_map>
 #include <iomanip>
+#include <zlib.h>
 
+#include "kseq.h"
 #include "config.hpp"
 #include "lprint.hpp"
 
