@@ -53,10 +53,8 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     return sai.x[2] != 0 ;
 }
 
-//void PingPong::ping_pong_search(rld_t *index, const char* seq, const char* qual, vector<fastq_entry_t>& solutions) {
-void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<std::pair<uint,uint>>& solutions) {
+void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<sfs_solution_t>& solutions) {
     int l = fqe.seq.size() ;
-    //int l = strlen(seq) ;
     if (l <= 10) {
         return ;
     }
@@ -115,12 +113,12 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<std
         //}
         DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
 
-	  // CHECKMERGE
-        solutions.push_back(make_pair(begin, sfs_len));
-	// if (!check_solution(index, fqe.seq.substr(begin, sfs_len))) {
-	//   cerr << "Invalid SFS: " << sfs_len << endl ;
+        // CHECKMERGE
+        solutions.push_back(sfs_solution_t{begin, sfs_len, fqe.seq.substr(begin, sfs_len)});
+        // if (!check_solution(index, fqe.seq.substr(begin, sfs_len))) {
+        //   cerr << "Invalid SFS: " << sfs_len << endl ;
         // } ;
-	DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
+        DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
 
         // prepare for next round
         if (begin == 0) {
@@ -202,63 +200,23 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
     return n != 0 ? true : false ;
 }
 
-map<string,vector<pair<uint,uint>>> PingPong::process_batch_fastq(rld_t* index, vector<fastq_entry_t> fastq_entries) {
-    map<string,vector<pair<uint,uint>>> solutions ;
-    for (const auto fastq_entry : fastq_entries) {
-        solutions.insert(make_pair(fastq_entry.head, vector<pair<uint,uint>>()));
+batch_type_t PingPong::process_batch(rld_t* index, vector<fastq_entry_t> fastq_entries) {
+    batch_type_t solutions ;
+    // store read id once for all strings to save space, is it worth it?
+    for (const auto fastq_entry: fastq_entries) {
         ping_pong_search(index, fastq_entry, solutions[fastq_entry.head]) ;
     }
     return solutions ;
 }
 
-vector<fastq_entry_t> PingPong::process_batch_bam(rld_t* index, vector<bam1_t*> bam_entries) {
-    vector<fastq_entry_t> solutions ;
-    //char* seq = (char*) malloc(10000) ;
-    //uint32_t len = 0 ;
-    //bam1_t* alignment ; 
-    //for (int b = 0; b < bam_entries.size(); b++) {
-    //    alignment = bam_entries[b] ;
-    //    uint32_t l = alignment->core.l_qseq ; //length of the read
-    //    if (l > len) {
-    //        if (len > 0) {
-    //            free(seq) ;
-    //        }
-    //        len = l ;
-    //        seq = (char*) malloc(l + 1) ;
-    //    }
-    //    uint8_t *q = bam_get_seq(alignment) ; //quality string
-    //    for (int i = 0; i < l; i++){
-    //        seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
-    //    }
-    //    seq[l] = '\0' ; // null terminate
-    //    ping_pong_search(index, seq, seq, solutions) ;
-    //}
-    return solutions ;
-}
-
-void PingPong::output_batch(void* args) {
+void PingPong::output_batch(int b) {
     auto c = Configuration::getInstance();
-    int batch = ((OutputBatchArgs*) args)->batch;
-    string path = c->workdir + "/solution_batch_" + std::to_string(batch - 1) + ".sfs";
+    string path = c->workdir + "/solution_batch_" + std::to_string(b) + ".sfs";
     lprint({"Outputting to", path});
     std::ofstream o(path);
-    for(const auto &batch : batches[((OutputBatchArgs*) args)->p])
-        for(const auto &it : batch)
-            for(const auto &info : it.second)
-                o << it.first << " " << info.first << " " << info.second << " " << 1 << endl;
-}
-
-void PingPong::store_output_batch(uint p)
-{
-    for(const auto &batch : batches[p])
-    {
-        for(const auto &it : batch)
-        {
-            for(const auto &info : it.second)
-            {
-                ostream << it.first << " " << info.first << " " << info.second << " " << 1 << "\n";
-                ++ostreamsize;
-            }
+    for(const auto &it: search_solutions) {
+        for(const auto &sfs: it.second) {
+            o << it.first << "\t" << sfs.seq << "\t" << sfs.begin << "\t" << sfs.len << "\t" << 1 << endl;
         }
     }
 }
@@ -271,34 +229,33 @@ int PingPong::search() {
     lprint({"Done."});
     int mode = 0 ;
     if (config->fastq != "") {
-      lprint({"FASTQ input:", config->fastq});
+        lprint({"FASTQ input:", config->fastq});
         fastq_file = gzopen(config->fastq.c_str(), "r") ;
         fastq_iterator = kseq_init(fastq_file) ;
     } else if (config->bam != "") {
-      lprint({"BAM input.."});
+        lprint({"BAM input.."});
         bam_file = hts_open(config->bam.c_str(), "r") ;
         bam_header = sam_hdr_read(bam_file) ; //read header
         mode = 1 ;
     } else {
-      lprint({"No input file provided, aborting.."}, 2);
+        lprint({"No input file provided, aborting.."}, 2);
         exit(1) ;
     }
-    lprint({"Extracting SFS strings.."});
     lprint({"Overlap =", to_string(config->overlap)});
     lprint({"Minimum length =", to_string(config->min_string_length)});
     // load first batch
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
         fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // current and next output
-        batches.push_back(std::vector<std::map<std::string,std::vector<std::pair<uint,uint>>>>(config->threads)) ; // previous and current output
+        batches.push_back(vector<batch_type_t>(config->threads)) ; // previous and current output
     }
     int p = 0 ;
     int batch_size = 10000 ;
-    lprint({"Loading first batch"});
+    lprint({"Extracting SFS strings.."});
+    lprint({"Loading first batch.."});
     if (mode == 0) {
         load_batch_fastq(config->threads, batch_size, p) ;
     } else {
-        lprint({"Allocating BAM buffers.."});
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < config->threads; j++) {
                 for (int k = 0; k <= batch_size / config->threads; k++) {
@@ -314,16 +271,15 @@ int PingPong::search() {
     int b = 0 ;
     uint64_t u = 0 ;
 
-    bool loaded_last_batch = false ;
     bool should_load = true ;
     bool should_process = true ;
-    // output file
-    string path = config->workdir + "/subfreespecstrings.bed";
-    ofstream ofile (path);
+    bool loaded_last_batch = false ;
+
+    int total_sfs = 0 ;
+    int total_sfs_output_batch = 0 ;
 
     while (true) {
-      lprint({"Beginning batch", to_string(b + 1)});
-        uint64_t v = u ;
+        lprint({"Beginning batch", to_string(b + 1)});
         for (int i = 0 ; i < config->threads ; i++) {
             u += fastq_entries[p][i].size() ;
         }
@@ -346,29 +302,41 @@ int PingPong::search() {
                     lprint({"Loaded."});
                 }
             } else if (i == 1) {
-                // store previous output
-                store_output_batch((p+1)%2);
+                // output previous batch to file
+               if (b >= 1) {
+                    int c = 0 ;
+                    for (const auto &batch: batches[(p + 1) % 2]) {
+                        c += batch.size() ;
+                        search_solutions.insert(batch.begin(), batch.end()) ;
+                        for (auto it = batch.begin(); it != batch.end(); it++) {
+                            c += it->second.size() ;
+                        } 
+                    }
+                    total_sfs += c ;
+                    total_sfs_output_batch += c ;
+                    cerr << "Merged " << c << " new sequences. " << total_sfs << " total sequences." << endl ;
+                    // reached memory limit or last pipeline run
+                    if (total_sfs_output_batch >= 10000000 || !should_process) {
+                        output_batch(current_batch) ;
+                        search_solutions.clear() ;
+                        current_batch += 1 ;
+                        total_sfs_output_batch = 0 ;
+                    }
+                }
             } else {
                 // process current batch
                 if (should_process) {
-                    batches[p][i - 2] = process_batch_fastq(index, fastq_entries[p][i - 2]) ;
+                    batches[p][i - 2] = process_batch(index, fastq_entries[p][i - 2]) ;
                 }
             }
         }
 
-	if (!should_load) {
-	  lprint({"Processed last batch of inputs."});
+        if (!should_load) {
+            lprint({"Processed last batch of inputs."});
         }
 
-	// dump output to file
-	lprint({"Dumping to", path});
-	ofile << ostream.str();
-	ostreamsize = 0;
-	ostream.str("");
-	ostream.clear();
-
         if (!should_process) {
-	  break ;
+            break ;
         }
 
         p += 1 ;
@@ -380,16 +348,6 @@ int PingPong::search() {
             s += 1 ;
         }
         cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
-    }
-
-    // dump last output
-    // store_output_batch((p+1)%2);
-    if (ostreamsize > 0) {
-      lprint({"Dumping to", path});
-      ofile << ostream.str();
-      ostreamsize = 0;
-      ostream.str("");
-      ostream.clear();
     }
 
     // cleanup
@@ -419,7 +377,7 @@ int PingPong::index() {
         FILE *fp ;
         lprint({"Appending index:", c->append});
         if ((fp = fopen(c->append.c_str(), "rb")) == 0) {
-	  lprint({"Failed to open file", c->append}, 2);
+            lprint({"Failed to open file", c->append}, 2);
             return 1 ;
         }
         mr = mr_restore(fp) ;

@@ -17,33 +17,26 @@ void Aggregator::find_high_abundance_sequences() {
     #pragma omp parallel for num_threads(num_batches)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
-        string path = c->workdir + "/solution_batch_" + s_j + ".fastq" ;
+        string path = c->workdir + "/solution_batch_" + s_j + ".sfs" ;
         ifstream txt_file(path) ;
-        int i = 0 ;
-        int count ;
         string line ;
         string name ;
         while (std::getline(txt_file, line)) {
-            if (i == 0) {
-                int p = line.rfind(':') ;
-                count = std::stoi(line.substr(p + 1, line.length() - (p + 1))) ;
+            istringstream iss(line) ;
+            vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
+            //
+            string canon = canonicalize(tokens[1]) ;
+            int hash = std::hash<std::string>()(canon) ;
+            if (_sequences[j].find(hash) == _sequences[j].end()) {
+                _sequences[j][hash] = 0 ;
             }
-            if (i == 1) {
-                string canon = canonicalize(line) ;
-                int hash = std::hash<std::string>()(canon) ;
-                if (_sequences[j].find(hash) == _sequences[j].end()) {
-                    _sequences[j][hash] = 0 ;
-                }
-                _sequences[j][hash] += count ;
-            }
-            i++ ;
-            i %= 4 ;
+            _sequences[j][hash] += std::stoi(tokens[5]) ;
         }
         txt_file.close() ;
     }
     lprint({"Merging batches.."});
     for (int j = 0; j < num_batches; j++) {
-      lprint({"Batch", to_string(j), "with", to_string(_sequences[j].size()), "sequences."});
+        lprint({"Batch", to_string(j), "with", to_string(_sequences[j].size()), "sequences."});
         for (auto it = _sequences[j].begin(); it != _sequences[j].end(); it++) {
             if (sequence_index.find(it->first) == sequence_index.end()) {
                 sequence_index[it->first] = 0 ;
@@ -75,52 +68,26 @@ void Aggregator::load_sequences() {
     #pragma omp parallel for num_threads(num_batches)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
-        string path = c->workdir + "/solution_batch_" + s_j + ".fastq" ;
+        string path = c->workdir + "/solution_batch_" + s_j + ".sfs" ;
         ifstream txt_file(path) ;
         int i = 0 ;
         int count ;
         string line ;
         string name ;
         while (std::getline(txt_file, line)) {
-            if (i == 0) {
-                int p = line.rfind(':') ;
-                name = line.substr(0, p - 1) ;
-                count = std::stoi(line.substr(p + 1, line.length() - (p + 1))) ;
-            }
-            if (i == 1) {
-                string canon = canonicalize(line) ;
-                int hash = std::hash<std::string>()(canon) ;
-                if (sequence_index.find(hash) != sequence_index.end()) {
-                    if (_sequences[j].find(canon) == _sequences[j].end()) {
-                        _sequences[j][canon] = 0 ;
-                    }
-                    _sequences[j][canon] += count ;
+            istringstream iss(line) ;
+            vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
+            string canon = canonicalize(tokens[1]) ;
+            int hash = std::hash<std::string>()(canon) ;
+            if (sequence_index.find(hash) != sequence_index.end()) {
+                if (_sequences[j].find(canon) == _sequences[j].end()) {
+                    _sequences[j][canon] = 0 ;
                 }
+                _sequences[j][canon] += std::stoi(tokens[5]) ;
+                _read_ids[j][canon][line] = 1 ;
             }
-            i++ ;
-            i %= 4 ;
-        }
-        // load read ids
-        string id_path = c->workdir + "/read_ids_batch_" + s_j + ".fasta" ;
-        ifstream id_txt_file(id_path) ;
-        i = 0 ;
-        string canon ;
-        while (std::getline(id_txt_file, line)) {
-            if (i == 0) {
-                canon = canonicalize(line.substr(1, line.size() - 1)) ;
-                //assert(_sequences[j].find(canon) != _sequences[j].end()) ;
-            }
-            if (i == 1) {
-                int hash = std::hash<std::string>()(canon) ;
-                if (sequence_index.find(hash) != sequence_index.end()) {
-                    _read_ids[j][canon][line] += 1 ;
-                }
-            }
-            i++ ;
-            i %= 2 ;
         }
         txt_file.close() ;
-        id_txt_file.close() ;
     }
     lprint({"Merging.."});
     for (int j = 0; j < num_batches; j++) {

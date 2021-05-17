@@ -23,7 +23,7 @@ std::vector<Track> load_tracks_from_file(string path) {
         istringstream iss(line) ;
         if (i == 0) {
             if (line[0] != '#') {
-	      lprint({"BED header not present (first line doesn't begin with #). Aborting.."}, 2);
+                lprint({"BED header not present (first line doesn't begin with #). Aborting.."}, 2);
             }
             vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
             for (int i = 0; i < tokens.size(); i++) {
