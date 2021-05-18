@@ -79,13 +79,14 @@ class PingPong {
 public:
 
     int index() ;
-    bool query(std::string) ;
     int search() ;
-
+    bool query(std::string) ;
+    
     int num_output_batches ;
 
 private:
 
+    int last_dumped_batch = 0 ;
     int current_batch = 0 ;
 
     gzFile fastq_file ;
@@ -97,7 +98,7 @@ private:
     bool load_batch_bam(int threads, int batch_size, int p) ;
     bool load_batch_fastq(int threads, int batch_size, int p) ;
 
-    batch_type_t search_solutions ;
+    //batch_type_t search_solutions ;
     batch_type_t process_batch(rld_t* index, std::vector<fastq_entry_t> fastq_entries) ;
     std::vector<std::vector<batch_type_t>> batches ;
     void output_batch(int) ;

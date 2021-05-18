@@ -211,14 +211,21 @@ batch_type_t PingPong::process_batch(rld_t* index, vector<fastq_entry_t> fastq_e
 
 void PingPong::output_batch(int b) {
     auto c = Configuration::getInstance();
-    string path = c->workdir + "/solution_batch_" + std::to_string(b) + ".sfs";
+    string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + ".sfs";
     lprint({"Outputting to", path});
     std::ofstream o(path);
-    for(const auto &it: search_solutions) {
-        for(const auto &sfs: it.second) {
-            o << it.first << "\t" << sfs.seq << "\t" << sfs.begin << "\t" << sfs.len << "\t" << 1 << endl;
+    for (int i = last_dumped_batch; i < b; i++) { // for each of the unmerged batches
+        for (auto &batch: batches[i]) { // for each thread in batch
+            for (auto &read: batch) { // for each read in thread
+                for (auto &sfs: read.second) { // for each sfs in read
+                    o << read.first << "\t" << sfs.seq << "\t" << sfs.begin << "\t" << sfs.len << "\t" << 1 << endl;
+                }
+            }
+            batch.clear() ;
         }
+        batches[i].clear() ;
     }
+    last_dumped_batch = b ;
 }
 
 int PingPong::search() {
@@ -247,7 +254,6 @@ int PingPong::search() {
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
         fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // current and next output
-        batches.push_back(vector<batch_type_t>(config->threads)) ; // previous and current output
     }
     int p = 0 ;
     int batch_size = 10000 ;
@@ -265,6 +271,7 @@ int PingPong::search() {
         }
         load_batch_bam(config->threads, batch_size, p) ;
     }
+    batches.push_back(vector<batch_type_t>(config->threads)) ; // previous and current output
     // main loop
     time_t t ;
     time(&t) ;
@@ -274,6 +281,7 @@ int PingPong::search() {
     bool should_load = true ;
     bool should_process = true ;
     bool loaded_last_batch = false ;
+    bool should_update_current_batch = false ;
 
     int total_sfs = 0 ;
     int total_sfs_output_batch = 0 ;
@@ -300,14 +308,13 @@ int PingPong::search() {
                         loaded_last_batch = !load_batch_bam(config->threads, batch_size, (p + 1) % 2) ;
                     }
                     lprint({"Loaded."});
+                    batches.push_back(vector<batch_type_t>(config->threads)) ; // previous and current output
                 }
             } else if (i == 1) {
-                // output previous batch to file
                if (b >= 1) {
+                    // just count how many strings we have
                     int c = 0 ;
-                    for (const auto &batch: batches[(p + 1) % 2]) {
-                        c += batch.size() ;
-                        search_solutions.insert(batch.begin(), batch.end()) ;
+                    for (const auto &batch: batches[b - 1]) {
                         for (auto it = batch.begin(); it != batch.end(); it++) {
                             c += it->second.size() ;
                         } 
@@ -317,16 +324,15 @@ int PingPong::search() {
                     cerr << "Merged " << c << " new sequences. " << total_sfs << " total sequences." << endl ;
                     // reached memory limit or last pipeline run
                     if (total_sfs_output_batch >= 10000000 || !should_process) {
-                        output_batch(current_batch) ;
-                        search_solutions.clear() ;
-                        current_batch += 1 ;
+                        output_batch(b) ;
                         total_sfs_output_batch = 0 ;
+                        current_batch += 1 ;
                     }
                 }
             } else {
                 // process current batch
                 if (should_process) {
-                    batches[p][i - 2] = process_batch(index, fastq_entries[p][i - 2]) ;
+                    batches[b][i - 2] = process_batch(index, fastq_entries[p][i - 2]) ;
                 }
             }
         }
