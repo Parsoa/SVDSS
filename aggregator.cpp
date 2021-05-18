@@ -30,7 +30,7 @@ void Aggregator::find_high_abundance_sequences() {
             if (_sequences[j].find(hash) == _sequences[j].end()) {
                 _sequences[j][hash] = 0 ;
             }
-            _sequences[j][hash] += std::stoi(tokens[5]) ;
+            _sequences[j][hash] += std::stoi(tokens[4]) ;
         }
         txt_file.close() ;
     }
@@ -74,17 +74,21 @@ void Aggregator::load_sequences() {
         int count ;
         string line ;
         string name ;
+        string read = "*" ;
         while (std::getline(txt_file, line)) {
             istringstream iss(line) ;
             vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
             string canon = canonicalize(tokens[1]) ;
+            if (read == "*") {
+                read = tokens[0] ;
+            }
             int hash = std::hash<std::string>()(canon) ;
             if (sequence_index.find(hash) != sequence_index.end()) {
                 if (_sequences[j].find(canon) == _sequences[j].end()) {
                     _sequences[j][canon] = 0 ;
                 }
-                _sequences[j][canon] += std::stoi(tokens[5]) ;
-                _read_ids[j][canon][line] = 1 ;
+                _sequences[j][canon] += std::stoi(tokens[4]) ;
+                _read_ids[j][canon][read] = 1 ;
             }
         }
         txt_file.close() ;

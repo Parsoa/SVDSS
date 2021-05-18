@@ -217,8 +217,11 @@ void PingPong::output_batch(int b) {
     for (int i = last_dumped_batch; i < b; i++) { // for each of the unmerged batches
         for (auto &batch: batches[i]) { // for each thread in batch
             for (auto &read: batch) { // for each read in thread
+                int j = 0 ;
                 for (auto &sfs: read.second) { // for each sfs in read
-                    o << read.first << "\t" << sfs.seq << "\t" << sfs.begin << "\t" << sfs.len << "\t" << 1 << endl;
+                    // optimize file output size by not outputing read name for every SFS
+                    o << (j == 0 ? read.first : "*") << "\t" << sfs.seq << "\t" << sfs.begin << "\t" << sfs.len << "\t" << 1 << endl ;
+                    j += 1 ;
                 }
             }
             batch.clear() ;
@@ -257,7 +260,7 @@ int PingPong::search() {
     }
     int p = 0 ;
     int batch_size = 10000 ;
-    lprint({"Extracting SFS strings.."});
+    lprint({"Extracting SFS strings on", to_string(config->threads), "threads.."});
     lprint({"Loading first batch.."});
     if (mode == 0) {
         load_batch_fastq(config->threads, batch_size, p) ;
