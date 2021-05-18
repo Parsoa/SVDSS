@@ -53,7 +53,7 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     return sai.x[2] != 0 ;
 }
 
-void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<sfs_solution_t>& solutions) {
+void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vector<sfs_solution_t>& solutions) {
     int l = fqe.seq.size() ;
     if (l <= 10) {
         return ;
@@ -101,18 +101,9 @@ void PingPong::ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<sfs
         DEBUG(cerr << "Mismatch " << int2char[P[end]] << " (" << end << "). fmatches: " << fmatches << endl ;)
         // add solution
         DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
-        int acc_len = end - begin + 1 ;
         int sfs_len = end - begin + 1 ;
-        //if (config->min_string_length > 0) {
-        //    sfs_len = acc_len > config->min_string_length ? acc_len : config->min_string_length ;
-        //    if (begin + sfs_len >= l - 1) {
-        //        sfs_len = acc_len ;
-        //    }
-        //    assert(sfs_len == config->min_string_length || sfs_len == acc_len) ;
-        //    DEBUG(cerr << "Adjusted length to " << sfs_len << "." << endl ;)
-        //}
+        int acc_len = end - begin + 1 ;
         DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
-
         // CHECKMERGE
         solutions.push_back(sfs_solution_t{begin, sfs_len, fqe.seq.substr(begin, sfs_len)});
         // if (!check_solution(index, fqe.seq.substr(begin, sfs_len))) {
@@ -200,10 +191,10 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
     return n != 0 ? true : false ;
 }
 
-batch_type_t PingPong::process_batch(rld_t* index, vector<fastq_entry_t> fastq_entries) {
+batch_type_t PingPong::process_batch(rld_t* index, const vector<fastq_entry_t>& fastq_entries) {
     batch_type_t solutions ;
     // store read id once for all strings to save space, is it worth it?
-    for (const auto fastq_entry: fastq_entries) {
+    for (const auto &fastq_entry: fastq_entries) {
         ping_pong_search(index, fastq_entry, solutions[fastq_entry.head]) ;
     }
     return solutions ;

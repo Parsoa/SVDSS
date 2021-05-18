@@ -65,7 +65,7 @@ static unsigned char seq_nt6_table[128] = {
     5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5
 } ;
 
-typedef std::unordered_map<std::string, std::vector<sfs_solution_t>> batch_type_t; 
+typedef std::map<std::string, std::vector<sfs_solution_t>> batch_type_t; 
 
 static const std::vector<std::string> int2char ({"$", "A", "C", "G", "T", "N"}) ;
 
@@ -99,13 +99,13 @@ private:
     bool load_batch_fastq(int threads, int batch_size, int p) ;
 
     //batch_type_t search_solutions ;
-    batch_type_t process_batch(rld_t* index, std::vector<fastq_entry_t> fastq_entries) ;
+    batch_type_t process_batch(rld_t* index, const std::vector<fastq_entry_t>& fastq_entries) ;
     std::vector<std::vector<batch_type_t>> batches ;
     void output_batch(int) ;
     
     bool check_solution(rld_t* index, std::string S) ;
     bool backward_search(rld_t *index, const uint8_t *P, int p2) ;
-    void ping_pong_search(rld_t *index, fastq_entry_t fqe, std::vector<sfs_solution_t>&) ;
+    void ping_pong_search(rld_t *index, const fastq_entry_t &fqe, std::vector<sfs_solution_t>&) ;
     fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l) ;
 
     Configuration* config ;
