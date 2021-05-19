@@ -74,11 +74,11 @@ void Aggregator::load_sequences() {
         int count ;
         string line ;
         string name ;
-        string read = "*" ;
+        string read ;
         while (std::getline(txt_file, line)) {
             istringstream iss(line) ;
             vector<string> tokens{istream_iterator<string>{iss}, istream_iterator<string>{}} ;
-            if (read == "*") {
+            if (tokens[0] != "*") {
                 read = tokens[0] ;
             }
             string canon = canonicalize(tokens[1]) ;
@@ -95,14 +95,14 @@ void Aggregator::load_sequences() {
     }
     lprint({"Merging.."});
     for (int j = 0; j < num_batches; j++) {
-      lprint({"Batch", to_string(j), "with", to_string(_sequences[j].size()), "sequences."});
+        lprint({"Batch", to_string(j), "with", to_string(_sequences[j].size()), "sequences."});
         for (auto it = _sequences[j].begin(); it != _sequences[j].end(); it++) {
             if (sequences.find(it->first) == sequences.end()) {
                 sequences[it->first] = 0 ;
             }
             sequences[it->first] += it->second ;
             read_ids[it->first].insert(_read_ids[j][it->first].begin(), _read_ids[j][it->first].end()) ;
-            assert(sequences[it->first] == read_ids[it->first].size()) ;
+            //assert(sequences[it->first] == read_ids[it->first].size()) ;
         }
         _sequences[j].clear() ;
     }
