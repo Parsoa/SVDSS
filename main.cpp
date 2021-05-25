@@ -21,6 +21,7 @@
 #include "chromosomes.hpp"
 #include "snp_corrector.hpp"
 #include "converter.hpp"
+#include "assembler.hpp"
 
 #ifdef LOCAL_BUILD
 #include "finder.hpp"
@@ -148,10 +149,17 @@ int main(int argc, char** argv) {
     }
     else if (strcmp(argv[1], "convert") == 0) {
         c->parse(argc - 1, argv + 1) ;
-        // create_workdir() ;
+        create_workdir() ;
         auto converter = new Converter() ;
         converter->run() ;
-    } else {
+    }
+    else if (strcmp(argv[1], "assemble") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto assembler = new Assembler() ;
+        assembler->run() ;
+    }
+    else {
         print_help() ;
     }
 }

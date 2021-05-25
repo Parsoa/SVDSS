@@ -27,6 +27,7 @@ Configuration::Configuration() :
         ("reference", "", cxxopts::value<std::string>())
         ("b,binary", "", cxxopts::value<bool>()->default_value("false"))
         ("aggregate", "", cxxopts::value<bool>())
+        ("assemble", "", cxxopts::value<bool>())
         ("batches", "", cxxopts::value<int>())
         ("overlap", "", cxxopts::value<int>())
         ("min-length", "", cxxopts::value<int>())
@@ -92,4 +93,5 @@ void Configuration::parse(int argc, char** argv) {
     }
     binary = results["binary"].as<bool>() ;
     aggregate = results["aggregate"].as<bool>() ;
+    assemble = results["assemble"].as<bool>() ;
 }

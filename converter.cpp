@@ -3,6 +3,8 @@
 KSEQ_INIT(gzFile, gzread)
 
 void Converter::run() {
+    cerr << "Converter is broken right now - We need to fix it" << endl;
+    return;
     auto c = Configuration::getInstance();
     string fq_path = c->fastq;
     string sfs_path = c->bed;

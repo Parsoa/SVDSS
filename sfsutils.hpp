@@ -31,6 +31,12 @@ struct SFS {
   uint l;
   uint c;
 
+  SFS() {
+    s = 0;
+    l = 0;
+    c = 0;
+  }
+
   SFS(uint s_, uint l_, uint c_) {
     s = s_;
     l = l_;
