@@ -19,7 +19,7 @@
 #include "ping_pong.hpp"
 #include "aggregator.hpp"
 #include "chromosomes.hpp"
-#include "snp_corrector.hpp"
+#include "reconstructor.hpp"
 #include "converter.hpp"
 
 #ifdef LOCAL_BUILD
@@ -134,11 +134,11 @@ int main(int argc, char** argv) {
             aggregator->run() ;
         }
     }
-    else if (strcmp(argv[1], "correct") == 0) {
+    else if (strcmp(argv[1], "reconstruct") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
-        auto snp_corrector = new SnpCorrector() ;
-        snp_corrector->run() ;
+        auto reconstructor = new Reconstructor() ;
+        reconstructor->run() ;
     }
     else if (strcmp(argv[1], "aggregate") == 0) {
         c->parse(argc - 1, argv + 1) ;

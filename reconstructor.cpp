@@ -1,15 +1,9 @@
-#include "snp_corrector.hpp"
+#include "reconstructor.hpp"
 
 using namespace std ;
 
 #define BAM_CIGAR_MASK  0xf
 #define BAM_CIGAR_TYPE  0x3C1A7
-
-void SnpCorrector::run() {
-    auto c = Configuration::getInstance() ;
-    load_chromosomes(c->reference) ;
-    correct_reads() ;
-}
 
 char reverse_complement_base(char base) {
     if (base == 'C' || base == 'c') {
@@ -86,7 +80,6 @@ uint8_t* encode_cigar(vector<pair<uint32_t, uint32_t>> cigar) {
 uint8_t* encode_bam_seq(char* seq) {
     int n = (strlen(seq) + 1) >> 1 ;
     int l_seq = strlen(seq) ;
-    //cout << "l_seq: " << l_seq << " " << n << endl ;
     uint8_t* seq_bytes = (uint8_t*) malloc(sizeof(uint8_t) * n) ;
     int i = 0 ;
     n = 0 ;
@@ -98,7 +91,6 @@ uint8_t* encode_bam_seq(char* seq) {
         seq_bytes[n] = seq_nt16_table[(unsigned char)seq[i]] << 4;
         n += 1 ;
     }
-    //cout << "i " << i << " " << n << endl ;
     return seq_bytes ;
 }
 
@@ -114,15 +106,15 @@ uint8_t* encode_bam_seq(char* seq) {
 //typedef struct bam1_core_t {
 //    hts_pos_t pos;      // won't change 
 //    int32_t tid;        // won't change
-//    uint16_t bin;       // TODO 
+//    uint16_t bin;       // just copy 
 //    uint8_t qual;       // won't change
 //    uint8_t l_extranul; // won't change 
 //    uint16_t flag;      // won't change
 //    uint16_t l_qname;   // won't change
 //    uint32_t n_cigar;   // will change
 //    int32_t l_qseq;     // will change
-//    int32_t mtid;       // TODO won't change
-//    hts_pos_t mpos;     // TODO won't change
+//    int32_t mtid;       // just copy 
+//    hts_pos_t mpos;     // just copy 
 //    hts_pos_t isize;    // may or may ont change?
 //} bam1_core_t;
 
@@ -160,7 +152,13 @@ void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<
     //alignment->data = new_data ;
 }
 
-fastq_entry_t SnpCorrector::correct_read(bam1_t* alignment, char* read_seq, string chrom) {
+double global_num_bases ;
+double global_num_mismatch ;
+double global_num_indel ;
+double expected_mismatch_rate = 0.002 ;
+int num_ignored_reads = 0 ;
+
+void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string chrom) {
     auto cigar_offsets = decode_cigar(alignment) ;
     int l = 0 ;
     for (auto p: cigar_offsets) {
@@ -182,6 +180,8 @@ fastq_entry_t SnpCorrector::correct_read(bam1_t* alignment, char* read_seq, stri
     auto& core = alignment->core ;
     vector<pair<uint32_t, uint32_t>> new_cigar ;
     int m_diff = 0 ;
+    double num_match = 0 ;
+    double num_mismatch = 0 ;
     while (true) {
         if (m == cigar_offsets.size()) {
             break ;
@@ -190,10 +190,12 @@ fastq_entry_t SnpCorrector::correct_read(bam1_t* alignment, char* read_seq, stri
             for (int j = 0; j < cigar_offsets[m].first; j++) {
                 new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
                 new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
+                num_mismatch += 1 ? chromosome_seqs[chrom][ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
                 n++ ;
             }
             ref_offset += cigar_offsets[m].first ;
             match_offset += cigar_offsets[m].first ;
+            num_match += cigar_offsets[m].first ;
             if (new_cigar.size() >= 1 && new_cigar[new_cigar.size() - 1].second == BAM_CMATCH) {
                 new_cigar[new_cigar.size() - 1].first += cigar_offsets[m].first + m_diff ;
             } else {
@@ -245,18 +247,26 @@ fastq_entry_t SnpCorrector::correct_read(bam1_t* alignment, char* read_seq, stri
     }
     new_seq[n] = '\0' ;
     new_qual[n] = '\0' ;
-    //cout << "old seq length: " << strlen(read_seq) << " new seq len: " << n << endl ;
-    //cout << "old CIGAR length: " << cigar_offsets.size() << " new CIGAR len: " << new_cigar.size() << endl ;
+    // only do this on first processing thread
+    if (omp_get_thread_num() == 2) {
+        global_num_bases += num_match ;
+        global_num_mismatch += num_mismatch ;
+    }
+    // how many errors and SNPs do we expect? 1/1000 each, so say if we see more than twice that then don't correct
+    if (num_mismatch / num_match > 3 * expected_mismatch_rate) {
+        if (omp_get_thread_num() == 3) {
+            num_ignored_reads += 1 ;
+        }
+        return ;
+    }
+    // if we have so many deletions and insertions, then abort
+    if (ins_offset + del_offset > 0.7 * strlen(read_seq)) {
+        return ;
+    }
     rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar) ;
-    string s(new_seq) ;
-    string qname(bam_get_qname(alignment)) ;
-    fastq_entry_t f {qname, s, s, pos, n} ;
-    free(new_seq) ;
-    return f ;
 }
 
-vector<fastq_entry_t> SnpCorrector::process_batch(vector<bam1_t*> bam_entries) {
-    vector<fastq_entry_t> output ;
+void Reconstructor::process_batch(vector<bam1_t*> bam_entries) {
     char* seq = (char*) malloc(10000) ;
     uint32_t len = 0 ;
     bam1_t* alignment ;
@@ -293,36 +303,28 @@ vector<fastq_entry_t> SnpCorrector::process_batch(vector<bam1_t*> bam_entries) {
             seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
         }
         seq[l] = '\0' ; // null terminate
-        //correct_snps(alignment, limits, seq, chrom) ;
         //cout << bam_get_qname(alignment) << " " << bam_header->target_name[alignment->core.tid] << " " << alignment->core.mpos << endl ;
-        fastq_entry_t fastq_entry = correct_read(alignment, seq, chrom) ;
-        output.push_back(fastq_entry) ;
+        reconstruct_read(alignment, seq, chrom) ;
     }
     free(seq) ;
-    return output ;
 }
 
 // BAM writing based on https://www.biostars.org/p/181580/
-int SnpCorrector::correct_reads() {
-  lprint({"Running first pass.."});
+void Reconstructor::run() {
     auto config = Configuration::getInstance() ;
+    load_chromosomes(config->reference) ;
     // parse arguments
     bam_file = hts_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
-    //auto out_path = config->workdir + "/reconstructed.fastq" ;
     auto out_bam_path = config->workdir + "/reconstructed.bam" ;
-    //cout << "Writing correct BAM to " << out_path << endl ;
     out_bam_file = sam_open(out_bam_path.c_str(), "wb") ;
     int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
     if (r < 0) {
         lprint({"Can't write corrected BAM header, aborting.."}, 2);
     }
-    //std::ofstream out_file(out_path) ;
     // confidence scores 
-    vector<vector<vector<fastq_entry_t>>> batches ;
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
-        batches.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // previous and current output
     }
     int p = 0 ;
     int b = 0 ;
@@ -361,24 +363,12 @@ int SnpCorrector::correct_reads() {
             if (i == 0) {
                 // write previous batch
                 if (b >= 1) {
-                    // write FASTQ
-                    //for (int j = 0; j < config->threads; j++) {
-                    //    for (auto& fastq_entry: batches[(p + 1) % 2][j]) {
-                    //        out_file << "@" << fastq_entry.head << endl
-                    //            << fastq_entry.seq << endl
-                    //            << "+" << endl
-                    //            << fastq_entry.seq << endl ;
-                    //    }
-                    //}
                     // write BAM
                     int ret = 0 ;
                     for (int k = 0; k < batch_size / config->threads; k++) {
                         for (int j = 0; j < config->threads; j++) {
                             if (bam_entries[(p + 1) % 2][j][k] != nullptr) {
                                 auto alignment = bam_entries[(p + 1) % 2][j][k] ;
-                                //if (alignment->core.flag & BAM_FUNMAP || alignment->core.flag & BAM_FSUPPLEMENTARY || alignment->core.flag & BAM_FSECONDARY) {
-                                //    continue ;
-                                //}
                                 ret = bam_write1(out_bam_file->fp.bgzf, bam_entries[(p + 1) % 2][j][k]);
                                 num_reads++ ;
                                 if (ret < 0) {
@@ -400,13 +390,12 @@ int SnpCorrector::correct_reads() {
                         lprint({"Loaded."});
                     }
                 }
-                //loaded_last_batch = true ;
             } else if (i == 1) {
                 // merge output of previous batch
             } else {
                 // process current batch
                 if (should_process) {
-                    batches[p][i - 2] = process_batch(bam_entries[p][i - 2]) ;
+                    process_batch(bam_entries[p][i - 2]) ;
                 }
             }
         }
@@ -428,15 +417,16 @@ int SnpCorrector::correct_reads() {
             s += 1 ;
         }
         cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+        cerr << "[I] Process bases: " << std::left << std::setw(16) << uint64_t(global_num_bases) << ", num mismatch: " << std::setw(16) << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", ignored reads: " << num_ignored_reads << endl ;
+        expected_mismatch_rate = global_num_mismatch / global_num_bases ; 
     }
     lprint({"Done."});
     sam_close(bam_file) ;
     sam_close(out_bam_file) ;
     lprint({"Wrote", to_string(num_reads), "reads."});
-    return 0 ;
 }
 
-bool SnpCorrector::load_batch_bam(int threads, int batch_size, int p) {
+bool Reconstructor::load_batch_bam(int threads, int batch_size, int p) {
     int n = 0 ;
     int i = 0 ;
     while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {

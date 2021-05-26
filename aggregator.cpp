@@ -14,7 +14,8 @@ void Aggregator::find_high_abundance_sequences() {
     vector<unordered_map<int, int>> _sequences(num_batches) ;
     int e = 0 ;
     // cout first pass
-    #pragma omp parallel for num_threads(num_batches)
+    int num_threads = num_batches < c->threads ? num_batches : c->threads ;
+    #pragma omp parallel for num_threads(num_threads)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
         string path = c->workdir + "/solution_batch_" + s_j + ".sfs" ;
@@ -65,7 +66,8 @@ void Aggregator::load_sequences() {
     vector<unordered_map<string, unordered_map<string, int>>> _read_ids(num_batches) ;
     int e = 0 ;
     // cout first pass
-    #pragma omp parallel for num_threads(num_batches)
+    int num_threads = num_batches < c->threads ? num_batches : c->threads ;
+    #pragma omp parallel for num_threads(num_threads)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
         string path = c->workdir + "/solution_batch_" + s_j + ".sfs" ;

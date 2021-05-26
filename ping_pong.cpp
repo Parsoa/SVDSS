@@ -53,7 +53,7 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     return sai.x[2] != 0 ;
 }
 
-void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vector<sfs_solution_t>& solutions) {
+void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vector<sfs_type_t>& solutions) {
     int l = fqe.seq.size() ;
     if (l <= 10) {
         return ;
@@ -104,14 +104,8 @@ void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vec
         int sfs_len = end - begin + 1 ;
         int acc_len = end - begin + 1 ;
         DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
-        // CHECKMERGE
         solutions.push_back(sfs_solution_t{begin, sfs_len, fqe.seq.substr(begin, sfs_len)});
-        // if (!check_solution(index, fqe.seq.substr(begin, sfs_len))) {
-        //   cerr << "Invalid SFS: " << sfs_len << endl ;
-        // } ;
         DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
-
-        // prepare for next round
         if (begin == 0) {
             break ;
         }
@@ -315,7 +309,7 @@ int PingPong::search() {
                     }
                     total_sfs += c ;
                     total_sfs_output_batch += c ;
-                    cerr << "Merged " << c << " new sequences. " << total_sfs << " total sequences." << endl ;
+                    cerr << "[I] Merged " << c << " new sequences. " << total_sfs << " total sequences." << endl ;
                     // reached memory limit or last pipeline run
                     if (total_sfs_output_batch >= 10000000 || !should_process) {
                         output_batch(b) ;
