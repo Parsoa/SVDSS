@@ -202,11 +202,26 @@ void PingPong::output_batch(int b) {
     for (int i = last_dumped_batch; i < b; i++) { // for each of the unmerged batches
         for (auto &batch: batches[i]) { // for each thread in batch
             for (auto &read: batch) { // for each read in thread
-                int j = 0 ;
-                for (auto &sfs: read.second) { // for each sfs in read
-                    // optimize file output size by not outputing read name for every SFS
-                    o << (j == 0 ? read.first : "*") << "\t" << sfs.seq << "\t" << sfs.begin << "\t" << sfs.len << "\t" << 1 << endl ;
-                    j += 1 ;
+		if (c->assemble) {
+		  vector<SFS> SFSs (read.second.size());
+		  int j = 0;
+		  for (auto &sfs: read.second) { // for each sfs in read
+		      SFSs[j++] = SFS(sfs.begin, sfs.len, 1);
+		  }
+		  Assembler a = Assembler();
+		  vector<SFS> assembled_SFSs = a.assemble(SFSs);
+		  bool is_first = true;
+		  for (const SFS &sfs : assembled_SFSs) {
+		    o << (is_first ? read.first : "*") << "\t" << "*" << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << endl;
+		    is_first = false;
+		  }
+		} else {
+		    bool is_first = true;
+		    for (auto &sfs: read.second) { // for each sfs in read
+                      // optimize file output size by not outputing read name for every SFS
+                      o << (is_first ? read.first : "*") << "\t" << sfs.seq << "\t" << sfs.begin << "\t" << sfs.len << "\t" << 1 << endl ;
+                      is_first = false;
+		    }
                 }
             }
             batch.clear() ;

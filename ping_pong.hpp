@@ -30,6 +30,7 @@
 #include "htslib/hfile.h"
 #include "htslib/hts_endian.h"
 #include "fastq.hpp"
+#include "assembler.hpp"
 #include "config.hpp"
 #include "lprint.hpp"
 

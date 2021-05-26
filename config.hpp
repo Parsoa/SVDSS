@@ -30,6 +30,7 @@ public:
 
     bool binary ;
     bool aggregate ;
+    bool assemble ;
 
     std::string bed ;
     std::string bam ;
