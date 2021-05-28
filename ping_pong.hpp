@@ -29,10 +29,12 @@
 #include <htslib/hfile.h>
 #include "htslib/hfile.h"
 #include "htslib/hts_endian.h"
-#include "fastq.hpp"
-#include "assembler.hpp"
-#include "config.hpp"
+
 #include "lprint.hpp"
+#include "fastq.hpp"
+#include "config.hpp"
+#include "sfsutils.hpp"
+#include "assembler.hpp"
 
 using namespace std ;
 
@@ -48,12 +50,6 @@ using namespace std ;
 
 #define fm6_set_intv(e, c, ik) ((ik).x[0] = (e)->cnt[(int)(c)], (ik).x[2] = (e)->cnt[(int)(c)+1] - (e)->cnt[(int)(c)], (ik).x[1] = (e)->cnt[fm6_comp(c)], (ik).info = 0)
 
-struct sfs_solution_t {
-    int begin ;
-    int len ; 
-    std::string seq ;
-} ;
-
 /** From ropebwt2 ********/
 static unsigned char seq_nt6_table[128] = {
     0, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
@@ -66,7 +62,7 @@ static unsigned char seq_nt6_table[128] = {
     5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5
 } ;
 
-typedef sfs_solution_t sfs_type_t ;
+typedef SFS sfs_type_t ;
 typedef std::map<std::string, std::vector<sfs_type_t>> batch_type_t; 
 
 static const std::vector<std::string> int2char ({"$", "A", "C", "G", "T", "N"}) ;
