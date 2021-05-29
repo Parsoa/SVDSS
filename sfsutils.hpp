@@ -30,17 +30,20 @@ struct SFS {
   uint s;
   uint l;
   uint c;
+  bool isreversed;
 
   SFS() {
     s = 0;
     l = 0;
     c = 0;
+    isreversed = false;
   }
 
-  SFS(uint s_, uint l_, uint c_) {
+  SFS(uint s_, uint l_, uint c_, bool isreversed_) {
     s = s_;
     l = l_;
     c = c_;
+    isreversed = isreversed_;
   }
 
   void reverse(uint p) { s = p - s - l; }

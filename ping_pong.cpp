@@ -53,7 +53,7 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     return sai.x[2] != 0 ;
 }
 
-void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vector<sfs_type_t>& solutions) {
+void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vector<sfs_type_t>& solutions, const bool isreversed) {
     int l = fqe.seq.size() ;
     if (l <= 10) {
         return ;
@@ -104,7 +104,7 @@ void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vec
         int sfs_len = end - begin + 1 ;
         int acc_len = end - begin + 1 ;
         DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
-        solutions.push_back(SFS{begin, sfs_len, 1}) ;
+	  solutions.push_back(SFS{begin, sfs_len, 1, isreversed}) ;
         DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         if (begin == 0) {
             break ;
@@ -185,11 +185,11 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
     return n != 0 ? true : false ;
 }
 
-batch_type_t PingPong::process_batch(rld_t* index, const vector<fastq_entry_t>& fastq_entries) {
+batch_type_t PingPong::process_batch(rld_t* index, const vector<fastq_entry_t>& fastq_entries, const bool isreversed) {
     batch_type_t solutions ;
     // store read id once for all strings to save space, is it worth it?
     for (const auto &fastq_entry: fastq_entries) {
-        ping_pong_search(index, fastq_entry, solutions[fastq_entry.head]) ;
+      ping_pong_search(index, fastq_entry, solutions[fastq_entry.head], isreversed) ;
     }
     return solutions ;
 }
@@ -207,14 +207,14 @@ void PingPong::output_batch(int b) {
                     vector<SFS> assembled_SFSs = a.assemble(read.second);
                     bool is_first = true;
                     for (const SFS &sfs : assembled_SFSs) {
-                        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << endl ;
+		        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << "\t" << sfs.isreversed << endl;
                         is_first = false;
                     }
                 } else {
                     bool is_first = true;
                     for (auto &sfs: read.second) { // for each sfs in read
                         // optimize file output size by not outputing read name for every SFS
-                        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << endl ;
+		        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c <<"\t" << sfs.isreversed << endl ;
                         is_first = false;
                     }
                 }
@@ -330,7 +330,7 @@ int PingPong::search() {
             } else {
                 // process current batch
                 if (should_process) {
-                    batches[b][i - 2] = process_batch(index, fastq_entries[p][i - 2]) ;
+		  batches[b][i - 2] = process_batch(index, fastq_entries[p][i - 2], mode == 1) ; // mode==1 means input is bam: read sequence is already revcompled
                 }
             }
         }
