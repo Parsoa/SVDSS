@@ -4,7 +4,7 @@ KSEQ_INIT(gzFile, gzread)
 
 void Aligner::run() {
   auto c = Configuration::getInstance();
-  string fa_path = c->fasta;
+  string fa_path = c->reference;
   string bam_path = c->bam;
   int num_batches = c->aggregate_batches;
   string wd = c->workdir;
