@@ -182,6 +182,7 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
         }
     }
     lprint({"Loaded", to_string(n), "FASTQ reads.."});
+    // TODO: this results in an extra empty batch if total number of reads is not a multiple of batch size
     return n != 0 ? true : false ;
 }
 
@@ -199,6 +200,7 @@ void PingPong::output_batch(int b) {
     string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + ".sfs";
     lprint({"Outputting to", path});
     std::ofstream o(path);
+    uint64_t n = 0 ;
     for (int i = last_dumped_batch; i < b; i++) { // for each of the unmerged batches
         for (auto &batch: batches[i]) { // for each thread in batch
             for (auto &read: batch) { // for each read in thread
@@ -216,6 +218,7 @@ void PingPong::output_batch(int b) {
                         // optimize file output size by not outputing read name for every SFS
                         o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << endl ;
                         is_first = false;
+                        n += 1 ;
                     }
                 }
             }
@@ -223,6 +226,8 @@ void PingPong::output_batch(int b) {
         }
         batches[i].clear() ;
     }
+    cout << "[I] " << n << endl ;
+    // this is actually the first batch to output next time
     last_dumped_batch = b ;
 }
 
@@ -281,8 +286,8 @@ int PingPong::search() {
     bool loaded_last_batch = false ;
     bool should_update_current_batch = false ;
 
-    int total_sfs = 0 ;
-    int total_sfs_output_batch = 0 ;
+    uint64_t total_sfs = 0 ;
+    uint64_t total_sfs_output_batch = 0 ;
 
     while (true) {
         lprint({"Beginning batch", to_string(b + 1)});
@@ -311,7 +316,7 @@ int PingPong::search() {
             } else if (i == 1) {
                if (b >= 1) {
                     // just count how many strings we have
-                    int c = 0 ;
+                    uint64_t c = 0 ;
                     for (const auto &batch: batches[b - 1]) {
                         for (auto it = batch.begin(); it != batch.end(); it++) {
                             c += it->second.size() ;

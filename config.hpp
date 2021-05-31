@@ -29,8 +29,9 @@ public:
     int min_string_length = 0 ; // not enforced by default
 
     bool binary ;
-    bool aggregate ;
     bool assemble ;
+    bool aggregate ;
+    bool selective ;
 
     std::string bed ;
     std::string bam ;

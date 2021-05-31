@@ -49,6 +49,8 @@ public:
     void process_batch(std::vector<bam1_t*> bam_entries) ;
     void reconstruct_read(bam1_t* alignment, char* read_seq, std::string chrom) ;
 
+    Configuration* config ;
+
 };
 
 #endif

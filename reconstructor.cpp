@@ -239,7 +239,7 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             soft_clip_offset += cigar_offsets[m].first ;
             new_cigar.push_back(cigar_offsets[m]) ;
         } else if (cigar_offsets[m].second == BAM_CREF_SKIP) {
-            // What is even this?
+            // won't happen in DNA alignments
         } else {//if (cigar_offsets[m].second == BAM_CPAD || cigar_offsets[m].second == BAM_CHARD_CLIP || cigar_offsets[m].second == BAM_CBACK) {
             // pass
         }
@@ -253,15 +253,17 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
         global_num_mismatch += num_mismatch ;
     }
     // how many errors and SNPs do we expect? 1/1000 each, so say if we see more than twice that then don't correct
-    if (num_mismatch / num_match > 3 * expected_mismatch_rate) {
-        if (omp_get_thread_num() == 3) {
-            num_ignored_reads += 1 ;
+    if (config->selective) {
+        if (num_mismatch / num_match > 3 * expected_mismatch_rate) {
+            if (omp_get_thread_num() == 3) {
+                num_ignored_reads += 1 ;
+            }
+            return ;
         }
-        return ;
-    }
-    // if we have so many deletions and insertions, then abort
-    if (ins_offset + del_offset > 0.7 * strlen(read_seq)) {
-        return ;
+        // if we have so many deletions and insertions, then abort
+        if (ins_offset + del_offset > 0.7 * strlen(read_seq)) {
+            return ;
+        }
     }
     rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar) ;
 }
@@ -311,12 +313,12 @@ void Reconstructor::process_batch(vector<bam1_t*> bam_entries) {
 
 // BAM writing based on https://www.biostars.org/p/181580/
 void Reconstructor::run() {
-    auto config = Configuration::getInstance() ;
+    config = Configuration::getInstance() ;
     load_chromosomes(config->reference) ;
     // parse arguments
     bam_file = hts_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
-    auto out_bam_path = config->workdir + "/reconstructed.bam" ;
+    auto out_bam_path = config->workdir + (config->selective ? "/reconstructed.selective.bam" : "/reconstructed.bam") ;
     out_bam_file = sam_open(out_bam_path.c_str(), "wb") ;
     int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
     if (r < 0) {
