@@ -196,7 +196,7 @@ batch_type_t PingPong::process_batch(rld_t* index, const vector<fastq_entry_t>& 
 
 void PingPong::output_batch(int b) {
     auto c = Configuration::getInstance();
-    string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + ".sfs";
+    string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + (c->assemble ? ".assembled" : "") + ".sfs";
     lprint({"Outputting to", path});
     std::ofstream o(path);
     for (int i = last_dumped_batch; i < b; i++) { // for each of the unmerged batches
