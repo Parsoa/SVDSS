@@ -22,6 +22,7 @@
 #include "reconstructor.hpp"
 #include "converter.hpp"
 #include "assembler.hpp"
+#include "aligner.hpp"
 
 #ifdef LOCAL_BUILD
 #include "finder.hpp"
@@ -158,6 +159,12 @@ int main(int argc, char** argv) {
         create_workdir() ;
         auto assembler = new Assembler() ;
         assembler->run() ;
+    }
+    else if (strcmp(argv[1], "align") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto aligner = new Aligner() ;
+        aligner->run() ;
     }
     else {
         print_help() ;

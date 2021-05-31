@@ -12,7 +12,7 @@ map<string, vector<SFS>> parse_sfsfile(const string &sfs_path, int tau) {
         while (getline(inf, line)) {
             stringstream ssin(line);
             int i = 0;
-            while (ssin.good() && i < 5) {
+            while (ssin.good() && i < 6) {
                 ssin >> info[i++];
             }
             if (stoi(info[4]) < tau) {
@@ -22,7 +22,7 @@ map<string, vector<SFS>> parse_sfsfile(const string &sfs_path, int tau) {
                 read_name = info[0];
                 SFSs[read_name] = vector<SFS>();
             }
-            SFSs[read_name].push_back(SFS(stoi(info[1]), stoi(info[2]), stoi(info[3])));
+            SFSs[read_name].push_back(SFS(stoi(info[1]), stoi(info[2]), stoi(info[3]), info[4].compare("1") == 0));
         }
     }
     return SFSs;

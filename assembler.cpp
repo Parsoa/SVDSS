@@ -42,14 +42,14 @@ vector<SFS> Assembler::assemble(vector<SFS> &sfs) {
       if (sfs[j - 1].s + sfs[j - 1].l <= sfs[j].s) {
         // non-overlapping
         uint l = sfs[j - 1].s + sfs[j - 1].l - sfs[i].s;
-        assembled_sfs.push_back(SFS(sfs[i].s, l, 1));
+        assembled_sfs.push_back(SFS(sfs[i].s, l, 1, sfs[i].isreversed));
         i = j;
         break;
       }
     }
     if (j == sfs.size()) {
       uint l = sfs[j - 1].s + sfs[j - 1].l - sfs[i].s;
-      assembled_sfs.push_back(SFS(sfs[i].s, l, 1));
+      assembled_sfs.push_back(SFS(sfs[i].s, l, 1, sfs[i].isreversed));
       i = j;
     }
   }
