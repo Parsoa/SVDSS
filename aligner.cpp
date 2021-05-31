@@ -33,12 +33,15 @@ void Aligner::run() {
       SFSs[it->first] = it->second;
     }
   }
-  cerr << SFSs.size() << endl;
+
+  // Output SAM file
+  string outpath = c->workdir + "/alignments.sam";
+  ofstream outf(outpath);
 
   // 3. Parsing bam
   samFile *bam = hts_open(bam_path.c_str(), "r");
   bam_hdr_t *bamhdr = sam_hdr_read(bam);
-  cout << bamhdr->text; // sam_hdr_str(bamhdr) was not declared in this scope
+  outf << bamhdr->text; // sam_hdr_str(bamhdr) was not declared in this scope
                         // (we need header.o)
 
   // *** Adding Read Groups to SAM header
@@ -157,11 +160,20 @@ void Aligner::run() {
       string localqseq(qseq + qs, qe - qs + 1);
       string localqqual(qqual + qs, qe - qs + 1);
 
-      printf(
-          "%s.%i-%i\t%i\t%s\t%i\t%i\t%s\t%s\t%i\t%i\t%s\t%s\tNM:i:%i\n", // \tRG:Z:%i\n",
-          qname, sfs.s, sfs.s + sfs.l - 1, flag, chr, ts + 1, aln->core.qual,
-          localcigar.to_str().c_str(), "*", 0, 0, localqseq.c_str(),
-          localqqual.c_str(), localcigar.ed); // , RGs[qname]);
+      outf << qname << "." << sfs.s << "-" << sfs.s + sfs.l - 1 << "\t"
+           << flag << "\t"
+           << chr << "\t"
+           << ts + 1 << "\t"
+           << to_string(aln->core.qual) << "\t"
+           << localcigar.to_str() << "\t"
+           << "*" << "\t"
+           << 0 << "\t"
+           << 0 << "\t"
+           << localqseq << "\t"
+           << localqqual << "\t"
+           << "NM:i:" << localcigar.ed
+           // << "RG:>:" << RGs[qname]
+           << endl;
     }
     free(qseq);
     free(qqual);
@@ -170,6 +182,7 @@ void Aligner::run() {
     if (naln % 20000 == 0)
       cerr << naln << " alignments done." << endl;
   }
+  outf.close();
   bam_destroy1(aln);
   sam_close(bam);
 }
