@@ -33,7 +33,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/clone/dir/htslib
 
 ## Usage Guide
 
-For detailed usage guide refer to the [manual][https://github.com/Parsoa/PingPong/edit/master/docs/index.md].
+For detailed usage guide refer to the [manual](https://parsoa.github.io/PingPong).
 
 See below for a basic example
 
