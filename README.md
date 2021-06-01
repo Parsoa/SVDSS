@@ -1,11 +1,13 @@
 ![C/C++ CI](https://github.com/Parsoa/PingPong/workflows/C/C++%20CI/badge.svg)
 
 # Sample-specific string detection from accurate long reads
-Efficient computation of A-specific string w.r.t. a set {B,C,...,Z} of other long reads samples. A A-specific string is a string which occur only in sample A and not in the others. 
+
+Efficient computation of A-specific string w.;.t. a set {B,C,...,Z} of other long reads samples. A A-specific string is a string which occurs only in sample A and not in the others. 
 
 **Note:** if you are looking for the _biorxiv_ implementation, please refer to [this release](https://github.com/Parsoa/PingPong/releases/tag/v1.0.0-pingpong).
 
 ##### Use-Cases
+
 * compute strings specific to child w.r.t. parents
 * compute strings specific to individual A from population P<sub>A</sub> w.r.t. individual B from population P<sub>B</sub>
 
@@ -29,7 +31,14 @@ You can now run PingPong by adding the clone directory to PATH. Because the pack
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/clone/dir/htslib
 ```
 
-## How-To
+## Usage Guide
+
+For detailed usage guide refer to the [manual][https://github.com/Parsoa/PingPong/edit/master/docs/index.md].
+
+See below for a basic example
+
+### Basic How-To
+
 Let's assume we have 3 samples A, B, and, C. To compute A-specific strings we have to:
 
 1. Index samples B and C:
@@ -53,7 +62,7 @@ The algorithm will output a BED file named `subfreespecstrings.bed` with the lis
 ./PingPong convert --fastq /path/to/sample/A --bed /path/to/subfreespecstrings.bed --cutoff 0 > subfreespecstrings.fq
 ```
 
-### PingPong Algorithm Usage
+### Commandline Usage
 ```
 Usage: PingPong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq --index /path/to/output/index
 
