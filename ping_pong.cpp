@@ -104,7 +104,7 @@ void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vec
         int sfs_len = end - begin + 1 ;
         int acc_len = end - begin + 1 ;
         DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
-	  solutions.push_back(SFS{begin, sfs_len, 1, isreversed}) ;
+        solutions.push_back(SFS{begin, sfs_len, 1, isreversed}) ;
         DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         if (begin == 0) {
             break ;
@@ -209,14 +209,14 @@ void PingPong::output_batch(int b) {
                     vector<SFS> assembled_SFSs = a.assemble(read.second);
                     bool is_first = true;
                     for (const SFS &sfs : assembled_SFSs) {
-		        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << "\t" << sfs.isreversed << endl;
+                        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << "\t" << sfs.isreversed << endl;
                         is_first = false;
                     }
                 } else {
                     bool is_first = true;
                     for (auto &sfs: read.second) { // for each sfs in read
                         // optimize file output size by not outputing read name for every SFS
-		        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c <<"\t" << sfs.isreversed << endl ;
+                        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c <<"\t" << sfs.isreversed << endl ;
                         is_first = false;
                         n += 1 ;
                     }
@@ -335,7 +335,7 @@ int PingPong::search() {
             } else {
                 // process current batch
                 if (should_process) {
-		  batches[b][i - 2] = process_batch(index, fastq_entries[p][i - 2], mode == 1) ; // mode==1 means input is bam: read sequence is already revcompled
+                    batches[b][i - 2] = process_batch(index, fastq_entries[p][i - 2], mode == 1) ; // mode==1 means input is bam: read sequence is already revcompled
                 }
             }
         }
