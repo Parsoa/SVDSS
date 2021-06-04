@@ -22,7 +22,6 @@ void Assembler::run() {
             bool is_first = true;
             for (const SFS &sfs : assembled_sfs) {
                 outf << (is_first ? ridx : "*") << "\t"
-                    << "*"
                     << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << endl;
                 is_first = false;
             }
