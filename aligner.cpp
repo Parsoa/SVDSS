@@ -27,6 +27,7 @@ void Aligner::run() {
   for (int j = 0; j < num_batches; j++) {
     string s_j = std::to_string(j);
     string inpath = c->workdir + "/solution_batch_" + s_j + ".assembled.sfs";
+    cout << "Loading from " << inpath << ".." << endl ;
     map<string, vector<SFS>> batchSFSs = parse_sfsfile(inpath, tau);
     for (map<string, vector<SFS>>::iterator it = batchSFSs.begin();
          it != batchSFSs.end(); ++it) {

@@ -41,6 +41,7 @@ private:
 
     int current_batch = 0 ;
     int current_input_batch = 0 ;
+    int last_dumped_batch = 0 ;
 
     gzFile fastq_file ;
     kseq_t* fastq_iterator ;

@@ -119,13 +119,15 @@ uint8_t* encode_bam_seq(char* seq) {
 //} bam1_core_t;
 
 void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<uint32_t, uint32_t>> cigar) {
-    int data_size = 0 ;
+    //auto l_aux = bam_get_l_aux(alignment) ;
+    //uint8_t* aux = (uint8_t*) malloc(sizeof(uint8_t) * l_aux) ;
+    //memcpy(aux, alignment->data + alignment->l_data - l_aux, l_aux) ;
     // update core
     alignment->core.n_cigar = cigar.size() ;
     alignment->core.l_qseq = strlen(seq) ;
     int l = strlen(seq) ;
     // rebuild data
-    alignment->l_data = alignment->core.l_qname + (4 * alignment->core.n_cigar) + ((l + 1) >> 1) + l ; // bam_get_l_aux(alignment) ;
+    alignment->l_data = alignment->core.l_qname + (4 * alignment->core.n_cigar) + ((l + 1) >> 1) + l ; //+ bam_get_l_aux(alignment) ;
     //uint8_t* new_data = (uint8_t*) malloc(sizeof(uint8_t) * alignment->l_data) ;
     //sam_realloc_bam_data(alignment, alignment->l_data) ;
     //
@@ -146,7 +148,7 @@ void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<
     memcpy(alignment->data + offset, qual, l) ;
     offset += l ;
     // don't copy aux
-    // memcpy(new_data + offset, bam_get_aux(alignment), bam_get_l_aux(alignment)) ;
+    //memcpy(alignment->data + offset, aux, l_aux) ;
     //
     //free(alignment->data) ;
     //alignment->data = new_data ;

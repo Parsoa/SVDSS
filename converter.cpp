@@ -150,8 +150,10 @@ void Converter::run() {
     uint64_t total_sfs = 0 ;
     uint64_t total_sfs_output_batch = 0 ;
     // load 
+    current_input_batch = 0 ;
     load_input_sfs_batch() ;
     load_input_sfs_batch() ;
+    assert(current_input_batch == sfs_batches.size()) ;
 
     while (true) {
         lprint({"Beginning batch", to_string(b + 1)});
@@ -186,14 +188,8 @@ void Converter::run() {
                     }
                     total_sfs += c ;
                     total_sfs_output_batch += c ;
-                    cerr << "[I] Merged " << c << " new sequences. " << total_sfs << " total sequences." << endl ;
+                    cerr << "[I] Merged " << c << " new sequences. " << total_sfs << " total sequences. " << total_sfs_output_batch << " in current batch." << endl ;
                     // reached memory limit or last pipeline run
-                    if (total_sfs_output_batch >= 10000000 || !should_process) {
-                        output_batch(b) ;
-                        total_sfs_output_batch = 0 ;
-                        current_batch += 1 ;
-                        load_input_sfs_batch() ;
-                    }
                 }
             } else {
                 // process current batch
@@ -201,6 +197,13 @@ void Converter::run() {
                     batches[b][i - 2] = process_batch(fastq_entries[p][i - 2]) ; // mode==1 means input is bam: read sequence is already revcompled
                 }
             }
+        }
+
+        if (total_sfs_output_batch >= 10000000 || !should_process) {
+            output_batch(b) ;
+            total_sfs_output_batch = 0 ;
+            current_batch += 1 ;
+            load_input_sfs_batch() ;
         }
 
         if (!should_load) {
@@ -234,14 +237,12 @@ vector<fastq_entry_t> Converter::process_batch(vector<fastq_entry_t> &fastq_entr
         if (sfs_batch == -1) {
             if (sfs_batches[current_input_batch - 2].find(read.head) != sfs_batches[current_input_batch - 2].end()) {
                 sfs_batch = current_input_batch - 2 ;
-            } else if (sfs_batches[current_input_batch - 2].find(read.head) != sfs_batches[current_input_batch - 2].end()) {
-
+            } else if (sfs_batches[current_input_batch - 1].find(read.head) != sfs_batches[current_input_batch - 1].end()) {
                 sfs_batch = current_input_batch - 1 ;
             } else {
+                // this is a read that doesn't produce any SFS.
                 continue ;
-                //assert(sfs_batches[current_input_batch - 1].find(read.head) != sfs_batches[current_input_batch - 1].end()) ;
             }
-            cout << "[I] Set sfs_batch to " << sfs_batch << endl ;
         }
         for (const auto &sfs: sfs_batches[sfs_batch][read.head]) {
             string header = read.head + "#" + to_string(sfs.s) + "#" + to_string(sfs.s + sfs.l - 1) + "#" + to_string(sfs.c) ;
@@ -258,13 +259,16 @@ void Converter::output_batch(int b) {
     string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + ".fastq";
     lprint({"Outputting to", path}) ;
     std::ofstream o(path) ;
-    for (int i = 0; i < config->threads; i++) {
-        for (auto f: batches[b][i]) {
-            o << "#" + f.head << endl ;
-            o << f.seq << endl ;
-            o << "+" << endl ;
-            o << f.qual << endl ;
+    for (int j = last_dumped_batch; j < b; j++) {
+        for (int i = 0; i < config->threads; i++) {
+            for (auto f: batches[j][i]) {
+                o << "#" + f.head << endl ;
+                o << f.seq << endl ;
+                o << "+" << endl ;
+                o << f.qual << endl ;
+            }
         }
+        batches[j].clear() ;
+        last_dumped_batch++ ;
     }
-    batches[b].clear() ;
 }
