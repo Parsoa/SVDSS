@@ -118,22 +118,42 @@ uint8_t* encode_bam_seq(char* seq) {
 //    hts_pos_t isize;    // may or may ont change?
 //} bam1_core_t;
 
+int do_realloc_bam_data(bam1_t *b, size_t desired) {
+    cout << "Extending BAM entry." << endl ;
+    uint32_t new_m_data ;
+    uint8_t *new_data ;
+    new_m_data = desired ;
+    kroundup32(new_m_data) ;
+    if (new_m_data < desired) {
+        errno = ENOMEM ; // Not strictly true but we can't store the size
+        return -1 ;
+    }
+    new_data = (uint8_t*) realloc(b->data, new_m_data) ;
+    if (!new_data) return -1 ;
+    b->data = new_data ;
+    b->m_data = new_m_data ;
+    return 0 ;
+}
+
+int realloc_bam_data(bam1_t *b, size_t desired) {
+    if (desired <= b->m_data) return 0 ;
+    return do_realloc_bam_data(b, desired) ;
+}
+
 void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<uint32_t, uint32_t>> cigar) {
-    //auto l_aux = bam_get_l_aux(alignment) ;
-    //uint8_t* aux = (uint8_t*) malloc(sizeof(uint8_t) * l_aux) ;
-    //memcpy(aux, alignment->data + alignment->l_data - l_aux, l_aux) ;
+    auto l_aux = bam_get_l_aux(alignment) ;
+    uint8_t* aux = (uint8_t*) malloc(sizeof(uint8_t) * l_aux) ;
+    memcpy(aux, alignment->data + alignment->l_data - l_aux, l_aux) ;
     // update core
     alignment->core.n_cigar = cigar.size() ;
     alignment->core.l_qseq = strlen(seq) ;
     int l = strlen(seq) ;
     // rebuild data
-    alignment->l_data = alignment->core.l_qname + (4 * alignment->core.n_cigar) + ((l + 1) >> 1) + l ; //+ bam_get_l_aux(alignment) ;
-    //uint8_t* new_data = (uint8_t*) malloc(sizeof(uint8_t) * alignment->l_data) ;
-    //sam_realloc_bam_data(alignment, alignment->l_data) ;
-    //
+    int l_data = alignment->core.l_qname + (4 * alignment->core.n_cigar) + ((l + 1) >> 1) + l + l_aux ;
+    realloc_bam_data(alignment, l_data) ;
+    alignment->l_data = l_data ;
     // copy qname
     int offset = alignment->core.l_qname ;
-    //memcpy(new_data, alignment->data, offset) ;
     // copy cigar
     uint8_t* cigar_encoded = encode_cigar(cigar) ;
     memcpy(alignment->data + offset, cigar_encoded, 4 * alignment->core.n_cigar) ;
@@ -147,11 +167,8 @@ void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<
     // copy quality
     memcpy(alignment->data + offset, qual, l) ;
     offset += l ;
-    // don't copy aux
-    //memcpy(alignment->data + offset, aux, l_aux) ;
-    //
-    //free(alignment->data) ;
-    //alignment->data = new_data ;
+    // copy aux
+    memcpy(alignment->data + offset, aux, l_aux) ;
 }
 
 double global_num_bases ;
