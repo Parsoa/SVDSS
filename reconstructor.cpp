@@ -169,6 +169,7 @@ void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<
     offset += l ;
     // copy aux
     memcpy(alignment->data + offset, aux, l_aux) ;
+    free(aux) ;
 }
 
 double global_num_bases ;
@@ -285,6 +286,8 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
         }
     }
     rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar) ;
+    free(new_seq) ;
+    free(new_qual) ;
 }
 
 void Reconstructor::process_batch(vector<bam1_t*> bam_entries) {
@@ -335,11 +338,11 @@ void Reconstructor::run() {
     config = Configuration::getInstance() ;
     load_chromosomes(config->reference) ;
     // parse arguments
-    bam_file = hts_open(config->bam.c_str(), "r") ;
+    bam_file = sam_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
     auto out_bam_path = config->workdir + (config->selective ? "/reconstructed.selective.bam" : "/reconstructed.bam") ;
     out_bam_file = sam_open(out_bam_path.c_str(), "wb") ;
-    int r = bam_hdr_write(out_bam_file->fp.bgzf, bam_header) ;
+    int r = sam_hdr_write(out_bam_file, bam_header) ;
     if (r < 0) {
         lprint({"Can't write corrected BAM header, aborting.."}, 2);
     }
@@ -390,7 +393,7 @@ void Reconstructor::run() {
                         for (int j = 0; j < config->threads; j++) {
                             if (bam_entries[(p + 1) % 2][j][k] != nullptr) {
                                 auto alignment = bam_entries[(p + 1) % 2][j][k] ;
-                                ret = bam_write1(out_bam_file->fp.bgzf, bam_entries[(p + 1) % 2][j][k]);
+                                ret = sam_write1(out_bam_file, bam_header, bam_entries[(p + 1) % 2][j][k]);
                                 num_reads++ ;
                                 if (ret < 0) {
                                     lprint({"Can't write corrected BAM record, aborting.."}, 2);

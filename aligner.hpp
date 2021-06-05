@@ -1,4 +1,4 @@
-#ifndef ALIGNER_HPP
+
 #define ALIGNER_HPP
 
 #include <fstream>

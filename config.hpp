@@ -20,7 +20,7 @@ public:
 
     void parse(int argc, char* argv[]) ;
 
-    int cutoff = 5 ;
+    int cutoff = 0 ;
     int overlap = 0 ;
     int threads = 4 ;
     int coverage = 50 ;

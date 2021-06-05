@@ -18,6 +18,7 @@ void Aligner::run() {
     ref[reference->name.s] = reference->seq.s;
   kseq_destroy(reference);
   gzclose(fa_in);
+  cout << "Tau is " << tau << endl ;
 
   lprint({"Aligning high-abundance strings from", to_string(num_batches),
           "batches.."});
@@ -27,8 +28,8 @@ void Aligner::run() {
   for (int j = 0; j < num_batches; j++) {
     string s_j = std::to_string(j);
     string inpath = c->workdir + "/solution_batch_" + s_j + ".assembled.sfs";
-    cout << "Loading from " << inpath << ".." << endl ;
     map<string, vector<SFS>> batchSFSs = parse_sfsfile(inpath, tau);
+    cout << "Loaded " << batchSFSs.size() << " SFS from " << inpath << "." << endl ;
     for (map<string, vector<SFS>>::iterator it = batchSFSs.begin();
          it != batchSFSs.end(); ++it) {
       SFSs[it->first] = it->second;
