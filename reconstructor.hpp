@@ -15,12 +15,8 @@
 #include <unordered_map>
 
 #include <zlib.h>
-#include <htslib/hts.h>
-#include <htslib/sam.h>
-#include <htslib/bgzf.h>
-#include <htslib/hfile.h>
-#include <htslib/hts_endian.h>
 
+#include "bam.hpp"
 #include "vcf.hpp"
 #include "fastq.hpp"
 #include "config.hpp"
@@ -29,7 +25,6 @@
 
 using namespace std ;
 
-//TODO: why did I have to redefine this?
 #define bam_set_seqi(s,i,b) ((s)[(i)>>1] = ((s)[(i)>>1] & (0xf0 >> ((~(i)&1)<<2))) | ((b)<<((~(i)&1)<<2)))
 
 class Reconstructor {
@@ -51,6 +46,13 @@ public:
 
     Configuration* config ;
 
+private:
+
+    double global_num_bases ;
+    double global_num_mismatch ;
+    double global_num_indel ;
+    double expected_mismatch_rate = 0.002 ;
+    int num_ignored_reads = 0 ;
 };
 
 #endif

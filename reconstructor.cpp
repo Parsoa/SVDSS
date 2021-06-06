@@ -2,98 +2,6 @@
 
 using namespace std ;
 
-#define BAM_CIGAR_MASK  0xf
-#define BAM_CIGAR_TYPE  0x3C1A7
-
-char reverse_complement_base(char base) {
-    if (base == 'C' || base == 'c') {
-        return 'G' ;
-    }
-    if (base == 'A' || base == 'a') {
-        return 'T' ;
-    }
-    if (base == 'G' || base == 'g') {
-        return 'C' ;
-    }
-    if (base == 'T' || base == 't') {
-        return 'A' ;
-    }
-    else {
-        return 'N' ;
-    }
-}
-
-void reverse_complement_read(char* seq) {
-    int l = strlen(seq) ;
-    int i = 0 ;
-    while (i < l / 2) {
-        auto t = reverse_complement_base(seq[l - i]) ;
-        seq[l - 1 - i] = reverse_complement_base(seq[i]) ;
-        seq[i] = t ;
-        i += 1 ;
-    }
-}
-
-string print_cigar_symbol(int type) {
-    if (type == BAM_CMATCH) {
-        return "M" ;
-    }
-    if (type == BAM_CINS) {
-        return "I" ;
-    }
-    if (type == BAM_CDEL) {
-        return "D" ;
-    }
-    if (type == BAM_CSOFT_CLIP) {
-        return "S" ;
-    }
-    if (type == BAM_CHARD_CLIP) {
-        return "H" ;
-    }
-    return "X" ;
-}
-
-uint32_t cigar_len_mask = 0xFFFFFFF0 ;
-uint32_t cigar_type_mask = 0xF ;
-
-vector<pair<uint32_t, uint32_t>> decode_cigar(bam1_t* read) {
-    // get CIGAR
-    vector<pair<uint32_t, uint32_t>> cigar_offsets ;
-    uint32_t* cigar = bam_get_cigar(read) ;
-    int offset = 0 ;
-    for (int i = 0; i < read->core.n_cigar; i++) {
-        uint32_t type = cigar[i] & cigar_type_mask ;
-        uint32_t length = cigar[i] >> 4 ;
-        cigar_offsets.push_back(make_pair(length, type)) ;
-    }
-    return cigar_offsets ;
-}
-
-uint8_t* encode_cigar(vector<pair<uint32_t, uint32_t>> cigar) {
-    uint32_t* cigar_bytes = (uint32_t*) malloc(sizeof(uint32_t) * cigar.size()) ;
-    for (int i = 0; i < cigar.size(); i++) {
-        cigar_bytes[i] = (cigar[i].first << 4) | (cigar[i].second & cigar_type_mask) ; 
-    }
-    return (uint8_t*) cigar_bytes ;
-}
-
-uint8_t* encode_bam_seq(char* seq) {
-    int n = (strlen(seq) + 1) >> 1 ;
-    int l_seq = strlen(seq) ;
-    uint8_t* seq_bytes = (uint8_t*) malloc(sizeof(uint8_t) * n) ;
-    int i = 0 ;
-    n = 0 ;
-    for (i = 0; i + 1 < l_seq; i += 2) {
-        seq_bytes[n] = (seq_nt16_table[(unsigned char)seq[i]] << 4) | seq_nt16_table[(unsigned char)seq[i + 1]];
-        n += 1 ;
-    }
-    for (; i < l_seq; i++) {
-        seq_bytes[n] = seq_nt16_table[(unsigned char)seq[i]] << 4;
-        n += 1 ;
-    }
-    return seq_bytes ;
-}
-
 //typedef struct bam1_t {
 //    bam1_core_t core; // won't change
 //    uint64_t id;      // won't change
@@ -171,12 +79,6 @@ void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<
     memcpy(alignment->data + offset, aux, l_aux) ;
     free(aux) ;
 }
-
-double global_num_bases ;
-double global_num_mismatch ;
-double global_num_indel ;
-double expected_mismatch_rate = 0.002 ;
-int num_ignored_reads = 0 ;
 
 void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string chrom) {
     auto cigar_offsets = decode_cigar(alignment) ;

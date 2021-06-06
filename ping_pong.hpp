@@ -66,11 +66,6 @@ typedef std::map<std::string, std::vector<sfs_type_t>> batch_type_t;
 
 static const std::vector<std::string> int2char ({"$", "A", "C", "G", "T", "N"}) ;
 
-struct OutputBatchArgs {
-    int batch ;
-    int p;
-} ;
-
 class PingPong {
 
 public:

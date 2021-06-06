@@ -17,12 +17,13 @@
 #include "config.hpp"
 #include "lprint.hpp"
 #include "ping_pong.hpp"
-#include "aggregator.hpp"
 #include "chromosomes.hpp"
-#include "reconstructor.hpp"
+
 #include "converter.hpp"
 #include "assembler.hpp"
-#include "aligner.hpp"
+#include "realigner.hpp"
+#include "aggregator.hpp"
+#include "reconstructor.hpp"
 
 #ifdef LOCAL_BUILD
 #include "finder.hpp"
@@ -163,7 +164,7 @@ int main(int argc, char** argv) {
     else if (strcmp(argv[1], "align") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
-        auto aligner = new Aligner() ;
+        auto aligner = new Realigner() ;
         aligner->run() ;
     }
     else {

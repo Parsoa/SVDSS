@@ -4,8 +4,9 @@
 #include <vector>
 #include <string>
 #include <fstream>
-#include <unordered_map>
 #include <iomanip>
+#include <unordered_map>
+
 #include <zlib.h>
 
 #include "kseq.h"
