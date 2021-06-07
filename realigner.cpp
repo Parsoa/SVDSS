@@ -21,7 +21,7 @@ bool Realigner::load_batch_bam(int threads, int batch_size, int p) {
             continue ;
         }
         n += 1 ;
-        if (n % threads == threads - 1) {
+        if (n % threads == 0) {
             i += 1 ;
         }
         if (n == batch_size) {
@@ -67,7 +67,7 @@ void Realigner::load_input_sfs_batch() {
 
 void Realigner::run() {
     config = Configuration::getInstance() ;
-    bam_file = hts_open(config->bam.c_str(), "r") ;
+    bam_file = sam_open(config->bam.c_str(), "r") ;
     // load first batch
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
@@ -177,7 +177,6 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
     vector<string> output ;
     int sfs_batch = -1 ;
     for (const auto alignment: bam_entries) { // a map
-        char *chrom = bam_header->target_name[alignment->core.tid];
         string qname = string(bam_get_qname(alignment)) ;
         if (sfs_batch == -1) {
             if (sfs_batches[current_input_batch - 2].find(qname) != sfs_batches[current_input_batch - 2].end()) {
@@ -189,6 +188,8 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
                 continue ;
             }
         }
+        // read data
+        char *chrom = bam_header->target_name[alignment->core.tid];
         vector<pair<int, int>> alpairs = get_aligned_pairs(alignment) ;
         bool is_rev = bam_is_rev(alignment) ;
         uint flag = is_rev ? 16 : 0 ;

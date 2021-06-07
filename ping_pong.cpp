@@ -156,7 +156,7 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
         seq[l] = '\0' ; // null terminate
         fastq_entries[p][n % threads].push_back(fastq_entry_t(bam_get_qname(alignment), seq, seq)) ;
         n += 1 ;
-        if (n % threads == threads - 1) {
+        if (n % threads == 0) {
             i += 1 ;
         }
         if (n == batch_size) {
