@@ -131,6 +131,8 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
     }
     int i = 0 ;
     int n = 0 ;
+    int buffer_len = 10000 ;
+    char* seq = (char*) malloc(buffer_len) ;
     while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
         auto alignment = bam_entries[p][n % threads][i] ;
         if (alignment == nullptr) {
@@ -148,7 +150,11 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
             continue ;
         }
         uint32_t l = alignment->core.l_qseq ; //length of the read
-        char* seq = (char*) malloc(l + 1) ;
+        if (l >= buffer_len) {
+            free(seq) ;
+            buffer_len = l + 1 ;
+            seq = (char*) malloc(buffer_len) ;
+        }
         uint8_t *q = bam_get_seq(alignment) ; //quality string
         for (int i = 0; i < l; i++){
             seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
@@ -163,6 +169,7 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
             return true ;
         }
     }
+    free(seq) ;
     lprint({"Loaded", to_string(n), "BAM reads.."});
     return n != 0 ? true : false ;
 }

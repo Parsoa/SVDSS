@@ -25,7 +25,7 @@ bool Realigner::load_batch_bam(int threads, int batch_size, int p) {
             i += 1 ;
         }
         if (n == batch_size) {
-            return true ;
+            break ;
         }
     }
     lprint({"Loaded", to_string(n), "BAM reads.."});
@@ -67,7 +67,9 @@ void Realigner::load_input_sfs_batch() {
 
 void Realigner::run() {
     config = Configuration::getInstance() ;
+    load_chromosomes(config->reference) ;
     bam_file = sam_open(config->bam.c_str(), "r") ;
+    bam_header = sam_hdr_read(bam_file) ; //read header
     // load first batch
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
@@ -135,6 +137,7 @@ void Realigner::run() {
                     total_sfs_output_batch += c ;
                     cerr << "[I] Merged " << c << " new sequences. " << total_sfs << " total sequences. " << total_sfs_output_batch << " in current batch." << endl ;
                     // reached memory limit or last pipeline run
+                    // output_batch(b - 1) ;
                 }
             } else {
                 // process current batch
@@ -169,13 +172,15 @@ void Realigner::run() {
         }
         cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
     }
-    // cleanup
     sam_close(bam_file) ;
 }
 
 vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
     vector<string> output ;
     int sfs_batch = -1 ;
+    int buffer_len = 0 ;
+    char* qseq = (char*) malloc(buffer_len) ;
+    char* qqual = (char*) malloc(buffer_len) ;
     for (const auto alignment: bam_entries) { // a map
         string qname = string(bam_get_qname(alignment)) ;
         if (sfs_batch == -1) {
@@ -194,8 +199,13 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
         bool is_rev = bam_is_rev(alignment) ;
         uint flag = is_rev ? 16 : 0 ;
         uint32_t l = alignment->core.l_qseq ; //length of the read
-        char* qseq = (char*) malloc(l + 1) ;
-        char* qqual = (char*) malloc(l + 1) ;
+        if (l >= buffer_len) {
+            free(qseq) ;
+            free(qqual) ;
+            buffer_len = l + 1 ;
+            qseq = (char*) malloc(buffer_len) ;
+            qqual = (char*) malloc(buffer_len) ;
+        }
         uint8_t *q = bam_get_seq(alignment) ; //quality string
         for (int i = 0; i < l; i++){
             qseq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
@@ -204,6 +214,7 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
         qseq[l] = '\0' ; // null terminate
         qqual[l] = '\0';
         for (const auto &sfs: sfs_batches[sfs_batch][qname]) {
+            //cout << "processing SFS [" << sfs.s << ", " << sfs.s + sfs.l << "] on  read " << qname << endl ;
             vector<pair<int, int>> local_alpairs ;
             int start_pair_index = -1 ;
             int end_pair_index = 0 ;
@@ -215,8 +226,8 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
                         start_pair_index = j ;
                     }
                     end_pair_index = j ;
-                    j++ ;
                 }
+                j++ ;
             }
             // TODO do we need this if?
             if (local_alpairs.empty()) {
@@ -294,11 +305,12 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
                 continue;
             }
             //
+            cout << chrom << endl ;
             CIGAR localcigar = rebuild_cigar(chromosome_seqs[chrom], qseq, local_alpairs);
             localcigar.fixclips();
             string localqseq(qseq + qs, qe - qs + 1);
             string localqqual(qqual + qs, qe - qs + 1);
-            // something more elegant
+            // maybe do something more elegant
             string o = qname + "." + to_string(sfs.s) + "-" + to_string(sfs.s + sfs.l - 1) + "\t"
                 + to_string(flag) + "\t"
                 + chrom + "\t"
@@ -314,6 +326,8 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
             output.push_back(o) ;
         }
     }
+    free(qseq) ;
+    free(qqual) ;
     return output ; 
 }
 

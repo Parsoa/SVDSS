@@ -127,6 +127,7 @@ vector<pair<int, int>> get_aligned_pairs(bam1_t *alignment) {
         } else { //if (cigar_offsets[m].second == BAM_CPAD) {
             //TODO
         }
+        m++ ;
     }
     return result;
 }
