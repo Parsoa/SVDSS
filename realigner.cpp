@@ -68,16 +68,20 @@ void Realigner::load_input_sfs_batch() {
             }
         }
     }
+    int c = 0 ;
     for (int j = 0; j < num_batches; j++) {
         lprint({"Batch", to_string(j), "with", to_string(_SFSs[j].size()), "strings."});
+        c += _SFSs[j].size() ;
         SFSs.insert(_SFSs[j].begin(), _SFSs[j].end()) ;
     }
+    lprint({"Aligning", to_string(c), "SFS strings.."}) ;
 }
 
 void Realigner::run() {
     config = Configuration::getInstance() ;
     load_input_sfs_batch() ;
     load_chromosomes(config->reference) ;
+    out_file = ofstream(config->workdir + "/realignments.sam") ;
     bam_file = sam_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
     // load all SFSs
@@ -215,6 +219,10 @@ vector<string> Realigner::process_batch(int p, int index) {
                         start_pair_index = i ;
                     }
                     end_pair_index = i ;
+                    continue ;
+                }
+                if (alpairs[i].first != -1 && alpairs[i].first > sfs.s + sfs.l) {
+                    break ;
                 }
             }
             last_pos = end_pair_index - 1 ;
