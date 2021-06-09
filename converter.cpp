@@ -128,7 +128,7 @@ void Converter::run() {
     } else {
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < config->threads; j++) {
-                for (int k = 0; k <= batch_size / config->threads; k++) {
+                for (int k = 0; k < batch_size / config->threads; k++) {
                     bam_entries[i][j].push_back(bam_init1()) ;
                 }
             }

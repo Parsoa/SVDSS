@@ -38,23 +38,20 @@ int get_reference_size(ifstream &fasta_file) {
 }
 
 void load_chromosomes(string path) {
-  lprint({"Loading reference genome from", path, ".."});
-  gzFile fp = gzopen(path.c_str(), "r");
-  kseq_t *seq = kseq_init(fp);
-  int l;
-  while ((l = kseq_read(seq)) >= 0) {
-    lprint({"Extracted", seq->name.s, "with", to_string(l), "bases"});
-    for(uint i = 0; i<l; ++i)
-      seq->seq.s[i] = toupper(seq->seq.s[i]);
-    chromosomes.push_back(seq->name.s);
-    char* s = (char*) malloc(sizeof(char) * (l + 1)) ;
-    memcpy(s, seq->seq.s, l + 1) ;
-    s[l] = '\0';
-    chromosome_seqs[seq->name.s] = s;
-  }
-  kseq_destroy(seq);
-  gzclose(fp);
-
-  for(const auto s : chromosomes)
-    cerr << s << endl;
+    lprint({"Loading reference genome from", path, ".."});
+    gzFile fp = gzopen(path.c_str(), "r");
+    kseq_t *seq = kseq_init(fp);
+    int l;
+    while ((l = kseq_read(seq)) >= 0) {
+        lprint({"Extracted", seq->name.s, "with", to_string(l), "bases"});
+        for(uint i = 0; i<l; ++i)
+        seq->seq.s[i] = toupper(seq->seq.s[i]);
+        chromosomes.push_back(seq->name.s);
+        char* s = (char*) malloc(sizeof(char) * (l + 1)) ;
+        memcpy(s, seq->seq.s, l + 1) ;
+        s[l] = '\0';
+        chromosome_seqs[seq->name.s] = s;
+    }
+    kseq_destroy(seq);
+    gzclose(fp);
 }

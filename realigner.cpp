@@ -4,7 +4,9 @@
 bool Realigner::load_batch_bam(int threads, int batch_size, int p) {
     int i = 0 ;
     int n = 0 ;
+    int m = 0 ;
     while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
+        m++ ;
         auto alignment = bam_entries[p][n % threads][i] ;
         if (alignment == nullptr) {
             break ;
@@ -20,6 +22,10 @@ bool Realigner::load_batch_bam(int threads, int batch_size, int p) {
         if (alignment->core.tid < 0) {
             continue ;
         }
+        string qname = string(bam_get_qname(alignment)) ;
+        if (SFSs.find(qname) == SFSs.end()) {
+            continue ;
+        }
         n += 1 ;
         if (n % threads == 0) {
             i += 1 ;
@@ -28,68 +34,68 @@ bool Realigner::load_batch_bam(int threads, int batch_size, int p) {
             break ;
         }
     }
-    lprint({"Loaded", to_string(n), "BAM reads.."});
+    lprint({"Loaded", to_string(n), "BAM reads with SFS from total of", to_string(m), "reads."});
     return n != 0 ? true : false ;
 }
 
-// load SFS file and round-robin reads between threads
 void Realigner::load_input_sfs_batch() {
-    if (current_input_batch == config->aggregate_batches) {
-        cerr << "[I] all input SFS batches loaded. Not loading new batch." << endl ;
-        return ;
-    }
-    string s_j = std::to_string(current_input_batch) ;
-    string inpath = config->workdir + "/solution_batch_" + s_j + ".assembled.sfs" ;
-    cout << "[I] Loading SFS from " << inpath << endl ;
     int threads = config->threads ; 
-    unordered_map<string, vector<SFS>> SFSs ;
-    string line ;
-    ifstream inf(inpath) ;
-    if (inf.is_open()) {
-        string info[4];
-        string read_name;
-        while (getline(inf, line)) {
-            stringstream ssin(line);
-            int i = 0;
-            while (ssin.good() && i < 5) {
-                ssin >> info[i++];
+    int num_batches = config->aggregate_batches ;
+    int num_threads = num_batches < threads ? num_batches : threads ;
+    vector<unordered_map<string, vector<SFS>>> _SFSs(num_batches) ;
+    cout << "Loading assmbled SFS.." << endl ;
+    #pragma omp parallel for num_threads(num_threads)
+    for (int j = 0; j < num_batches; j++) {
+        string s_j = std::to_string(j) ;
+        string inpath = config->workdir + "/solution_batch_" + s_j + ".assembled.sfs" ;
+        cout << "[I] Loading SFS from " << inpath << endl ;
+        ifstream inf(inpath) ;
+        string line ;
+        if (inf.is_open()) {
+            string info[4];
+            string read_name;
+            while (getline(inf, line)) {
+                stringstream ssin(line);
+                int i = 0;
+                while (ssin.good() && i < 5) {
+                    ssin >> info[i++];
+                }
+                if (info[0].compare("*") != 0) {
+                    read_name = info[0];
+                    _SFSs[j][read_name] = vector<SFS>();
+                }
+                _SFSs[j][read_name].push_back(SFS(stoi(info[1]), stoi(info[2]), stoi(info[3]), true)) ;
             }
-            if (info[0].compare("*") != 0) {
-                read_name = info[0];
-                SFSs[read_name] = vector<SFS>();
-            }
-            SFSs[read_name].push_back(SFS(stoi(info[1]), stoi(info[2]), stoi(info[3]), true)) ;
         }
     }
-    sfs_batches.push_back(SFSs) ;
-    current_input_batch++ ;
+    for (int j = 0; j < num_batches; j++) {
+        lprint({"Batch", to_string(j), "with", to_string(_SFSs[j].size()), "strings."});
+        SFSs.insert(_SFSs[j].begin(), _SFSs[j].end()) ;
+    }
 }
 
 void Realigner::run() {
     config = Configuration::getInstance() ;
+    load_input_sfs_batch() ;
     load_chromosomes(config->reference) ;
     bam_file = sam_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
-    // load first batch
-    for(int i = 0; i < 2; i++) {
-        bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
-    }
-    int p = 0 ;
+    // load all SFSs
     int batch_size = 10000 ;
-    lprint({"Extracting SFS strings on", to_string(config->threads), "threads.."});
-    lprint({"Loading first batch.."});
     for (int i = 0; i < 2; i++) {
+        bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
         for (int j = 0; j < config->threads; j++) {
-            for (int k = 0; k <= batch_size / config->threads; k++) {
+            for (int k = 0; k < batch_size / config->threads; k++) {
                 bam_entries[i][j].push_back(bam_init1()) ;
             }
         }
     }
-    load_batch_bam(config->threads, batch_size, p) ;
+    lprint({"Loading first batch.."});
     batches.push_back(vector<vector<string>>(config->threads)) ; 
     //
     time_t t ;
     time(&t) ;
+    int p = 0 ;
     int b = 0 ;
     uint64_t u = 0 ;
 
@@ -101,11 +107,7 @@ void Realigner::run() {
     uint64_t total_sfs = 0 ;
     uint64_t total_sfs_output_batch = 0 ;
     // load 
-    current_input_batch = 0 ;
-    load_input_sfs_batch() ;
-    load_input_sfs_batch() ;
-    assert(current_input_batch == sfs_batches.size()) ;
-
+    load_batch_bam(config->threads, batch_size, p) ;
     while (true) {
         lprint({"Beginning batch", to_string(b + 1)});
         for (int i = 0 ; i < config->threads ; i++) {
@@ -135,14 +137,12 @@ void Realigner::run() {
                     }
                     total_sfs += c ;
                     total_sfs_output_batch += c ;
-                    cerr << "[I] Merged " << c << " new sequences. " << total_sfs << " total sequences. " << total_sfs_output_batch << " in current batch." << endl ;
-                    // reached memory limit or last pipeline run
-                    // output_batch(b - 1) ;
+                    cerr << "[I] Merged " << c << " new alignments. " << total_sfs << " total alignments. " << total_sfs_output_batch << " in current batch." << endl ;
                 }
             } else {
                 // process current batch
                 if (should_process) {
-                    batches[b][i - 2] = process_batch(bam_entries[p][i - 2]) ; // mode==1 means input is bam: read sequence is already revcompled
+                    batches[b][i - 2] = process_batch(p, i - 2);
                 }
             }
         }
@@ -151,7 +151,6 @@ void Realigner::run() {
             output_batch(b) ;
             total_sfs_output_batch = 0 ;
             current_batch += 1 ;
-            load_input_sfs_batch() ;
         }
 
         if (!should_load) {
@@ -175,24 +174,14 @@ void Realigner::run() {
     sam_close(bam_file) ;
 }
 
-vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
+vector<string> Realigner::process_batch(int p, int index) {
     vector<string> output ;
-    int sfs_batch = -1 ;
-    int buffer_len = 0 ;
+    int buffer_len = 20000 ;
     char* qseq = (char*) malloc(buffer_len) ;
     char* qqual = (char*) malloc(buffer_len) ;
-    for (const auto alignment: bam_entries) { // a map
+    for (int b = 0; b < bam_entries[p][index].size(); b++) {
+        bam1_t* alignment = bam_entries[p][index][b] ;
         string qname = string(bam_get_qname(alignment)) ;
-        if (sfs_batch == -1) {
-            if (sfs_batches[current_input_batch - 2].find(qname) != sfs_batches[current_input_batch - 2].end()) {
-                sfs_batch = current_input_batch - 2 ;
-            } else if (sfs_batches[current_input_batch - 1].find(qname) != sfs_batches[current_input_batch - 1].end()) {
-                sfs_batch = current_input_batch - 1 ;
-            } else {
-                // this is a read that doesn't produce any SFS.
-                continue ;
-            }
-        }
         // read data
         char *chrom = bam_header->target_name[alignment->core.tid];
         vector<pair<int, int>> alpairs = get_aligned_pairs(alignment) ;
@@ -213,27 +202,28 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
         }
         qseq[l] = '\0' ; // null terminate
         qqual[l] = '\0';
-        for (const auto &sfs: sfs_batches[sfs_batch][qname]) {
-            //cout << "processing SFS [" << sfs.s << ", " << sfs.s + sfs.l << "] on  read " << qname << endl ;
+        int last_pos = 0 ;
+        for (const auto &sfs: SFSs[qname]) {
             vector<pair<int, int>> local_alpairs ;
             int start_pair_index = -1 ;
             int end_pair_index = 0 ;
-            int j = 0 ;
-            for (const auto &pos: alpairs) {
-                if (pos.first != -1 && sfs.s <= pos.first && pos.first < sfs.s + sfs.l) {
-                    local_alpairs.push_back(make_pair(pos.first, pos.second));
+            //for (const auto &pos: alpairs) {
+            for (int i = last_pos; i < alpairs.size(); i++) {
+                if (alpairs[i].first != -1 && sfs.s <= alpairs[i].first && alpairs[i].first < sfs.s + sfs.l) {
+                    local_alpairs.push_back(make_pair(alpairs[i].first, alpairs[i].second));
                     if (start_pair_index != -1) {
-                        start_pair_index = j ;
+                        start_pair_index = i ;
                     }
-                    end_pair_index = j ;
+                    end_pair_index = i ;
                 }
-                j++ ;
             }
-            // TODO do we need this if?
+            last_pos = end_pair_index - 1 ;
             if (local_alpairs.empty()) {
-                cerr << "EMPTY LOCAL " << qname << " " << sfs.s << " " << sfs.l << endl;
-                continue;
+                // If this happens once it will happen for all next SFS in this read, right? so we might as well break here
+                //cerr << "EMPTY LOCAL " << qname << " " << sfs.s << " " << sfs.l << endl;
+                continue ;
             }
+            //cout << local_alpairs.size() << " locacl pairs." << endl ;
             // FILLING STARTING/ENDING -1s:
             // - if clips, we just add pairs til read end
             // - if insertion, we add pairs til first M we can find
@@ -246,20 +236,6 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
                     }
                 }
             }
-            //if (local_alpairs.front().second == -1) {
-            //    bool add = false;
-            //    for (int i = alpairs.size() - 1; i >= 0; --i) {
-            //        if (add) { 
-            //            local_alpairs.insert(local_alpairs.begin(), alpairs.at(i));
-            //        }
-            //        if (alpairs.at(i).second != -1 && add) {
-            //            break;
-            //        }
-            //        if (!add && alpairs.at(i).first == local_alpairs.front().first) {
-            //            add = true;
-            //        }
-            //    }
-            //}
             if (local_alpairs.back().second == -1) {
                 for (int j = end_pair_index + 1; j < alpairs.size(); j++) {
                     local_alpairs.push_back(alpairs[j]) ;
@@ -268,30 +244,16 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
                     }
                 }
             }
-            //if (local_alpairs.back().second == -1) {
-            //    bool add = false;
-            //    for (int i = 0; i < alpairs.size(); ++i) {
-            //        if (add) {
-            //            local_alpairs.push_back(alpairs.at(i));
-            //        }
-            //        if (alpairs.at(i).second != -1 && add) {
-            //            break;
-            //        }
-            //        if (!add && alpairs.at(i).first == local_alpairs.back().first) {
-            //            add = true;
-            //        }
-            //    }
-            //}
             uint qs = local_alpairs.front().first ;
             uint qe = local_alpairs.back().first ;
             // In some (very rare I hope) cases, an insertion follows a deletions (or
             // viceversa). So we are trying to find the first M - that is a non -1 in
             // the pairs - but that pair has -1 on the read
+            //cout << "[" << qs << "," << qe << "]" << endl ;
             if (qs == -1 || qe == -1) {
-                cerr << "INS-DEL " << qname << "." << sfs.s << ":" << sfs.l << endl;
+                //cerr << "INS-DEL " << qname << "." << sfs.s << ":" << sfs.l << endl;
                 continue;
             }
-        
             // If clips, we have trailing -1 in target positions. We have to find the
             // first placed base
             int ts = local_alpairs.front().second;
@@ -301,12 +263,12 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
                 ts = alignment->core.pos;
             }
             if (local_alpairs.front().second == -1 && local_alpairs.back().second == -1) {
-                cerr << "FULL CLIP " << qname << "." << sfs.s << ":" << sfs.l << endl;
+                //cerr << "FULL CLIP " << qname << "." << sfs.s << ":" << sfs.l << endl;
                 continue;
             }
-            //
-            cout << chrom << endl ;
+            //cout << "Rebuilding cigar " << endl ;
             CIGAR localcigar = rebuild_cigar(chromosome_seqs[chrom], qseq, local_alpairs);
+            //cout << "Rebuilt cigar" << endl ;
             localcigar.fixclips();
             string localqseq(qseq + qs, qe - qs + 1);
             string localqqual(qqual + qs, qe - qs + 1);
@@ -332,6 +294,7 @@ vector<string> Realigner::process_batch(vector<bam1_t*> &bam_entries) {
 }
 
 void Realigner::output_batch(int b) {
+    cout << "Outputting batch " << b << ".." << endl ;
     for (int j = last_dumped_batch; j < b; j++) {
         for (int i = 0; i < config->threads; i++) {
             for (auto f: batches[j][i]) {
@@ -343,7 +306,7 @@ void Realigner::output_batch(int b) {
     }
 }
 
-CIGAR Realigner::rebuild_cigar(const string &ref_seq, const string &read_seq, const vector<pair<int, int>> &alpairs) {
+CIGAR Realigner::rebuild_cigar(char* ref_seq, char* read_seq, const vector<pair<int, int>> &alpairs) {
     CIGAR cigar;
     int last_ref_pos = alpairs[0].second;
     for (const pair<int, int> p: alpairs) {

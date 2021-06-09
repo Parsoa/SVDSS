@@ -21,6 +21,7 @@
 
 #include "converter.hpp"
 #include "assembler.hpp"
+#include "aligner.hpp"
 #include "realigner.hpp"
 #include "aggregator.hpp"
 #include "reconstructor.hpp"
@@ -161,10 +162,16 @@ int main(int argc, char** argv) {
         auto assembler = new Assembler() ;
         assembler->run() ;
     }
-    else if (strcmp(argv[1], "align") == 0) {
+    else if (strcmp(argv[1], "realign") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
         auto aligner = new Realigner() ;
+        aligner->run() ;
+    }
+    else if (strcmp(argv[1], "align") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto aligner = new Aligner() ;
         aligner->run() ;
     }
     else {

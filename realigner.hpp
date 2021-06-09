@@ -35,7 +35,6 @@ public:
 private:
 
     int current_batch = 0 ;
-    int current_input_batch = 0 ;
     int last_dumped_batch = 0 ;
 
     samFile *bam_file ;
@@ -45,14 +44,14 @@ private:
     void load_input_sfs_batch() ;
     ofstream out_file ;
 
-    std::vector<std::unordered_map<std::string, std::vector<SFS>>> sfs_batches ;
-    std::vector<std::string> process_batch(std::vector<bam1_t*> &bam_entries) ;
+    std::unordered_map<std::string, std::vector<SFS>> SFSs ;
+    std::vector<std::string> process_batch(int, int) ;
     std::vector<std::vector<std::vector<std::string>>> batches ;
     void output_batch(int) ;
 
     Configuration* config ;
 
-    CIGAR rebuild_cigar(const std::string &ref_seq, const std::string &read_seq, const std::vector<std::pair<int, int>> &alpairs) ;
+    CIGAR rebuild_cigar(char*, char*, const std::vector<std::pair<int, int>> &alpairs) ;
 };
 
 #endif
