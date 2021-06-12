@@ -44,6 +44,7 @@ void Realigner::load_input_sfs_batch() {
     int num_threads = num_batches < threads ? num_batches : threads ;
     vector<unordered_map<string, vector<SFS>>> _SFSs(num_batches) ;
     cout << "Loading assmbled SFS.." << endl ;
+    num_batches = 1 ;
     #pragma omp parallel for num_threads(num_threads)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
@@ -68,13 +69,17 @@ void Realigner::load_input_sfs_batch() {
             }
         }
     }
+    int r = 0 ;
     int c = 0 ;
     for (int j = 0; j < num_batches; j++) {
         lprint({"Batch", to_string(j), "with", to_string(_SFSs[j].size()), "strings."});
-        c += _SFSs[j].size() ;
+        r += _SFSs[j].size() ;
         SFSs.insert(_SFSs[j].begin(), _SFSs[j].end()) ;
+        for (auto& read: _SFSs[j]) {
+            c += read.second.size() ;
+        }
     }
-    lprint({"Aligning", to_string(c), "SFS strings.."}) ;
+    lprint({"Aligning", to_string(c), "SFS strings on", to_string(r), " reads.", to_string(config->threads), "threads.."}) ;
 }
 
 void Realigner::run() {
@@ -152,6 +157,7 @@ void Realigner::run() {
         }
 
         if (total_sfs_output_batch >= 10000000 || !should_process) {
+            lprint({"Memory limit reached, dumping alignments.."}) ;
             output_batch(b) ;
             total_sfs_output_batch = 0 ;
             current_batch += 1 ;
@@ -207,36 +213,42 @@ vector<string> Realigner::process_batch(int p, int index) {
         qseq[l] = '\0' ; // null terminate
         qqual[l] = '\0';
         int last_pos = 0 ;
-        for (const auto &sfs: SFSs[qname]) {
+        cout << qname << endl ;
+        for (int s = 0; s < SFSs[qname].size(); s++) {
+            auto& sfs = SFSs[qname][s] ;
+            cout << "SFS " << sfs.s << " " << sfs.l << " position from " << last_pos << endl ;
             vector<pair<int, int>> local_alpairs ;
             int start_pair_index = -1 ;
-            int end_pair_index = 0 ;
-            //for (const auto &pos: alpairs) {
+            int end_pair_index = -1 ;
             for (int i = last_pos; i < alpairs.size(); i++) {
-                if (alpairs[i].first != -1 && sfs.s <= alpairs[i].first && alpairs[i].first < sfs.s + sfs.l) {
+                if (alpairs[i].first != -1 && alpairs[i].first >= sfs.s && alpairs[i].first < sfs.s + sfs.l) {
                     local_alpairs.push_back(make_pair(alpairs[i].first, alpairs[i].second));
-                    if (start_pair_index != -1) {
+                    if (start_pair_index == -1) {
                         start_pair_index = i ;
                     }
                     end_pair_index = i ;
-                    continue ;
                 }
                 if (alpairs[i].first != -1 && alpairs[i].first > sfs.s + sfs.l) {
                     break ;
                 }
             }
-            last_pos = end_pair_index - 1 ;
             if (local_alpairs.empty()) {
-                // If this happens once it will happen for all next SFS in this read, right? so we might as well break here
+                assert(end_pair_index == -1 && start_pair_index == -1) ;
                 //cerr << "EMPTY LOCAL " << qname << " " << sfs.s << " " << sfs.l << endl;
                 continue ;
             }
-            //cout << local_alpairs.size() << " locacl pairs." << endl ;
+            if (s < SFSs[qname].size() - 1) {
+                auto& next = SFSs[qname][s + 1] ;
+                if (next.s >= sfs.s + sfs.l) {
+                    last_pos = end_pair_index - 1 ;
+                } else {
+                    last_pos = start_pair_index ;
+                }
+            }
             // FILLING STARTING/ENDING -1s:
             // - if clips, we just add pairs til read end
             // - if insertion, we add pairs til first M we can find
-            // slightly faster than looping over all pairs (can be thousands of extra iterations)
-            if (local_alpairs.front().second == -1) {
+            if (local_alpairs[0].second == -1) {
                 for (int j = start_pair_index - 1; j >= 0; j--) {
                     local_alpairs.insert(local_alpairs.begin(), alpairs[j]) ;
                     if (alpairs[j].second != -1) {
@@ -298,6 +310,7 @@ vector<string> Realigner::process_batch(int p, int index) {
     }
     free(qseq) ;
     free(qqual) ;
+    cout << output.size() << endl ;
     return output ; 
 }
 

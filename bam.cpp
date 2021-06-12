@@ -108,7 +108,7 @@ vector<pair<int, int>> get_aligned_pairs(bam1_t *alignment) {
             }
             ref_pos += cigar_offsets[m].first;
         } else if (cigar_offsets[m].second == BAM_CINS or cigar_offsets[m].second == BAM_CSOFT_CLIP) {
-            for (uint i = ref_pos; i < ref_pos + cigar_offsets[m].first; ++i) {
+            for (uint i = 0; i < cigar_offsets[m].first; ++i) {
                 result.push_back(make_pair(read_pos, -1));
                 read_pos++;
             }

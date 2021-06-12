@@ -181,7 +181,11 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
     int l = 0 ;
     int n = 0 ;
     while ((l = kseq_read(fastq_iterator)) >= 0) {
-        fastq_entries[p][n % threads].push_back(fastq_entry_t(fastq_iterator->name.s, fastq_iterator->seq.s, fastq_iterator->qual.s)) ;
+        if (fastq_iterator->qual.l) {
+            fastq_entries[p][n % threads].push_back(fastq_entry_t(fastq_iterator->name.s, fastq_iterator->seq.s, fastq_iterator->qual.s)) ;
+        } else {
+            fastq_entries[p][n % threads].push_back(fastq_entry_t(fastq_iterator->name.s, fastq_iterator->seq.s, fastq_iterator->name.s)) ;
+        }
         n += 1 ;
         if (n == batch_size) {
           lprint({"Loaded", to_string(n), "FASTQ reads.."});
