@@ -44,7 +44,6 @@ void Realigner::load_input_sfs_batch() {
     int num_threads = num_batches < threads ? num_batches : threads ;
     vector<unordered_map<string, vector<SFS>>> _SFSs(num_batches) ;
     cout << "Loading assmbled SFS.." << endl ;
-    num_batches = 1 ;
     #pragma omp parallel for num_threads(num_threads)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
@@ -213,10 +212,10 @@ vector<string> Realigner::process_batch(int p, int index) {
         qseq[l] = '\0' ; // null terminate
         qqual[l] = '\0';
         int last_pos = 0 ;
-        cout << qname << endl ;
+        //cout << qname << endl ;
         for (int s = 0; s < SFSs[qname].size(); s++) {
             auto& sfs = SFSs[qname][s] ;
-            cout << "SFS " << sfs.s << " " << sfs.l << " position from " << last_pos << endl ;
+            //cout << "SFS " << sfs.s << " " << sfs.l << " position from " << last_pos << endl ;
             vector<pair<int, int>> local_alpairs ;
             int start_pair_index = -1 ;
             int end_pair_index = -1 ;
@@ -232,6 +231,18 @@ vector<string> Realigner::process_batch(int p, int index) {
                     break ;
                 }
             }
+            //vector<pair<int, int>> _local_alpairs;
+            //for (const pair<int, int> &pos : alpairs) {
+            //    if (pos.first != -1 && sfs.s <= pos.first && pos.first < sfs.s + sfs.l) {
+            //        _local_alpairs.push_back(make_pair(pos.first, pos.second));
+            //        cout << pos.first << " " << pos.second << endl ;
+            //    }
+            //}
+            //for (int i = 0; i < local_alpairs.size(); i++) {
+            //    assert(local_alpairs[i].first == _local_alpairs[i].first) ;
+            //    assert(local_alpairs[i].second == _local_alpairs[i].second) ;
+            //}
+
             if (local_alpairs.empty()) {
                 assert(end_pair_index == -1 && start_pair_index == -1) ;
                 //cerr << "EMPTY LOCAL " << qname << " " << sfs.s << " " << sfs.l << endl;
@@ -264,6 +275,35 @@ vector<string> Realigner::process_batch(int p, int index) {
                     }
                 }
             }
+
+            //if (_local_alpairs.front().second == -1) {
+            //    bool add = false;
+            //    for (int i = alpairs.size() - 1; i >= 0; --i) {
+            //        if (add)
+            //            _local_alpairs.insert(_local_alpairs.begin(), alpairs.at(i));
+            //        if (alpairs.at(i).second != -1 && add)
+            //            break;
+            //        if (!add && alpairs.at(i).first == _local_alpairs.front().first)
+            //            add = true;
+            //    }
+            //}
+            //if (_local_alpairs.back().second == -1) {
+            //    bool add = false;
+            //    for (int i = 0; i < alpairs.size(); ++i) {
+            //        if (add)
+            //            _local_alpairs.push_back(alpairs.at(i));
+            //        if (alpairs.at(i).second != -1 && add)
+            //            break;
+            //        if (!add && alpairs.at(i).first == _local_alpairs.back().first)
+            //            add = true;
+            //    }
+            //}
+            //assert(local_alpairs.size() == _local_alpairs.size()) ;
+            //for (int i = 0; i < local_alpairs.size(); i++) {
+            //    assert(local_alpairs[i].first == _local_alpairs[i].first) ;
+            //    assert(local_alpairs[i].second == _local_alpairs[i].second) ;
+            //}
+            
             uint qs = local_alpairs.front().first ;
             uint qe = local_alpairs.back().first ;
             // In some (very rare I hope) cases, an insertion follows a deletions (or
