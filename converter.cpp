@@ -72,7 +72,7 @@ void Converter::load_input_sfs_batch() {
         return ;
     }
     string s_j = std::to_string(current_input_batch) ;
-    string inpath = config->workdir + "/solution_batch_" + s_j + ".sfs" ;
+    string inpath = config->workdir + "/solution_batch_" + s_j + (config.assemble ? ".assembled.sfs." : ".sfs") ;
     cout << "[I] Loading SFS from " << inpath << endl ;
     int threads = config->threads ; 
     unordered_map<string, vector<SFS>> SFSs ;
@@ -260,7 +260,7 @@ vector<fastq_entry_t> Converter::process_batch(vector<fastq_entry_t> &fastq_entr
 
 void Converter::output_batch(int b) {
     auto c = Configuration::getInstance();
-    string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + ".fastq";
+    string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + (config.assemble ? "assembled.fastq" : ".fastq") ;
     lprint({"Outputting to", path}) ;
     std::ofstream o(path) ;
     for (int j = last_dumped_batch; j < b; j++) {
