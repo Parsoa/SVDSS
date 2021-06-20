@@ -57,7 +57,7 @@ void Realigner::load_input_sfs_batch() {
             while (getline(inf, line)) {
                 stringstream ssin(line);
                 int i = 0;
-                while (ssin.good() && i < 5) {
+                while (ssin.good() && i < 4) {
                     ssin >> info[i++];
                 }
                 if (info[0].compare("*") != 0) {
@@ -83,12 +83,12 @@ void Realigner::load_input_sfs_batch() {
 
 void Realigner::run() {
     config = Configuration::getInstance() ;
-    load_input_sfs_batch() ;
+    load_input_sfs_batch() ; // load all SFSs
     load_chromosomes(config->reference) ;
     out_file = ofstream(config->workdir + "/realignments.sam") ;
     bam_file = sam_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
-    // load all SFSs
+    out_file << bam_header->text; // sam_hdr_str(bamhdr) "was not declared in this scope"
     int batch_size = 10000 ;
     for (int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
