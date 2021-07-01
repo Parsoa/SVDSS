@@ -34,6 +34,7 @@
 #include "config.hpp"
 #include "sfsutils.hpp"
 #include "assembler.hpp"
+#include "chromosomes.hpp"
 
 using namespace std ;
 

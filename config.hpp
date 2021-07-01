@@ -42,6 +42,7 @@ public:
     std::string index ;
     std::string fastq ;
     std::string fasta ;
+    std::string target ;
     std::string reference ;
 
 private:

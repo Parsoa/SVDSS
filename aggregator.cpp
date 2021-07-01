@@ -27,7 +27,7 @@ void Aggregator::find_high_abundance_sequences() {
     #pragma omp parallel for num_threads(num_batches)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
-        string path = c->workdir + "/solution_batch_" + s_j + ".fastq" ;
+        string path = c->workdir + "/solution_batch_" + s_j + (c->assemble ? ".assembled.fastq" : ".fastq") ;
         ifstream fastq_file(path) ;
         int i = 0 ;
         int count ;
@@ -40,6 +40,8 @@ void Aggregator::find_high_abundance_sequences() {
             }
             if (i == 1) {
                 string canon = canonicalize(line) ;
+                // TODO: this hashing is prone to collisions, so inconsistent numbers may be reported through the aggregation run
+                // however, because at the final round, the exact SFS is used as hash key, all false positives will be pruned.
                 int hash = std::hash<std::string>()(canon) ;
                 if (_sequences[j].find(hash) == _sequences[j].end()) {
                     _sequences[j][hash] = 0 ;
@@ -79,29 +81,35 @@ void Aggregator::load_sequences() {
     num_batches = c->aggregate_batches ;
     cout << "Loading sequences from " << num_batches << " batches.." << endl ;
     vector<unordered_map<string, int>> _sequences(num_batches) ;
+    vector<unordered_map<string, vector<string>>> _read_ids(num_batches) ;
     int e = 0 ;
     // cout first pass
     #pragma omp parallel for num_threads(num_batches)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
-        string path = c->workdir + "/solution_batch_" + s_j + ".fastq" ;
+        string path = c->workdir + "/solution_batch_" + s_j + (c->assemble ? ".assembled.fastq" : ".fastq") ;
         ifstream fastq_file(path) ;
         int i = 0 ;
         int count ;
         string line ;
+        string qname ;
         while (std::getline(fastq_file, line)) {
             if (i == 0) {
+                int q = line.find('#', 1) ;
                 int p = line.rfind('#') ;
+                qname = string(line, 1, q - 1) ;
                 count = std::stoi(line.substr(p + 1, line.length() - (p + 1))) ;
             }
             if (i == 1) {
                 string canon = canonicalize(line) ;
                 int hash = std::hash<std::string>()(canon) ;
                 if (sequence_index.find(hash) != sequence_index.end()) {
+                    sequence_index[hash] = -1 ;
                     if (_sequences[j].find(canon) == _sequences[j].end()) {
                         _sequences[j][canon] = 0 ;
                     }
                     _sequences[j][canon] += count ;
+                    _read_ids[j][canon].push_back(qname) ;
                 }
             }
             i++ ;
@@ -117,8 +125,15 @@ void Aggregator::load_sequences() {
                 sequences[it->first] = 0 ;
             }
             sequences[it->first] += it->second ;
+            read_ids[it->first].insert(read_ids[it->first].begin(), _read_ids[j][it->first].begin(), _read_ids[j][it->first].end()) ;
         }
         _sequences[j].clear() ;
+        _read_ids[j].clear() ;
+    }
+    auto it = sequence_index.begin() ;
+    while (it != sequence_index.end()) {
+        assert(it->second == -1) ;
+        it++ ;
     }
     cout << "Loaded " << sequences.size() << " seuqences." << endl ;
 }
@@ -126,8 +141,10 @@ void Aggregator::load_sequences() {
 void Aggregator::dump_sequences() {
     auto c = Configuration::getInstance() ;
     cout << "Dumping aggregated counts.." << endl ;
-    string path = c->workdir + "/solution_aggregated.fastq" ;
+    string path = c->workdir + "/solution_aggregated" + (c->assemble ? ".assembled" : "") + ".fastq" ;
+    string id_path = c->workdir + "/read_ids_aggregated" + (c->assemble ? ".assembled" : "") + ".fastq" ;
     ofstream o(path) ;
+    ofstream id_o(id_path) ;
     int i = 0 ;
     int n = 0 ;
     for (auto it = sequences.begin(); it != sequences.end(); it++) {
@@ -139,6 +156,13 @@ void Aggregator::dump_sequences() {
                 o << "I" ;
             }
             o << endl ;
+            // read ids:
+            id_o << it->first << endl ;
+            for (auto s: read_ids[it->first]) {
+                id_o << s << "#" ;
+            }
+            id_o << endl ;
+            //
             n += 1 ;
         }
         i += 1 ;

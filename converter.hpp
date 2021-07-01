@@ -53,7 +53,9 @@ private:
     bool load_batch_bam(int threads, int batch_size, int p) ;
     bool load_batch_fastq(int threads, int batch_size, int p) ;
     void load_input_sfs_batch() ;
+    void load_input_sfs_batches() ;
 
+    std::unordered_map<std::string, std::vector<SFS>> SFSs ;
     std::vector<std::unordered_map<std::string, std::vector<SFS>>> sfs_batches ;
     std::vector<fastq_entry_t> process_batch(std::vector<fastq_entry_t> &fastq_entries) ;
     std::vector<std::vector<std::vector<fastq_entry_t>>> batches ;

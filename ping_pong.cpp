@@ -105,6 +105,7 @@ void PingPong::ping_pong_search(rld_t *index, const fastq_entry_t& fqe, std::vec
         int acc_len = end - begin + 1 ;
         DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
         solutions.push_back(SFS{begin, sfs_len, 1, isreversed}) ;
+        assert(begin + sfs_len <= l) ;
         DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         if (begin == 0) {
             break ;
@@ -211,6 +212,7 @@ void PingPong::output_batch(int b) {
     string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + (c->assemble ? ".assembled" : "") + ".sfs";
     lprint({"Outputting to", path});
     std::ofstream o(path);
+    bool isreversed = config->bam != "" ;
     uint64_t n = 0 ;
     for (int i = last_dumped_batch; i < b; i++) { // for each of the unmerged batches
         for (auto &batch: batches[i]) { // for each thread in batch
@@ -220,14 +222,14 @@ void PingPong::output_batch(int b) {
                     vector<SFS> assembled_SFSs = a.assemble(read.second);
                     bool is_first = true;
                     for (const SFS &sfs : assembled_SFSs) {
-                        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << "\t" << sfs.isreversed << endl;
+                        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << "\t" << isreversed << endl;
                         is_first = false;
                     }
                 } else {
                     bool is_first = true;
                     for (auto &sfs: read.second) { // for each sfs in read
                         // optimize file output size by not outputing read name for every SFS
-                        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c <<"\t" << sfs.isreversed << endl ;
+                        o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c <<"\t" << isreversed << endl ;
                         is_first = false;
                         n += 1 ;
                     }
@@ -499,5 +501,19 @@ bool PingPong::query(string q) {
     bool found_full = backward_search(index, p, l - 1) ;
     bool found_prefix = backward_search(index, p, l - 2) ;
     bool found_suffix = backward_search(index, p + 1, l - 2) ;
-    return !found_full & (found_prefix || found_suffix) ;
+    auto is_sfs = !found_full && (found_prefix || found_suffix) ;
+    cout << "Exact match: " << (found_full ? "yes" : "no") << endl ;
+    cout << "Prefix match: " << (found_prefix ? "yes" : "no") << endl ;
+    cout << "Suffix match: " << (found_suffix ? "yes" : "no") << endl ;
+    if (!is_sfs) {
+        load_chromosomes(config->reference) ;
+        char* s = nullptr ;
+        for (auto chrom = chromosome_seqs.begin(); chrom != chromosome_seqs.end(); chrom++) {
+            s = strstr(chromosome_seqs[chrom->first], q.c_str()) ;
+            if (s != nullptr) {
+                cout << chrom->first << ": Found at " << s - chromosome_seqs[chrom->first] << endl ;
+            }
+        }
+    }
+    return is_sfs ;
 }

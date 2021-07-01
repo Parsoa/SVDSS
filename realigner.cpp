@@ -81,8 +81,25 @@ void Realigner::load_input_sfs_batch() {
     lprint({"Aligning", to_string(c), "SFS strings on", to_string(r), " reads.", to_string(config->threads), "threads.."}) ;
 }
 
+void Realigner::load_target_SFS_set() {
+    ifstream txt_file("num_loci.txt") ;
+    string line ;
+    while (getline(txt_file, line)) {
+        int p = line.rfind(':') ;
+        int count = std::stoi(line.substr(p + 1, line.length() - (p + 1))) ;
+        string seq = line.substr(0, p) ;
+        if (count > 1) {
+            target_sfs[seq] = count ;
+        }
+    }
+    cout << "Loaded " << target_sfs.size() << " target SFS sequences." << endl ;
+}
+
 void Realigner::run() {
     config = Configuration::getInstance() ;
+    if (config->target != "") {
+        load_target_SFS_set() ;
+    }
     load_input_sfs_batch() ; // load all SFSs
     load_chromosomes(config->reference) ;
     out_file = ofstream(config->workdir + "/realignments.sam") ;
@@ -214,6 +231,7 @@ vector<string> Realigner::process_batch(int p, int index) {
         int last_pos = 0 ;
         for (int s = 0; s < SFSs[qname].size(); s++) {
             auto& sfs = SFSs[qname][s] ;
+            //
             vector<pair<int, int>> local_alpairs ;
             int start_pair_index = -1 ;
             int end_pair_index = -1 ;
@@ -227,6 +245,20 @@ vector<string> Realigner::process_batch(int p, int index) {
                 }
                 if (alpairs[i].first != -1 && alpairs[i].first > sfs.s + sfs.l) {
                     break ;
+                }
+            }
+            //
+            if (sfs.s + sfs.l > l + 1) {
+                cout << "KIREKHAR" << qname << " " << l << " " << sfs.s << " " << sfs.l << endl ;
+            }
+            int al_start = local_alpairs[0].first ;
+            int al_end = local_alpairs.back().first ;
+            string sfsseq(qseq + sfs.s, sfs.l) ;
+            string sfsqual(qqual + sfs.s, sfs.l) ;
+            //
+            if (config->target != "") {
+                if (target_sfs.find(sfsseq) == target_sfs.end()) {
+                    continue ;
                 }
             }
 
@@ -303,7 +335,6 @@ vector<string> Realigner::process_batch(int p, int index) {
     }
     free(qseq) ;
     free(qqual) ;
-    cout << output.size() << endl ;
     return output ; 
 }
 

@@ -44,6 +44,10 @@ private:
     void load_input_sfs_batch() ;
     ofstream out_file ;
 
+    void load_target_SFS_set() ;
+    std::unordered_map<std::string, bool> target_sfs ;
+    std::unordered_map<std::string, bool> target_sfs_hits ;
+    
     std::unordered_map<std::string, std::vector<SFS>> SFSs ;
     std::vector<std::string> process_batch(int, int) ;
     std::vector<std::vector<std::vector<std::string>>> batches ;

@@ -32,7 +32,7 @@ public:
 
     std::unordered_map<int, int> sequence_index ;
     std::unordered_map<std::string, int> sequences ;
-    std::unordered_map<std::string, std::unordered_map<std::string, int>> read_ids ;
+    std::unordered_map<std::string, std::vector<std::string>> read_ids ;
 
 } ;
 

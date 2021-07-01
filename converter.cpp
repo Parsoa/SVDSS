@@ -72,7 +72,7 @@ void Converter::load_input_sfs_batch() {
         return ;
     }
     string s_j = std::to_string(current_input_batch) ;
-    string inpath = config->workdir + "/solution_batch_" + s_j + (config.assemble ? ".assembled.sfs." : ".sfs") ;
+    string inpath = config->workdir + "/solution_batch_" + s_j + (config->assemble ? ".assembled.sfs" : ".sfs") ;
     cout << "[I] Loading SFS from " << inpath << endl ;
     int threads = config->threads ; 
     unordered_map<string, vector<SFS>> SFSs ;
@@ -98,6 +98,49 @@ void Converter::load_input_sfs_batch() {
     current_input_batch++ ;
 }
 
+void Converter::load_input_sfs_batches() {
+    int threads = config->threads ; 
+    int num_batches = config->aggregate_batches ;
+    int num_threads = num_batches < threads ? num_batches : threads ;
+    vector<unordered_map<string, vector<SFS>>> _SFSs(num_batches) ;
+    cout << "Loading assmbled SFS.." << endl ;
+    #pragma omp parallel for num_threads(num_threads)
+    for (int j = 0; j < num_batches; j++) {
+        string s_j = std::to_string(j) ;
+        string inpath = config->workdir + "/solution_batch_" + s_j + (config->assemble ? ".assembled.sfs" : ".sfs") ;
+        cout << "[I] Loading SFS from " << inpath << endl ;
+        ifstream inf(inpath) ;
+        string line ;
+        if (inf.is_open()) {
+            string info[4];
+            string read_name;
+            while (getline(inf, line)) {
+                stringstream ssin(line);
+                int i = 0;
+                while (ssin.good() && i < 4) {
+                    ssin >> info[i++];
+                }
+                if (info[0].compare("*") != 0) {
+                    read_name = info[0];
+                    _SFSs[j][read_name] = vector<SFS>();
+                }
+                _SFSs[j][read_name].push_back(SFS(stoi(info[1]), stoi(info[2]), stoi(info[3]), true)) ;
+            }
+        }
+    }
+    int r = 0 ;
+    int c = 0 ;
+    for (int j = 0; j < num_batches; j++) {
+        lprint({"Batch", to_string(j), "with", to_string(_SFSs[j].size()), "strings."});
+        r += _SFSs[j].size() ;
+        SFSs.insert(_SFSs[j].begin(), _SFSs[j].end()) ;
+        for (auto& read: _SFSs[j]) {
+            c += read.second.size() ;
+        }
+    }
+    lprint({"Aligning", to_string(c), "SFS strings on", to_string(r), " reads.", to_string(config->threads), "threads.."}) ;
+}
+
 void Converter::run() {
     // Load all SFS in current input batch
     // Load reads and round-robin between threads
@@ -118,6 +161,7 @@ void Converter::run() {
         lprint({"No input file provided, aborting.."}, 2);
         exit(1) ;
     }
+    cout << config->threads << endl ;
     // load first batch
     for(int i = 0; i < 2; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
@@ -154,10 +198,13 @@ void Converter::run() {
     uint64_t total_sfs = 0 ;
     uint64_t total_sfs_output_batch = 0 ;
     // load 
-    current_input_batch = 0 ;
-    load_input_sfs_batch() ;
-    load_input_sfs_batch() ;
-    assert(current_input_batch == sfs_batches.size()) ;
+    if (!config->assemble) {
+        current_input_batch = 0 ;
+        load_input_sfs_batch() ;
+        load_input_sfs_batch() ;
+    } else {
+        load_input_sfs_batches() ;
+    }
 
     while (true) {
         lprint({"Beginning batch", to_string(b + 1)});
@@ -207,7 +254,9 @@ void Converter::run() {
             output_batch(b) ;
             total_sfs_output_batch = 0 ;
             current_batch += 1 ;
-            load_input_sfs_batch() ;
+            if (!config->assemble) {
+                load_input_sfs_batch() ;
+            }
         }
 
         if (!should_load) {
@@ -229,6 +278,11 @@ void Converter::run() {
         cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
     }
 
+    cout << "Validating" << endl ;
+    for (auto &k: SFSs) {
+        assert(k.second.size() == 0) ;
+    }
+
     // cleanup
     kseq_destroy(fastq_iterator) ;
     gzclose(fastq_file) ;
@@ -238,29 +292,32 @@ vector<fastq_entry_t> Converter::process_batch(vector<fastq_entry_t> &fastq_entr
     vector<fastq_entry_t> output ;
     int sfs_batch = -1 ;
     for (const auto &read: fastq_entries) { // a map
-        if (sfs_batch == -1) {
-            if (sfs_batches[current_input_batch - 2].find(read.head) != sfs_batches[current_input_batch - 2].end()) {
-                sfs_batch = current_input_batch - 2 ;
-            } else if (sfs_batches[current_input_batch - 1].find(read.head) != sfs_batches[current_input_batch - 1].end()) {
-                sfs_batch = current_input_batch - 1 ;
-            } else {
-                // this is a read that doesn't produce any SFS.
-                continue ;
+        if (!config->assemble) {
+            if (sfs_batch == -1) {
+                if (sfs_batches[current_input_batch - 2].find(read.head) != sfs_batches[current_input_batch - 2].end()) {
+                    sfs_batch = current_input_batch - 2 ;
+                } else if (sfs_batches[current_input_batch - 1].find(read.head) != sfs_batches[current_input_batch - 1].end()) {
+                    sfs_batch = current_input_batch - 1 ;
+                } else {
+                    // this is a read that doesn't produce any SFS.
+                    continue ;
+                }
             }
         }
-        for (const auto &sfs: sfs_batches[sfs_batch][read.head]) {
+        for (const auto &sfs: (config->assemble ? SFSs[read.head] : sfs_batches[sfs_batch][read.head])) {
             string header = read.head + "#" + to_string(sfs.s) + "#" + to_string(sfs.s + sfs.l - 1) + "#" + to_string(sfs.c) ;
             string sfsseq(read.seq, sfs.s, sfs.l) ;
             string sfsqual(read.qual, sfs.s, sfs.l) ;
             output.push_back(fastq_entry_t(header, sfsseq, sfsqual)) ; 
         }
+        SFSs[read.head].clear() ;
     }
    return output ; 
 }
 
 void Converter::output_batch(int b) {
     auto c = Configuration::getInstance();
-    string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + (config.assemble ? "assembled.fastq" : ".fastq") ;
+    string path = c->workdir + "/solution_batch_" + std::to_string(current_batch) + (config->assemble ? ".assembled.fastq" : ".fastq") ;
     lprint({"Outputting to", path}) ;
     std::ofstream o(path) ;
     for (int j = last_dumped_batch; j < b; j++) {
