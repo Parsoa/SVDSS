@@ -251,11 +251,9 @@ vector<string> Realigner::process_batch(int p, int index) {
             if (sfs.s + sfs.l > l + 1) {
                 cout << "KIREKHAR" << qname << " " << l << " " << sfs.s << " " << sfs.l << endl ;
             }
-            int al_start = local_alpairs[0].first ;
-            int al_end = local_alpairs.back().first ;
+            //
             string sfsseq(qseq + sfs.s, sfs.l) ;
             string sfsqual(qqual + sfs.s, sfs.l) ;
-            //
             if (config->target != "") {
                 if (target_sfs.find(sfsseq) == target_sfs.end()) {
                     continue ;
@@ -327,8 +325,8 @@ vector<string> Realigner::process_batch(int p, int index) {
                 + "*" + "\t"
                 + "0" + "\t"
                 + "0" + "\t"
-                + localqseq + "\t"
-                + localqqual + "\t"
+                + (config->target != "" ? sfsseq : localqseq) + "\t"
+                + (config->target != "" ? sfsqual : localqqual) + "\t"
                 + "NM:i:" + to_string(localcigar.mismatches) ;
             output.push_back(o) ;
         }
