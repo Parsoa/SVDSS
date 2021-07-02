@@ -103,6 +103,7 @@ void Realigner::run() {
     load_input_sfs_batch() ; // load all SFSs
     load_chromosomes(config->reference) ;
     out_file = ofstream(config->workdir + "/realignments.sam") ;
+    tau_out_file = ofstream(config->workdir + "/superstring_loci.bed") ;
     bam_file = sam_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
     out_file << bam_header->text; // sam_hdr_str(bamhdr) "was not declared in this scope"
@@ -116,7 +117,7 @@ void Realigner::run() {
         }
     }
     lprint({"Loading first batch.."});
-    batches.push_back(vector<vector<string>>(config->threads)) ; 
+    batches.push_back(vector<vector<batch_atom_type>>(config->threads)) ; 
     //
     time_t t ;
     time(&t) ;
@@ -151,7 +152,7 @@ void Realigner::run() {
                 if (should_load) {
                     loaded_last_batch = !load_batch_bam(config->threads, batch_size, (p + 1) % 2) ;
                     lprint({"Loaded."});
-                    batches.push_back(vector<vector<string>>(config->threads)) ; // previous and current output
+                    batches.push_back(vector<vector<batch_atom_type>>(config->threads)) ; // previous and current output
                 }
             } else if (i == 1) {
                if (b >= 1) {
@@ -200,8 +201,8 @@ void Realigner::run() {
     sam_close(bam_file) ;
 }
 
-vector<string> Realigner::process_batch(int p, int index) {
-    vector<string> output ;
+vector<batch_atom_type> Realigner::process_batch(int p, int index) {
+    vector<batch_atom_type> output ;
     int buffer_len = 20000 ;
     char* qseq = (char*) malloc(buffer_len) ;
     char* qqual = (char*) malloc(buffer_len) ;
@@ -246,10 +247,6 @@ vector<string> Realigner::process_batch(int p, int index) {
                 if (alpairs[i].first != -1 && alpairs[i].first > sfs.s + sfs.l) {
                     break ;
                 }
-            }
-            //
-            if (sfs.s + sfs.l > l + 1) {
-                cout << "KIREKHAR" << qname << " " << l << " " << sfs.s << " " << sfs.l << endl ;
             }
             //
             string sfsseq(qseq + sfs.s, sfs.l) ;
@@ -316,7 +313,8 @@ vector<string> Realigner::process_batch(int p, int index) {
             localcigar.fixclips();
             string localqseq(qseq + qs, qe - qs + 1);
             string localqqual(qqual + qs, qe - qs + 1);
-            string o = qname + "." + to_string(sfs.s) + "-" + to_string(sfs.s + sfs.l - 1) + "\t"
+            string sfsname = qname + "." + to_string(sfs.s) + "-" + to_string(sfs.s + sfs.l - 1) ;
+            string o = sfsname + "\t"
                 + to_string(flag) + "\t"
                 + chrom + "\t"
                 + to_string(ts + 1) + "\t"
@@ -325,10 +323,11 @@ vector<string> Realigner::process_batch(int p, int index) {
                 + "*" + "\t"
                 + "0" + "\t"
                 + "0" + "\t"
-                + (config->target != "" ? sfsseq : localqseq) + "\t"
-                + (config->target != "" ? sfsqual : localqqual) + "\t"
+                + localqseq + "\t"
+                + localqqual + "\t"
                 + "NM:i:" + to_string(localcigar.mismatches) ;
-            output.push_back(o) ;
+            string tau_o = sfsname + "\t" + sfsseq + "\t" + chrom + "\t" + to_string(ts + 1) ;
+            output.push_back(make_pair(o, tau_o)) ;
         }
     }
     free(qseq) ;
@@ -341,7 +340,8 @@ void Realigner::output_batch(int b) {
     for (int j = last_dumped_batch; j < b; j++) {
         for (int i = 0; i < config->threads; i++) {
             for (auto f: batches[j][i]) {
-                out_file << f << endl ;
+                out_file << f.first << endl ;
+                out_file << f.second << endl ;
             }
         }
         batches[j].clear() ;
