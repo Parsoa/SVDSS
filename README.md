@@ -99,6 +99,6 @@ For inquiries on this software please open an [issue](https://github.com/Parsoa/
 
 ### Citation
 
-The PingPong is currently pending journal publication. The pre-print is availble below:
+Our manuscript describing the SFS idea and the PingPong algorithm titled "Comparative genome analysis using sample-specific string detection in accurate long reads" is now published in Bioinformatics Advances:
 
-https://doi.org/10.1101/2021.03.23.436571
+https://doi.org/10.1093/bioadv/vbab005
