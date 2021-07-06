@@ -341,7 +341,7 @@ void Realigner::output_batch(int b) {
         for (int i = 0; i < config->threads; i++) {
             for (auto f: batches[j][i]) {
                 out_file << f.first << endl ;
-                out_file << f.second << endl ;
+                tau_out_file << f.second << endl ;
             }
         }
         batches[j].clear() ;

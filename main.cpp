@@ -19,15 +19,15 @@
 #include "ping_pong.hpp"
 #include "chromosomes.hpp"
 
-#include "converter.hpp"
-#include "assembler.hpp"
+#include "tau.hpp"
 #include "aligner.hpp"
+#include "assembler.hpp"
+#include "converter.hpp"
 #include "realigner.hpp"
 #include "aggregator.hpp"
 #include "reconstructor.hpp"
 
 #ifdef LOCAL_BUILD
-#include "tau.hpp"
 #include "finder.hpp"
 #include "shifter.hpp"
 #include "scanner.hpp"
@@ -82,13 +82,6 @@ int main(int argc, char** argv) {
         exit(0) ;
     }
     #ifdef LOCAL_BUILD
-    if (strcmp(argv[1], "tau") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto tau = new Tau() ;
-        tau->run() ;
-        exit(0) ;
-    }
     if (strcmp(argv[1], "find") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
@@ -123,6 +116,13 @@ int main(int argc, char** argv) {
         exit(0) ;
     }
     #endif
+    if (strcmp(argv[1], "tau") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto tau = new Tau() ;
+        tau->run() ;
+        exit(0) ;
+    }
     if (strcmp(argv[1], "index") == 0) {
         c->parse(argc - 1, argv + 1) ;
         create_workdir() ;
