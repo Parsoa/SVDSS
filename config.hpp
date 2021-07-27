@@ -34,7 +34,8 @@ public:
     bool selective ;
 
     std::string bed ;
-    std::string bam ;
+    std::string bam ; // reads bam (reconstructed or not)
+    std::string sfsbam ; // superstrings bam (from realignment)
     std::string vcf ;
     std::string type ;
     std::string workdir ;

@@ -14,6 +14,7 @@ Configuration::Configuration() :
     parser.add_options()
         ("bed", "", cxxopts::value<std::string>())
         ("bam", "", cxxopts::value<std::string>())
+        ("sfsbam", "", cxxopts::value<std::string>())
         ("vcf", "", cxxopts::value<std::string>())
         ("type", "", cxxopts::value<std::string>())
         ("index", "", cxxopts::value<std::string>())
@@ -44,6 +45,9 @@ void Configuration::parse(int argc, char** argv) {
     bam = "" ;
     if (results.count("bam")) {
         bam = results["bam"].as<std::string>() ;
+    }
+    if (results.count("sfsbam")) {
+        sfsbam = results["sfsbam"].as<std::string>() ;
     }
     if (results.count("bed")) {
         bed = results["bed"].as<std::string>() ;

@@ -26,6 +26,7 @@
 #include "realigner.hpp"
 #include "aggregator.hpp"
 #include "reconstructor.hpp"
+#include "caller.hpp"
 
 #ifdef LOCAL_BUILD
 #include "finder.hpp"
@@ -181,6 +182,12 @@ int main(int argc, char** argv) {
         create_workdir() ;
         auto aligner = new Aligner() ;
         aligner->run() ;
+    }
+    else if (strcmp(argv[1], "call") == 0) {
+        c->parse(argc - 1, argv + 1) ;
+        create_workdir() ;
+        auto caller = new Caller() ;
+        caller->run() ;
     }
     else {
         print_help() ;

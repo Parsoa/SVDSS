@@ -11,11 +11,13 @@
 #include <algorithm>
 #include <unordered_map>
 #include <math.h>
+#include <string.h>
 
 #include "lprint.hpp"
 
 using namespace std ;
 
+// CHECKME: I created the SV class. Maybe we can merge it with this struct
 struct vcf_variant_t {
     std::string chrom ;
     int pos ;
@@ -37,5 +39,8 @@ namespace std {
 }
 
 std::unordered_map<std::string, std::vector<vcf_variant_t>> load_vcf_file(std::string);
+
+// Write custom VCF header to ostream (it needs chromosome_seqs)
+void print_vcf_header(const unordered_map<string, char*> &, ofstream &, const string &sample = "DEFAULT");
 
 #endif
