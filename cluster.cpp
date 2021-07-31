@@ -48,6 +48,7 @@ Cluster::Cluster(const string &chrom_)
         uint i = 0;
         for (const Fragment &f : fragments)
         {
+            // cout << ">" << i << "\n" << f.seq << endl;
             seqs[i] = f.seq;
             ++i;
         }

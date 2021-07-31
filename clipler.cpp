@@ -87,7 +87,7 @@ list<Clip> Clipler::filter_tooclose_clips(const list<Clip> &clips, interval_tree
 
     for (const Clip &c : clips)
     {
-        if (vartree.find({c.p, c.p + 1}) == vartree.end())
+        if (vartree.overlap_find({c.p, c.p + 1}) == std::end(vartree))
         {
             fclips.push_back(c);
         }
@@ -108,12 +108,16 @@ list<Clip> Clipler::extract_clips()
 {
     bam1_t *aln = bam_init1();
     hts_itr_t *itr = sam_itr_querys(sfs_bamindex, sfs_bamhdr, chrom.c_str());
+    // string region = "1:102568879-102568949";
+    // hts_itr_t *itr = sam_itr_querys(sfs_bamindex, sfs_bamhdr, region.c_str());
+
     list<Clip> clips;
     while (sam_itr_next(sfs_bam, itr, aln) > 0)
     {
         string sfs_name(bam_get_qname(aln));
         string qname = sfs_name.substr(0, sfs_name.find(".")); // keep just read name (no positions on read)
         uint rs = aln->core.pos;
+        uint re = bam_endpos(aln);
         uint32_t *cigar = bam_get_cigar(aln);
 
         // first
@@ -126,7 +130,7 @@ list<Clip> Clipler::extract_clips()
         op = bam_cigar_op(*(cigar + aln->core.n_cigar - 1));
         l = bam_cigar_oplen(*(cigar + aln->core.n_cigar - 1));
         if (op == BAM_CSOFT_CLIP)
-            clips.push_back(Clip(qname, rs, l, false));
+            clips.push_back(Clip(qname, re, l, false));
     }
     return clips;
 }
@@ -149,8 +153,8 @@ void Clipler::call(const string &chrom_seq, interval_tree_t<int> &vartree)
     lclips = remove_duplicates(lclips);
     lclips = combine(lclips);
     rclips = combine(rclips);
-    lclips = filter_lowcovered(lclips, 5); // FIXME: hardcoded
-    rclips = filter_lowcovered(rclips, 5); // FIXME: hardcoded
+    lclips = filter_lowcovered(lclips, 2); // FIXME: hardcoded
+    rclips = filter_lowcovered(rclips, 2); // FIXME: hardcoded
     lclips = filter_tooclose_clips(lclips, vartree);
     rclips = filter_tooclose_clips(rclips, vartree);
     lclips = cluster(lclips, 1000); // FIXME: hardcoded
@@ -217,7 +221,8 @@ void Clipler::call(const string &chrom_seq, interval_tree_t<int> &vartree)
             uint w = max(lc.w, rc.w);
 
             // TODO: get coverage of locus from bam
-            osvs.push_back(SV('D', chrom, s, refbase, "<DEL>", w, 0, 0, 0, true, l));
+            if (w >= 5)
+                osvs.push_back(SV('D', chrom, s, refbase, "<DEL>", w, 0, 0, 0, true, l));
         }
     }
 }

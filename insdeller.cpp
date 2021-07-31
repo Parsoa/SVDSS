@@ -16,6 +16,8 @@ list<Cluster> Insdeller::pcluster()
 {
     bam1_t *aln = bam_init1();
     hts_itr_t *itr = sam_itr_querys(sfs_bamindex, sfs_bamhdr, chrom.c_str());
+    // string region = "1:102568879-102568949";
+    // hts_itr_t *itr = sam_itr_querys(sfs_bamindex, sfs_bamhdr, region.c_str());
 
     list<Cluster> clusters; // this will store the clusters
     clusters.push_back(Cluster(chrom));
@@ -46,21 +48,28 @@ list<Cluster> Insdeller::pcluster()
         else if (has_i)
             ft = 1;
 
+        uint qlen = aln->core.l_qseq;
+        uint8_t *q = bam_get_seq(aln);
+        char *qseq = (char *)malloc(qlen + 1); // FIXME: avoid this malloc everytime
+        for (uint i = 0; i < qlen; ++i)
+            qseq[i] = seq_nt16_str[bam_seqi(q, i)];
+        qseq[qlen] = '\0';
+
         Cluster &c = clusters.back();
         if (c.empty())
         {
-            c.add_fragment(Fragment(qname, rs, re, ft));
+            c.add_fragment(Fragment(qname, rs, re, ft, qseq));
         }
         else
         {
             if (c.back().e + 500 > rs) // overlapping
             {
-                c.add_fragment(Fragment(qname, rs, re, ft));
+                c.add_fragment(Fragment(qname, rs, re, ft, qseq));
             }
             else
             {
                 clusters.push_back(Cluster(chrom));
-                clusters.back().add_fragment(Fragment(qname, rs, re, ft));
+                clusters.back().add_fragment(Fragment(qname, rs, re, ft, qseq));
             }
         }
     }
@@ -416,10 +425,11 @@ void Insdeller::call(const string &chrom_seq, ofstream &osam)
                     if (abs(sv.l) >= 30 && (sv.ngaps <= 2 || (sv.ngaps > 2 && sv.w > 10)))
                     {
                         osvs.push_back(sv);
-                        vartree.insert({sv.s, sv.e});
+                        vartree.insert({sv.s - 1000, sv.e + 1000});
                     }
                 }
             }
         }
     }
+    vartree.deoverlap();
 }
