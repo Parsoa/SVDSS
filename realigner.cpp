@@ -81,16 +81,20 @@ void Realigner::load_input_sfs_batch() {
     lprint({"Aligning", to_string(c), "SFS strings on", to_string(r), " reads.", to_string(config->threads), "threads.."}) ;
 }
 
+// Only maps these SFS. This is for internal testing and experiments.
 void Realigner::load_target_SFS_set() {
-    ifstream txt_file("num_loci.txt") ;
+    ifstream txt_file(config->target) ;
     string line ;
     while (getline(txt_file, line)) {
         int p = line.rfind(':') ;
-        int count = std::stoi(line.substr(p + 1, line.length() - (p + 1))) ;
-        string seq = line.substr(0, p) ;
-        if (count > 1) {
-            target_sfs[seq] = count ;
+        int count = 0 ;
+        if (p != -1) {
+            count = std::stoi(line.substr(p + 1, line.length() - (p + 1))) ;
+        } else {
+            p = line.length() ;
         }
+        string seq = line.substr(0, p) ;
+        target_sfs[seq] = count ;
     }
     cout << "Loaded " << target_sfs.size() << " target SFS sequences." << endl ;
 }
@@ -102,8 +106,8 @@ void Realigner::run() {
     }
     load_input_sfs_batch() ; // load all SFSs
     load_chromosomes(config->reference) ;
-    out_file = ofstream(config->workdir + "/realignments.sam") ;
-    tau_out_file = ofstream(config->workdir + "/superstring_loci.bed") ;
+    out_file = ofstream(config->workdir + "/" + (config->prefix != "" ? config->prefix + "_" : "") + "realignments.sam") ;
+    tau_out_file = ofstream(config->workdir + "/" + (config->prefix != "" ? config->prefix + "_" : "") + "/superstring_loci.bed") ;
     bam_file = sam_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
     out_file << bam_header->text; // sam_hdr_str(bamhdr) "was not declared in this scope"
@@ -236,6 +240,7 @@ vector<batch_atom_type> Realigner::process_batch(int p, int index) {
             vector<pair<int, int>> local_alpairs ;
             int start_pair_index = -1 ;
             int end_pair_index = -1 ;
+            // find which alignment positions cover this SFS
             for (int i = last_pos; i < alpairs.size(); i++) {
                 if (alpairs[i].first != -1 && alpairs[i].first >= sfs.s && alpairs[i].first < sfs.s + sfs.l) {
                     local_alpairs.push_back(make_pair(alpairs[i].first, alpairs[i].second));
@@ -248,7 +253,7 @@ vector<batch_atom_type> Realigner::process_batch(int p, int index) {
                     break ;
                 }
             }
-            //
+            // get actual SFS sequence
             string sfsseq(qseq + sfs.s, sfs.l) ;
             string sfsqual(qqual + sfs.s, sfs.l) ;
             if (config->target != "") {
@@ -256,7 +261,6 @@ vector<batch_atom_type> Realigner::process_batch(int p, int index) {
                     continue ;
                 }
             }
-
             if (local_alpairs.empty()) {
                 assert(end_pair_index == -1 && start_pair_index == -1) ;
                 //cerr << "EMPTY LOCAL " << qname << " " << sfs.s << " " << sfs.l << endl;
@@ -270,7 +274,7 @@ vector<batch_atom_type> Realigner::process_batch(int p, int index) {
                     last_pos = start_pair_index ;
                 }
             }
-            // FILLING STARTING/ENDING -1s:
+            // extend alignment on both sides until we get to a match based with reference
             // - if clips, we just add pairs til read end
             // - if insertion, we add pairs til first M we can find
             if (local_alpairs[0].second == -1) {
@@ -289,20 +293,32 @@ vector<batch_atom_type> Realigner::process_batch(int p, int index) {
                     }
                 }
             }
-
             uint qs = local_alpairs.front().first ;
             uint qe = local_alpairs.back().first ;
-            // In some (very rare I hope) cases, an insertion follows a deletions (or
-            // viceversa). So we are trying to find the first M - that is a non -1 in
-            // the pairs - but that pair has -1 on the read
+            // The alignments will generally look like this:
+            // Deletion
+            // Ref: A T C G G C  G  G  G  G  G  G A C C T
+            // Seq: A T C G G C -1 -1 -1 -1 -1 -1 A C C T
+            // Insertion:
+            // Ref: A -1 -1 -1 -1 -1 -1 T
+            // Seq: A  A  C  T  T  C  G T
+            // if the variation is long and the read is clipped then it may look like below for both:
+            // Ref: G C T -1 -1 -1 -1 -1 -1 -1 -1 -1
+            // Seq: A T C  A  C  C  T  T  A  G  C  T
+            // if the first or last base of the alignment is -1 on the read, it means that
+            // there is a deletion after the SFS (or before it):
+            // Ref: A -1 -1 -1 -1 -1 -1  T  A
+            // Seq: A  A  C  T  T  C  G -1 -1
+            // TODO: why not extend the alignment further until we reach a match?
             if (qs == -1 || qe == -1) {
                 //cerr << "INS-DEL " << qname << "." << sfs.s << ":" << sfs.l << endl;
                 continue;
             }
-            // If clips, we have trailing -1 in target positions. We have to find the first placed base
+            // Find where the alignment begins
             int ts = local_alpairs.front().second;
             if (local_alpairs.front().first == 0 && local_alpairs.front().second == -1) {
                 // if we have initial clips, we get the position from original alignments
+                // This results in lots of SFS of different size around clipped breakpoints
                 ts = alignment->core.pos;
             }
             if (local_alpairs.front().second == -1 && local_alpairs.back().second == -1) {

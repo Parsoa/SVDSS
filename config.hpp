@@ -43,6 +43,7 @@ public:
     std::string fastq ;
     std::string fasta ;
     std::string target ;
+    std::string prefix ;
     std::string reference ;
 
 private:

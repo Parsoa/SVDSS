@@ -48,9 +48,11 @@ public:
 
 private:
 
-    double global_num_bases ;
-    double global_num_mismatch ;
-    double global_num_indel ;
+    double global_num_bases = 0 ;
+    double global_num_mismatch = 0 ;
+    double global_num_match = 0 ;
+    double global_num_indel = 0 ;
+    double expected_indel_rate = 0.005 ;
     double expected_mismatch_rate = 0.002 ;
     int num_ignored_reads = 0 ;
 };

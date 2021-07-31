@@ -112,12 +112,12 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             for (int j = 0; j < cigar_offsets[m].first; j++) {
                 new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
                 new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
+                num_match += 1 ? chromosome_seqs[chrom][ref_offset + j] == read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
                 num_mismatch += 1 ? chromosome_seqs[chrom][ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
                 n++ ;
             }
             ref_offset += cigar_offsets[m].first ;
             match_offset += cigar_offsets[m].first ;
-            num_match += cigar_offsets[m].first ;
             if (new_cigar.size() >= 1 && new_cigar[new_cigar.size() - 1].second == BAM_CMATCH) {
                 new_cigar[new_cigar.size() - 1].first += cigar_offsets[m].first + m_diff ;
             } else {
@@ -171,8 +171,10 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
     new_qual[n] = '\0' ;
     // only do this on first processing thread
     if (omp_get_thread_num() == 2) {
-        global_num_bases += num_match ;
+        global_num_bases += num_match + num_mismatch + ins_offset + del_offset ;
+        global_num_match += num_match ;
         global_num_mismatch += num_mismatch ;
+        global_num_indel += ins_offset + del_offset ;
     }
     // how many errors and SNPs do we expect? 1/1000 each, so say if we see more than twice that then don't correct
     if (config->selective) {
@@ -183,9 +185,12 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             return ;
         }
         // if we have so many deletions and insertions, then abort
-        if (ins_offset + del_offset > 0.7 * strlen(read_seq)) {
-            return ;
-        }
+        //if ((ins_offset + del_offset) / (num_match + num_mismatch) > 3 * expected_indel_rate) {
+        //    if (omp_get_thread_num() == 3) {
+        //        num_ignored_reads += 1 ;
+        //    }
+        //    return ;
+        //}
     }
     rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar) ;
     free(new_seq) ;
@@ -343,8 +348,9 @@ void Reconstructor::run() {
             s += 1 ;
         }
         cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
-        cerr << "[I] Process bases: " << std::left << std::setw(16) << uint64_t(global_num_bases) << ", num mismatch: " << std::setw(16) << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", ignored reads: " << num_ignored_reads << endl ;
+        cerr << "[I] Process bases: " << std::left << std::setw(16) << uint64_t(global_num_bases) << ", num mismatch: " << std::setw(16) << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", indel rate: " << global_num_indel / (global_num_match + global_num_mismatch) << ", ignored reads: " << num_ignored_reads << endl ;
         expected_mismatch_rate = global_num_mismatch / global_num_bases ; 
+        expected_indel_rate = global_num_indel / global_num_bases ;
     }
     lprint({"Done."});
     sam_close(bam_file) ;

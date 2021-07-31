@@ -20,6 +20,7 @@ Configuration::Configuration() :
         ("fasta", "", cxxopts::value<std::string>())
         ("fastq", "", cxxopts::value<std::string>())
         ("target", "", cxxopts::value<std::string>())
+        ("prefix", "", cxxopts::value<std::string>())
         ("cutoff", "", cxxopts::value<int>())
         ("t,threads", "", cxxopts::value<int>())
         ("append", "", cxxopts::value<std::string>())
@@ -33,6 +34,7 @@ Configuration::Configuration() :
         ("batches", "", cxxopts::value<int>())
         ("overlap", "", cxxopts::value<int>())
         ("min-length", "", cxxopts::value<int>())
+
     ;
 }
 
@@ -61,6 +63,10 @@ void Configuration::parse(int argc, char** argv) {
     fasta = "" ;
     if (results.count("fasta")) {
         fasta = results["fasta"].as<std::string>() ;
+    }
+    prefix = "" ;
+    if (results.count("prefix")) {
+        prefix = results["prefix"].as<std::string>() ;
     }
     target = "" ;
     if (results.count("target")) {
