@@ -12,6 +12,7 @@ Insdeller::Insdeller(const string &chrom_, samFile *sfs_bam_, bam_hdr_t *sfs_bam
     read_bamindex = read_bamindex_;
 }
 
+// cluster reads based on position
 list<Cluster> Insdeller::pcluster()
 {
     bam1_t *aln = bam_init1();
@@ -25,7 +26,8 @@ list<Cluster> Insdeller::pcluster()
     while (sam_itr_next(sfs_bam, itr, aln) > 0)
     {
         string sfs_name(bam_get_qname(aln));
-        string qname = sfs_name.substr(0, sfs_name.find(".")); // keep just read name (no positions on read)
+        uint first_point_pos = sfs_name.find(".");
+        string qname = sfs_name.substr(0, sfs_name.find(".", first_point_pos+1));
         uint rs = aln->core.pos;
         uint re = bam_endpos(aln);
 
@@ -116,7 +118,9 @@ Cluster Insdeller::extend(const Cluster &c)
     bam1_t *aln = bam_init1();
     while (sam_itr_next(read_bam, itr, aln) > 0)
     {
-        string qname = bam_get_qname(aln);
+        string sfs_name(bam_get_qname(aln));
+        uint first_point_pos = sfs_name.find(".");
+        string qname = sfs_name.substr(0, sfs_name.find(".", first_point_pos+1));
         if (reads_in_cluster.find(qname) == reads_in_cluster.end())
             continue;
         int qs = -1; // read start
@@ -169,6 +173,7 @@ Cluster Insdeller::extend(const Cluster &c)
     return ext_c;
 }
 
+// This clusters reads into haplotypes
 list<Cluster> Insdeller::scluster(const Cluster &cluster) // CHECKME
 {
     list<Cluster> clusters;
@@ -375,7 +380,11 @@ list<SV> Insdeller::dedup_svs(const list<SV> &svs)
 void Insdeller::call(const string &chrom_seq, ofstream &osam)
 {
     list<Cluster> pclusters = pcluster();
+    cout << "Sorted reads into " << pclusters.size() << " P-clusters." << endl ;
 
+    // TODO to parallelize: open multiple iterators to BAM file
+    //      insert everything to vartree after loop is finished
+    //      duplicate osvs for each thread
     for (const Cluster &pc : pclusters)
     {
         if (pc.size() < 2)
@@ -426,6 +435,7 @@ void Insdeller::call(const string &chrom_seq, ofstream &osam)
                     {
                         osvs.push_back(sv);
                         vartree.insert({sv.s - 1000, sv.e + 1000});
+                        cout << "Adding new variation at [" << sv.s << " - " << sv.e << "] " << endl ;
                     }
                 }
             }

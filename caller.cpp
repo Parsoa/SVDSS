@@ -5,6 +5,7 @@ void Caller::run()
     config = Configuration::getInstance();
 
     load_chromosomes(config->reference);
+    cout << "Loaded all chromosomes" << endl ;
 
     ovcf.open(config->workdir + "/svs.vcf");
     osam.open(config->workdir + "/poa.sam");
@@ -24,6 +25,7 @@ void Caller::run()
     for (uint i = 0; i < chromosomes.size(); ++i)
     {
         string chrom = chromosomes[i];
+        cout << "Processing chromosome " << chrom << ".. " << endl ;
 
         Insdeller idler = Insdeller(chrom, sfs_bam, sfs_bamhdr, sfs_bamindex, read_bam, read_bamhdr, read_bamindex);
         idler.call(chromosome_seqs[chrom], osam);
