@@ -1,8 +1,9 @@
-#include "clipler.hpp"
+#include <algorithm> 
 
-list<Clip> Clipler::remove_duplicates(const list<Clip> &clips)
-{
-    list<Clip> unique_clips;
+#include "clipper.hpp"
+
+vector<Clip> Clipper::remove_duplicates(const vector<Clip> &clips) {
+    vector<Clip> unique_clips;
     set<string> qnames;
     for (const Clip &clip : clips)
     {
@@ -15,16 +16,15 @@ list<Clip> Clipler::remove_duplicates(const list<Clip> &clips)
     return unique_clips;
 }
 
-list<Clip> Clipler::combine(const list<Clip> &clips)
-{
-    list<Clip> comb_clips;
+vector<Clip> Clipper::combine(const vector<Clip> &clips) {
+    vector<Clip> comb_clips;
 
     // we first cluster by breakpoints
-    map<uint, list<Clip>> clips_dict;
+    map<uint, vector<Clip>> clips_dict;
     for (const Clip &c : clips)
         clips_dict[c.p].push_back(c);
     // we then merge
-    for (map<uint, list<Clip>>::const_iterator it = clips_dict.begin(); it != clips_dict.end(); ++it)
+    for (map<uint, vector<Clip>>::const_iterator it = clips_dict.begin(); it != clips_dict.end(); ++it)
     {
         uint max_l = 0;
         for (const Clip &c : it->second)
@@ -39,9 +39,8 @@ list<Clip> Clipler::combine(const list<Clip> &clips)
     return comb_clips;
 }
 
-list<Clip> Clipler::filter_lowcovered(const list<Clip> &clips, const uint w)
-{
-    list<Clip> filt_clips;
+vector<Clip> Clipper::filter_lowcovered(const vector<Clip> &clips, const uint w) {
+    vector<Clip> filt_clips;
     for (const Clip &c : clips)
     {
         if (c.w >= w)
@@ -52,9 +51,8 @@ list<Clip> Clipler::filter_lowcovered(const list<Clip> &clips, const uint w)
 }
 
 // Cluster clips by proximity
-list<Clip> Clipler::cluster(const list<Clip> &clips, uint r)
-{
-    list<Clip> clusters;
+vector<Clip> Clipper::cluster(const vector<Clip> &clips, uint r) {
+    vector<Clip> clusters;
 
     map<uint, Clip> clusters_by_pos;
     for (const Clip &c : clips)
@@ -81,9 +79,8 @@ list<Clip> Clipler::cluster(const list<Clip> &clips, uint r)
     return clusters;
 }
 
-list<Clip> Clipler::filter_tooclose_clips(const list<Clip> &clips, interval_tree_t<int> &vartree)
-{
-    list<Clip> fclips;
+vector<Clip> Clipper::filter_tooclose_clips(const vector<Clip> &clips, interval_tree_t<int> &vartree) {
+    vector<Clip> fclips;
 
     for (const Clip &c : clips)
     {
@@ -95,25 +92,22 @@ list<Clip> Clipler::filter_tooclose_clips(const list<Clip> &clips, interval_tree
 
     return fclips;
 }
-
-Clipler::Clipler(const string &chrom_, samFile *sfs_bam_, bam_hdr_t *sfs_bamhdr_, hts_idx_t *sfs_bamindex_)
-{
+//
+Clipper::Clipper(const string &chrom_, samFile *sfs_bam_, bam_hdr_t *sfs_bamhdr_, hts_idx_t *sfs_bamindex_) {
     chrom = chrom_;
     sfs_bam = sfs_bam_;
     sfs_bamhdr = sfs_bamhdr_;
     sfs_bamindex = sfs_bamindex_;
 }
 
-list<Clip> Clipler::extract_clips()
-{
+vector<Clip> Clipper::extract_clips() {
     bam1_t *aln = bam_init1();
     hts_itr_t *itr = sam_itr_querys(sfs_bamindex, sfs_bamhdr, chrom.c_str());
     // string region = "1:102568879-102568949";
     // hts_itr_t *itr = sam_itr_querys(sfs_bamindex, sfs_bamhdr, region.c_str());
 
-    list<Clip> clips;
-    while (sam_itr_next(sfs_bam, itr, aln) > 0)
-    {
+    vector<Clip> clips;
+    while (sam_itr_next(sfs_bam, itr, aln) > 0) {
         string sfs_name(bam_get_qname(aln));
         string qname = sfs_name.substr(0, sfs_name.find(".")); // keep just read name (no positions on read)
         uint rs = aln->core.pos;
@@ -135,12 +129,12 @@ list<Clip> Clipler::extract_clips()
     return clips;
 }
 
-void Clipler::call(const string &chrom_seq, interval_tree_t<int> &vartree)
+void Clipper::call(const string &chrom_seq, interval_tree_t<int> &vartree)
 {
-    list<Clip> clips = extract_clips();
+    vector<Clip> clips = extract_clips();
 
-    list<Clip> rclips;
-    list<Clip> lclips;
+    vector<Clip> rclips;
+    vector<Clip> lclips;
     for (const Clip &clip : clips)
     {
         if (clip.starting)
@@ -163,12 +157,13 @@ void Clipler::call(const string &chrom_seq, interval_tree_t<int> &vartree)
     if (lclips.empty() || rclips.empty())
         return;
 
-    lclips.sort();
-    rclips.sort();
+    std::sort(lclips.begin(), lclips.end()) ;
+    std::sort(rclips.begin(), rclips.end());
 
     for (const Clip &lc : lclips)
     {
         // we get the closest right clip
+        // FIXME linear search is slow
         Clip rc;
         for (const Clip &rc_ : rclips)
         {
@@ -193,7 +188,7 @@ void Clipler::call(const string &chrom_seq, interval_tree_t<int> &vartree)
             uint w = max(lc.w, rc.w);
 
             // TODO: get coverage of locus from bam
-            osvs.push_back(SV('I', chrom, s, refbase, "<INS>", w, 0, 0, 0, true, l));
+            osvs.push_back(SV("INS", chrom, s, refbase, "<INS>", w, 0, 0, 0, true, l));
         }
     }
 
@@ -222,7 +217,7 @@ void Clipler::call(const string &chrom_seq, interval_tree_t<int> &vartree)
 
             // TODO: get coverage of locus from bam
             if (w >= 5)
-                osvs.push_back(SV('D', chrom, s, refbase, "<DEL>", w, 0, 0, 0, true, l));
+                osvs.push_back(SV("DEL", chrom, s, refbase, "<DEL>", w, 0, 0, 0, true, l));
         }
     }
 }

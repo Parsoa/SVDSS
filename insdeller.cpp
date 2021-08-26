@@ -1,445 +1,647 @@
 #include "insdeller.hpp"
 
-Insdeller::Insdeller(const string &chrom_, samFile *sfs_bam_, bam_hdr_t *sfs_bamhdr_, hts_idx_t *sfs_bamindex_, samFile *read_bam_, bam_hdr_t *read_bamhdr_, hts_idx_t *read_bamindex_)
-{
-    chrom = chrom_;
-    sfs_bam = sfs_bam_;
-    sfs_bamhdr = sfs_bamhdr_;
-    sfs_bamindex = sfs_bamindex_;
+#define ANCHOR_SIZE 7
 
-    read_bam = read_bam_;
-    read_bamhdr = read_bamhdr_;
-    read_bamindex = read_bamindex_;
+struct pair_hash {
+    template <class T1, class T2>
+    std::size_t operator () (const std::pair<T1,T2> &p) const {
+        auto h1 = std::hash<T1>{}(p.first) ;
+        auto h2 = std::hash<T2>{}(p.second) ;
+        return h1 ^ h2 ;
+    }
+};
+
+Insdeller::Insdeller(const string &chrom_) {
+    chrom = chrom_;
+    config = Configuration::getInstance() ;
+    sfs_bam = hts_open(config->sfsbam.c_str(), "r") ;
+    sfs_bamhdr = sam_hdr_read(sfs_bam) ;
+    sfs_bamindex = sam_index_load(sfs_bam, config->sfsbam.c_str()) ;
+    for (int i = 0; i < config->threads; i++) {
+        read_bam.push_back(hts_open(config->bam.c_str(), "r")) ;
+        read_bamhdr.push_back(sam_hdr_read(read_bam[i])) ;
+        read_bamindex.push_back(sam_index_load(read_bam[i], config->bam.c_str())) ;
+    }
 }
 
-// cluster reads based on position
-list<Cluster> Insdeller::pcluster()
-{
+// cluster SFS based on position
+vector<Cluster> Insdeller::position_cluster() {
     bam1_t *aln = bam_init1();
     hts_itr_t *itr = sam_itr_querys(sfs_bamindex, sfs_bamhdr, chrom.c_str());
-    // string region = "1:102568879-102568949";
-    // hts_itr_t *itr = sam_itr_querys(sfs_bamindex, sfs_bamhdr, region.c_str());
 
-    list<Cluster> clusters; // this will store the clusters
+    vector<Cluster> clusters; // this will store the clusters
     clusters.push_back(Cluster(chrom));
+    
+    int buffer_len = 10000 ;
+    uint8_t* seq = (uint8_t*) malloc(buffer_len) ;
+    uint8_t* qual = (uint8_t*) malloc(buffer_len) ;
 
-    while (sam_itr_next(sfs_bam, itr, aln) > 0)
-    {
+    int n = 0 ;
+    while (sam_itr_next(sfs_bam, itr, aln) > 0) {
+        //
         string sfs_name(bam_get_qname(aln));
-        uint first_point_pos = sfs_name.find(".");
-        string qname = sfs_name.substr(0, sfs_name.find(".", first_point_pos+1));
-        uint rs = aln->core.pos;
-        uint re = bam_endpos(aln);
+        int u = sfs_name.rfind(".") ;
+        string qname = sfs_name.substr(0, u) ;
+        string coords = sfs_name.substr(u + 1, sfs_name.length() - u - 1) ;
+        u = coords.find('-') ;
+        int read_s = std::stoi(coords.substr(0, u)) ;
+        int read_e = std::stoi(coords.substr(u + 1, coords.length() - u - 1)) ;
+        //cout << qname << " " << coords << " " << read_s << "-" << read_e << endl ;
+        uint ref_s = aln->core.pos ;
+        uint ref_e = bam_endpos(aln) ;
 
         bool has_i = false;
         bool has_d = false;
         uint32_t *cigar = bam_get_cigar(aln);
-        for (uint i = 0; i < aln->core.n_cigar; ++i)
-        {
+        for (uint i = 0; i < aln->core.n_cigar; i++) {
             uint op = bam_cigar_op(*(cigar + i));
-
             has_i |= op == BAM_CINS;
             has_d |= op == BAM_CDEL;
         }
 
-        if (!has_i && !has_d)
-            continue;
-        uint ft = 0;
-        if (has_i && has_d)
-            ft = 2;
-        else if (has_i)
-            ft = 1;
+        if (!has_i && !has_d) {
+            continue ;
+        }
+        uint ft = 0 ;
+        if (has_i && has_d) {
+            ft = 2 ;
+        }
+        else if (has_i) {
+            ft = 1 ;
+        }
 
-        uint qlen = aln->core.l_qseq;
-        uint8_t *q = bam_get_seq(aln);
-        char *qseq = (char *)malloc(qlen + 1); // FIXME: avoid this malloc everytime
-        for (uint i = 0; i < qlen; ++i)
-            qseq[i] = seq_nt16_str[bam_seqi(q, i)];
-        qseq[qlen] = '\0';
+        uint32_t l = aln->core.l_qseq ; //length of the read
+        if (l >= buffer_len) {
+            free(seq) ;
+            free(qual) ;
+            buffer_len = l + 1 ;
+            seq = (uint8_t*) malloc(buffer_len) ;
+            qual = (uint8_t*) malloc(buffer_len) ;
+        }
+        uint8_t *s = bam_get_seq(aln) ; //quality string
+        uint8_t *q = bam_get_qual(aln) ;
+        for (int i = 0; i < l; i++) {
+            seq[i] = seq_nt16_str[bam_seqi(s, i)]; //gets nucleotide id and converts them into IUPAC id.
+            qual[i] = 'I' ; //q[i] ;
+        }
+        seq[l] = '\0' ; // null terminate
+        qual[l] = '\0' ;
 
         Cluster &c = clusters.back();
-        if (c.empty())
-        {
-            c.add_fragment(Fragment(qname, rs, re, ft, qseq));
+        if (c.empty()) {
+            c.add_fragment(Fragment(qname, ref_s, ref_e, read_s, read_e, ft, (char*)seq, (char*)qual)) ;
         }
-        else
-        {
-            if (c.back().e + 500 > rs) // overlapping
-            {
-                c.add_fragment(Fragment(qname, rs, re, ft, qseq));
+        else {
+            if (c.back().ref_e + 500 > ref_s) {
+                c.add_fragment(Fragment(qname, ref_s, ref_e, read_s, read_e, ft, (char*)seq, (char*)qual)) ;
             }
-            else
-            {
-                clusters.push_back(Cluster(chrom));
-                clusters.back().add_fragment(Fragment(qname, rs, re, ft, qseq));
+            else {
+                clusters.push_back(Cluster(chrom)) ;
+                clusters.back().add_fragment(Fragment(qname, ref_s, ref_e, read_s, read_e, ft, (char*)seq, (char*)qual)) ;
             }
         }
+        n += 1 ;
     }
 
     return clusters;
 }
 
 // Type clustering - 2 clusters with all fragments with only I and only D or 1 cluster with both (if we have at least one mixed fragment)
-list<Cluster> Insdeller::tcluster(const Cluster &c)
-{
-    list<Cluster> tc;
+vector<Cluster> Insdeller::type_cluster(const Cluster &c) {
+    vector<Cluster> tc;
     bool has_both = false;
-    for (const Fragment &f : c)
-        has_both |= f.t == 2;
+    for (const Fragment &f : c) {
+        has_both |= (f.t == 2) ;
+    }
 
-    if (has_both)
+    if (has_both) {
         tc.push_back(c);
-    else
-    {
-        tc.push_back(Cluster(chrom));
-        tc.push_back(Cluster(chrom));
-        for (const Fragment &f : c)
-        {
+    } else {
+        tc.push_back(Cluster(chrom)) ;
+        tc.push_back(Cluster(chrom)) ;
+        for (const Fragment &f : c) {
             Cluster &c = f.t == 0 ? tc.front() : tc.back();
             c.add_fragment(f);
         }
     }
-    return tc;
+    return tc ;
 }
 
-Cluster Insdeller::extend(const Cluster &c)
-{
-    Cluster ext_c(chrom);
-
-    int rs = c.s; // reference start
-    int re = c.e; // reference end
-
-    set<string> reads_in_cluster; // these are the reads we are interested in
-    for (const Fragment f : c)
-        reads_in_cluster.insert(f.name);
-
-    string region = chrom + ":" + to_string(rs) + "-" + to_string(re);
-    hts_itr_t *itr = sam_itr_querys(read_bamindex, read_bamhdr, region.c_str());
-    bam1_t *aln = bam_init1();
-    while (sam_itr_next(read_bam, itr, aln) > 0)
-    {
-        string sfs_name(bam_get_qname(aln));
-        uint first_point_pos = sfs_name.find(".");
-        string qname = sfs_name.substr(0, sfs_name.find(".", first_point_pos+1));
-        if (reads_in_cluster.find(qname) == reads_in_cluster.end())
-            continue;
-        int qs = -1; // read start
-        int qe = -1; // read end
-        vector<pair<int, int>> alpairs = get_aligned_pairs(aln);
-        for (uint i = 0; i < alpairs.size(); ++i)
-        {
-            int q = alpairs[i].first;
-            int r = alpairs[i].second;
-            if (r == rs)
-            {
-                qs = q;
-            }
-            else if (r == re)
-            {
-                qe = q;
-            }
-        }
-
-        // --- this should never occur since we already re-aligned the superstrings (but I could be wrong)
-        if (qs == -1)
-            qs = alpairs.front().first;
-        if (qe == -1)
-            qe = alpairs.back().first;
-        if (qs == -1 || qe == -1)
-        {
-            cerr << "[W] no reference base on " << chrom << ":" << rs << "-" << re << " (" << qname << ")" << endl;
-            continue;
-        }
-        // ---
-
-        // add flanking
-        uint flank = 10; // FIXME: hardcoded
-        qs -= flank;
-        qe += flank;
-
-        // FIXME: may over/underflow
-        qs = max(0, qs);
-
-        uint qlen = aln->core.l_qseq;
-        uint8_t *q = bam_get_seq(aln);
-        char *qseq = (char *)malloc(qlen + 1); // FIXME: avoid this malloc everytime
-        for (uint i = 0; i < qlen; ++i)
-            qseq[i] = seq_nt16_str[bam_seqi(q, i)];
-        qseq[qlen] = '\0';
-        string subseq(qseq, qs, qe - qs + 1);
-        Fragment f(qname, rs - flank, re + flank, 0, subseq); // FIXME 0 is good? // CHECKME the size of the cluster is the initial size - even if we split the cluster
-        ext_c.add_fragment(f);
+// string_view may help make this faster
+unordered_map<string, int> get_unique_anchors(char* ref, int l, int k) {
+    unordered_map<string, int> kmers ;
+    unordered_map<string, int> positions ;
+    char* _kmer = (char*) malloc(sizeof(char) * (k + 1)) ;
+    _kmer[k] = '\0' ;
+    for (int i = 0; i < l; i++) {
+        memcpy(_kmer, ref + i, k) ;
+        string kmer(_kmer) ;
+        kmers[canonicalize(string(kmer))] += 1 ;
+        positions[canonicalize(string(kmer))] = i ;
     }
-    return ext_c;
+    free(_kmer) ;
+    auto it = kmers.begin() ;
+    int n = 0 ;
+    while (it != kmers.end()) {
+        if (it->second != 1) {
+           it = kmers.erase(it) ; 
+           n += 1 ;
+        } else {
+            it++ ;
+        }
+    }
+    cout << "Filtered " << n << endl ;
+    return positions ;
 }
 
-// This clusters reads into haplotypes
-list<Cluster> Insdeller::scluster(const Cluster &cluster) // CHECKME
-{
-    list<Cluster> clusters;
+Cluster Insdeller::merge_close_fragments(const Cluster& cluster, int distance) {
+    Cluster merged_cluster(cluster.chrom) ;
+    merged_cluster.s = cluster.s ;
+    merged_cluster.e = cluster.e ;
+    //
+    unordered_map<string, vector<Fragment>> reads ;
+    for (auto& f: cluster.fragments) {
+        reads[f.name].push_back(f) ;
+    }
+    for (auto& r: reads) {
+        auto& fragments = r.second ;
+        for (auto i = fragments.begin(); i != fragments.end(); i++) {
+            for (auto j = i++; j != fragments.end(); j++) {
+                if (j->read_s - i->read_e < distance) {
+                    i->ref_e = j->ref_e ;
+                    i->read_e = j-> read_e ;
+                    j = fragments.erase(j) ;
+                    // TODO needs to update sequence
+                }
+            }
+        }
+        for (auto& f: fragments) {
+            merged_cluster.add_fragment(f) ;
+        }
+    }
+    return merged_cluster ;
+}
+
+
+Cluster Insdeller::extend(Cluster &cluster) {
+    // sort cluster fragments based on position
+    std::sort(cluster.fragments.begin(), cluster.fragments.end()) ;
+    // TODO: merge close signatures together?
+    // auto c = merge_close_fragments(cluster, 50) ;
+    auto c = cluster ;
+    // find anchors
+    int padding = 3000 ;
+    int k = ANCHOR_SIZE ;
+    char* ref = chromosome_seqs[c.chrom] + c.s - padding ;
+    //cout << "Searching for anchors in " << c.chrom << "[" << c.s - padding << "-" << c.e + padding << "]" << endl ; 
+    auto kmers = get_unique_anchors(ref, c.e - c.s + 2 * padding, k) ;
+    //cout << "Found " << kmers.size() << " anchors.." << endl ;
+    if (!kmers.size()) {
+        lprint({"No anchors found for", c.get_id()}, 'E') ; 
+    }
+
+    unordered_map<string, std::vector<Fragment>> reads_in_cluster; // these are the reads we are interested in
+    for (const Fragment& f : c) {
+        reads_in_cluster[f.name].push_back(f) ;
+    }
+    //
+    Cluster ext_c(chrom) ;
+    string region = chrom + ":" + to_string(c.s) + "-" + to_string(c.e);
+    hts_itr_t *itr = sam_itr_querys(read_bamindex[omp_get_thread_num()], read_bamhdr[omp_get_thread_num()], region.c_str()) ;
+    bam1_t *aln = bam_init1() ;
+    int buffer_len = 10000 ;
+    uint8_t* seq = (uint8_t*) malloc(buffer_len) ;
+    uint8_t* qual = (uint8_t*) malloc(buffer_len) ;
+    char* _kmer = (char*) malloc(sizeof(char) * (k + 1)) ;
+    _kmer[k] = '\0' ;
+    while (sam_itr_next(read_bam[omp_get_thread_num()], itr, aln) > 0) {
+        bool left_extend = false ;
+        bool right_extend = false ;
+        string qname(bam_get_qname(aln)) ;
+        if (reads_in_cluster.find(qname) == reads_in_cluster.end()) {
+            continue ;
+        }
+        // get read sequence
+        uint32_t l = aln->core.l_qseq ; //length of the read
+        if (l >= buffer_len) {
+            free(seq) ;
+            free(qual) ;
+            buffer_len = l + 1 ;
+            seq = (uint8_t*) malloc(buffer_len) ;
+            qual = (uint8_t*) malloc(buffer_len) ;
+        }
+        uint8_t *s = bam_get_seq(aln) ; //quality string
+        uint8_t *q = bam_get_qual(aln) ;
+        for (int i = 0; i < l; i++) {
+            seq[i] = seq_nt16_str[bam_seqi(s, i)] ; //gets nucleotide id and converts them into IUPAC id.
+            qual[i] = 'I' ; //q[i] ;
+        }
+        seq[l] = '\0' ;
+        qual[l] = '\0' ;
+        vector<pair<int, int>> alpairs = get_aligned_pairs(aln) ;
+        // Extend each fragment on this read
+        for (auto& f: reads_in_cluster[qname]) {
+            // extend SFS until we reach anchors
+            int new_read_s = -1 ;
+            int new_read_e = -1 ;
+            for (int i = f.read_s - 1; i >= k - 1; i--) {
+                memcpy(_kmer, seq + i - (k - 1), k) ;
+                string canon = canonicalize(string(_kmer)) ;
+                if (kmers.find(canon) != kmers.end()) {
+                    new_read_s = i - (k - 1) ;
+                    left_extend = true ;
+                    break ;
+                }
+            } 
+            for (int i = f.read_e; i < l; i++) {
+                memcpy(_kmer, seq + i, k) ;
+                string canon = canonicalize(string(_kmer)) ;
+                if (kmers.find(canon) != kmers.end()) {
+                    new_read_e = i + k ;
+                    right_extend = true ;
+                    break ;
+                }
+            } 
+            if (new_read_s == -1 || new_read_e == -1) {
+                lprint({"Anchor extension unsuccessful for SFS", qname, to_string(f.read_s), "-", to_string(f.read_e)}, 'E') ;
+            }
+            //cout << "Old: " << f.read_s << " - " << f.read_e << endl ;
+            new_read_s = new_read_s == -1 ? f.read_s : new_read_s ;
+            new_read_e = new_read_e == -1 ? f.read_e : new_read_e ;
+            // update alignment
+            int last_r = -1 ;
+            int new_ref_s = -1 ;
+            int new_ref_e = -1 ;
+            // This will work if we haven't extended the kmer
+            // If we have extended the kmer, then it may fail
+            //cout << "old ref: " << f.ref_s << " - " << f.ref_e << endl ;
+            for (uint i = 0; i < alpairs.size(); ++i) {
+                int q = alpairs[i].first;
+                int r = alpairs[i].second;
+                if (q == new_read_s) {
+                    if (r != -1) {
+                        new_ref_s = r ;
+                    }
+                } else if (q == new_read_e) {
+                    if (r != -1) {
+                        new_ref_e = r ;
+                    }
+                }
+            }
+            //cout << "New ref: " << new_ref_s << " - " << new_ref_e << endl ;
+            // second pass, if not extended by unique anchors, then extend to cluster size +- 10bp
+            for (uint i = 0; i < alpairs.size(); ++i) {
+                int q = alpairs[i].first;
+                int r = alpairs[i].second;
+                if (r == c.s) {
+                    if (new_read_s == f.read_s) {
+                        if (q != -1) {
+                            new_read_s = max(q - 10, 0) ;
+                        } else {
+                            new_read_s = -1 ;
+                        }
+                    }
+                } else if (r == c.e) {
+                    if (new_read_e == f.read_e) {
+                        if (q != -1) {
+                            new_read_e = min(int(l), q + 10) ;
+                        } else {
+                            new_read_e = -1 ;
+                        }
+                    }
+                }
+            }
+            //
+            if (new_read_s == -1) {
+                new_read_s = alpairs.front().first ;
+            }
+            if (new_read_e == -1) {
+                new_read_e = alpairs.back().first ;
+            }
+            if (new_read_s == -1 && new_read_e == -1) {
+                cerr << "[W] no reference base on " << chrom << ":" << c.s << "-" << c.e << " (" << qname << ")" << endl;
+                continue ;
+            }
+            //cout << "New: " << new_read_s << " - " << new_read_e << endl ;
+            string subseq((char*) seq, new_read_s, new_read_e - new_read_s + 1);
+            string subqual((char*) qual, new_read_s, new_read_e - new_read_s + 1);
+            //cout << f.read_e - f.read_s << " " << new_read_e - new_read_s << endl ;
+            Fragment new_f(qname, new_ref_s, new_ref_e, new_read_s, new_read_e, 0, subseq, subqual) ;
+            new_f.extend(left_extend, right_extend) ;
+            ext_c.add_fragment(new_f) ;
+        }
+    }
+    free(seq) ;
+    free(qual) ;
+    free(_kmer) ;
+    return ext_c ;
+}
+
+int Insdeller::cluster_anchors(const Cluster &cluster) {
+    unordered_map<string, vector<int>> left ;
+    unordered_map<string, vector<int>> right ;
+    for (int i = 0; i < cluster.fragments.size(); i++) {
+        auto& f = cluster.fragments[i] ;
+        string r ;
+        string l ;
+        if (f.right_extended) {
+            r = f.seq.substr(0, ANCHOR_SIZE) ;
+            right[r].push_back(i) ;
+        }
+        if (f.left_extended) {
+            l = f.seq.substr(f.seq.length() - ANCHOR_SIZE, ANCHOR_SIZE) ;
+            left[l].push_back(i) ;
+        }
+    }
+    if (left.size() == 1 && right.size() == 1) {
+        // All have been extended to the same anchor, easy
+        return 0 ;
+    } else if (left.size() == 1 || right.size() == 1) {
+        // still easy
+        return 1 ;
+    } else {
+        return max(left.size(), right.size()) ;
+    }
+}
+
+vector<SV> Insdeller::call_svs(Cluster& cluster, float ratio) {
+    vector<SV> svs ;
+    unordered_map<std::pair<int, int>, std::vector<Fragment>, pair_hash> breakpoints ; 
+    for (auto& f: cluster) {
+        bool new_cluster = true ;
+        for (auto& kv: breakpoints) {
+            int ref_s = kv.first.first ;
+            int ref_e = kv.first.second ;
+            int l_2 = ref_e - ref_s ;
+            int l_1 = f.ref_e - f.ref_s ;
+            if (min(int(f.ref_e), ref_e) - max(int(f.ref_s), ref_s) > 0) {
+                if (min(l_1, l_2) / max(l_1, l_2) >= ratio) {
+                    kv.second.push_back(f) ;
+                    new_cluster = false ;
+                    break ;
+                }
+            }
+        }
+        if (new_cluster) {
+            breakpoints[std::make_pair(f.read_s, f.read_e)].push_back(f) ;
+        }
+    }
+    cout << breakpoints.size() << " breakpoint clusters.. " << endl ;
+    return svs ;
+}
+
+vector<Cluster> Insdeller::scluster(const Cluster &cluster) {
+    vector<Cluster> clusters ;
 
     // greedy choice: longer fragment is representative #1
     Fragment repr1;
-    for (const Fragment &f : cluster)
-        if (f.size() > repr1.size())
+    for (const Fragment &f : cluster) {
+        if (f.size() > repr1.size()) {
             repr1 = f;
+        }
+    }
 
     // the other representative will be the fragment with the lowest similarity with repr1
     Fragment repr2;
     double min_d = 100.0;
-    for (const Fragment &f : cluster)
-    {
+    for (const Fragment &f : cluster) {
         double d = rapidfuzz::fuzz::ratio(repr1.seq, f.seq);
-        if (d < 60 && d < min_d) // CHECKME 60 is hardcoded
-        {
+        if (d < 60 && d < min_d) {
             min_d = d;
             repr2 = f;
         }
     }
 
-    if (repr2.size() == 0)
-    {
+    if (repr2.size() == 0) {
         clusters.push_back(cluster);
     }
-    else
-    {
+    else {
         clusters.push_back(Cluster(cluster.chrom));
         clusters.push_back(Cluster(cluster.chrom));
         double d1, d2;
-        for (const Fragment &f : cluster)
-        {
+        for (const Fragment &f : cluster) {
             d1 = rapidfuzz::fuzz::ratio(repr1.seq, f.seq);
             d2 = rapidfuzz::fuzz::ratio(repr2.seq, f.seq);
-            if (d1 <= d2)
+            if (d1 <= d2) {
                 clusters.front().add_fragment(f);
-            else
+            } else {
                 clusters.back().add_fragment(f);
+            }
         }
     }
     return clusters;
 }
+//
+//CIGAR Insdeller::align(const char *tseq, const char *qseq, int sc_mch, int sc_mis, int gapo, int gape) {
+////    int i, a = sc_mch, b = sc_mis < 0 ? sc_mis : -sc_mis; // a>0 and b<0
+////    int8_t mat[25] = {a, b, b, b, 0, b, a, b, b, 0, b, b, a, b, 0, b, b, b, a, 0, 0, 0, 0, 0, 0};
+////    int tl = strlen(tseq), ql = strlen(qseq);
+////    uint8_t *ts, *qs;
+////    ksw_extz_t ez;
+////
+////    memset(&ez, 0, sizeof(ksw_extz_t)) ;
+////    ts = (uint8_t*) malloc(tl) ;
+////    qs = (uint8_t*) malloc(ql) ;
+////    for (i = 0; i < tl; ++i) {
+////        ts[i] = _nt4_table[(uint8_t) tseq[i]] ; // encode to 0/1/2/3
+////    }
+////    for (i = 0; i < ql; ++i) {
+////        qs[i] = _nt4_table[(uint8_t) qseq[i]] ;
+////    }
+////    // ksw_extz(0, ql, qs, tl, ts, 5, mat, gapo, gape, -1, -1, 0, &ez);
+////
+////    ksw_extd(0, ql, qs, tl, ts, 5, mat, 50, 1, 50, 0, -1, -1, 0, &ez) ;
+////
+////    vector<pair<uint, char>> cigar(ez.n_cigar) ;
+////    for (i = 0; i < ez.n_cigar; ++i) {// print CIGAR
+////        cigar[i] = make_pair(ez.cigar[i] >> 4, "MID"[ez.cigar[i] & 0xf]);
+////    }
+////    int score = ez.score ;
+////    free(ez.cigar) ;
+////    free(ts) ;
+////    free(qs) ;
+////    return CIGAR(cigar, score) ;
+//}
+//
+//vector<SV> Insdeller::call_poa_svs(const Cluster &c, const string &ref, ofstream &o) {
+//    vector<SV> svs;
+//    string reference(ref, c.s, c.e - c.s + 1);
+//    string consensus = c.poa();
+//    CIGAR cigar = align(reference.c_str(), consensus.c_str(), 1, -3, 100, 0); // TODO: adjust scores/penalties. I want less gaps
+//    cigar.fixclips();
+//
+//    // SAM output
+//    o << chrom << ":" << c.s + 1 << "-" << c.e + 1 << ":" << c.size() << "\t"
+//      << 0 << "\t"
+//      << c.chrom << "\t"
+//      << c.s + 1 << "\t"
+//      << 60 << "\t"
+//      << cigar.to_str() << "\t"
+//      << "*"
+//      << "\t"
+//      << 0 << "\t"
+//      << 0 << "\t"
+//      << consensus << "\t"
+//      << "*"
+//      << endl;
+//    // << "NM:i:" << 0 << endl;
+//    // << "AS:i:" << cigar.score << endl;
+//
+//    // extracting insertions/deletions breakpoints
+//    uint qs = 0 ;       // position on consensus
+//    uint lrs = 0 ;      // position on local reference
+//    uint rs = c.s ; // position on reference
+//
+//    for (uint i = 0; i < cigar.size(); i++) {
+//        SV sv ;
+//        if (cigar[i].second == 'S') {
+//            qs += cigar[i].first ;
+//        } else if (cigar[i].second == 'I') {
+//            string ref_allele = ref.substr(rs - 1, 1) ;
+//            string alt_allele = ref_allele + consensus.substr(qs, cigar[i].first) ;
+//            sv = SV("INS", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
+//            qs += cigar[i].first ;
+//        } else if (cigar[i].second == 'D') {
+//            cout << reference.length() << " " << lrs << " " << cigar[i].first << endl ;
+//            string ref_allele = ref.substr(rs - 1, cigar[i].first + 1) ;
+//            string alt_allele = ref_allele.substr(0, 1) ;
+//            sv = SV("DEL", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
+//            rs += cigar[i].first ;
+//            lrs += cigar[i].first ;
+//        } else if (cigar[i].second == 'M') {
+//            rs += cigar[i].first ;
+//            qs += cigar[i].first ;
+//            lrs += cigar[i].first ;
+//        } else {
+//            cerr << "Unknown CIGAR op " << cigar[i].second << endl;
+//            exit(1);
+//        }
+//        if (abs(sv.l) > 0) {
+//            svs.push_back(sv) ;
+//        }
+//    }
+//    return svs;
+//}
 
-CIGAR Insdeller::align(const char *tseq, const char *qseq, int sc_mch, int sc_mis, int gapo, int gape)
-{
-    int i, a = sc_mch, b = sc_mis < 0 ? sc_mis : -sc_mis; // a>0 and b<0
-    int8_t mat[25] = {a, b, b, b, 0, b, a, b, b, 0, b, b, a, b, 0, b, b, b, a, 0, 0, 0, 0, 0, 0};
-    int tl = strlen(tseq), ql = strlen(qseq);
-    uint8_t *ts, *qs;
-    ksw_extz_t ez;
-
-    memset(&ez, 0, sizeof(ksw_extz_t));
-    ts = (uint8_t *)malloc(tl);
-    qs = (uint8_t *)malloc(ql);
-    for (i = 0; i < tl; ++i)
-        ts[i] = _nt4_table[(uint8_t)tseq[i]]; // encode to 0/1/2/3
-    for (i = 0; i < ql; ++i)
-        qs[i] = _nt4_table[(uint8_t)qseq[i]];
-    // ksw_extz(0, ql, qs, tl, ts, 5, mat, gapo, gape, -1, -1, 0, &ez);
-
-    ksw_extd(0, ql, qs, tl, ts, 5, mat, 50, 1, 50, 0, -1, -1, 0, &ez);
-
-    vector<pair<uint, char>> cigar(ez.n_cigar);
-    for (i = 0; i < ez.n_cigar; ++i) // print CIGAR
-        cigar[i] = make_pair(ez.cigar[i] >> 4, "MID"[ez.cigar[i] & 0xf]);
-    int score = ez.score;
-    free(ez.cigar);
-    free(ts);
-    free(qs);
-    return CIGAR(cigar, score);
-}
-
-list<SV> Insdeller::extract(const Cluster &c, const string &ref, ofstream &o)
-{
-    string reference(ref, c.s, c.e - c.s + 1);
-    string consensus = c.poa();
-    CIGAR cigar = align(reference.c_str(), consensus.c_str(), 1, -3, 100, 0); // TODO: adjust scores/penalties. I want less gaps
-    cigar.fixclips();
-
-    // SAM output
-    o << chrom << ":" << c.s + 1 << "-" << c.e + 1 << ":" << c.size() << "\t"
-      << 0 << "\t"
-      << c.chrom << "\t"
-      << c.s + 1 << "\t"
-      << 60 << "\t"
-      << cigar.to_str() << "\t"
-      << "*"
-      << "\t"
-      << 0 << "\t"
-      << 0 << "\t"
-      << consensus << "\t"
-      << "*"
-      << endl;
-    // << "NM:i:" << 0 << endl;
-    // << "AS:i:" << cigar.score << endl;
-
-    // extracting insertions/deletions breakpoints
-    uint rs = c.s + 1; // position on reference
-    uint lrs = 0;      // position on local reference
-    uint qs = 0;       // position on consensus
-    string refall = "";
-    string altall = "";
-
-    list<SV> svs;
-    for (uint i = 0; i < cigar.size(); ++i)
-    {
-        SV sv;
-        switch (cigar[i].second)
-        {
-        case 'S':
-            qs += cigar[i].first;
-            break;
-        case 'I':
-            refall = reference.substr(lrs - 1, 1);
-            altall = refall + consensus.substr(qs, cigar[i].first);
-            sv = SV('I', c.chrom, rs - 1, refall, altall, c.size(), c.full_cov, cigar.ngaps, cigar.score);
-            qs += cigar[i].first;
-            break;
-        case 'D':
-            refall = reference.substr(lrs - 1, cigar[i].first + 1);
-            altall = refall.substr(0, 1);
-            sv = SV('D', c.chrom, rs - 1, refall, altall, c.size(), c.full_cov, cigar.ngaps, cigar.score);
-            rs += cigar[i].first;
-            lrs += cigar[i].first;
-            break;
-        case 'M':
-            lrs += cigar[i].first;
-            rs += cigar[i].first;
-            qs += cigar[i].first;
-            break;
-        default:
-            cerr << "Unknown CIGAR op " << cigar[i].second << endl;
-            exit(1);
-        }
-        if (abs(sv.l) > 0)
-            svs.push_back(sv);
-    }
-    return svs;
-}
-
-list<SV> Insdeller::merge_svs(const list<SV> &svs, const string &chrom_seq)
-{
-    vector<list<SV>> tsvs(2);
-    list<SV> msvs;
-    for (const auto &sv : svs)
-    {
-        uint i = sv.type.compare("DEL") == 0 ? 0 : 1;
-        tsvs[i].push_back(sv);
-    }
-    // Note: we are sure SVs (of same type) are sorted by reference position
-    for (uint i = 0; i < 2; ++i)
-    {
-        if (tsvs[i].empty())
-            continue;
-        string stype = tsvs[i].front().type;
-        char type;
-        string chrom = tsvs[i].front().chrom;
-        uint s = tsvs[i].front().s;
-        string refall = "";
-        string altall = "";
-        uint w = tsvs[i].front().w;
-        uint cov = tsvs[i].front().cov;
-        int ngaps = tsvs[i].front().ngaps;
-        int score = tsvs[i].front().score;
-        if (stype.compare("INS") == 0)
-        {
-            type = 'I';
-            refall = tsvs[i].front().refall;
-            for (const SV &sv : tsvs[i])
-                altall += sv.altall;
-        }
-        else
-        {
-            type = 'D';
-            altall = tsvs[i].front().altall;
-            uint l = 0;
-            for (const auto sv : tsvs[i])
-                l += sv.refall.size();
-            refall = chrom_seq.substr(s, l);
-        }
-
-        msvs.push_back(SV(type, chrom, s, refall, altall, w, cov, ngaps, score));
-    }
-    return msvs;
-}
-
-list<SV> Insdeller::dedup_svs(const list<SV> &svs)
-{
-    set<string> uidxs;
-    list<SV> usvs;
-    for (const SV &sv : svs)
-    {
-        if (uidxs.find(sv.idx) == uidxs.end())
-        {
-            uidxs.insert(sv.idx);
-            usvs.push_back(sv);
+vector<SV> Insdeller::remove_duplicate_svs(const vector<SV> &svs) {
+    vector<SV> usvs ;
+    set<string> uidxs ;
+    for (const SV &sv: svs) {
+        if (uidxs.find(sv.idx) == uidxs.end()) {
+            uidxs.insert(sv.idx) ;
+            usvs.push_back(sv) ;
         }
     }
-    return usvs;
+    return usvs ;
 }
 
-void Insdeller::call(const string &chrom_seq, ofstream &osam)
-{
-    list<Cluster> pclusters = pcluster();
-    cout << "Sorted reads into " << pclusters.size() << " P-clusters." << endl ;
+void Insdeller::call(const string &chrom_seq, ofstream &osam) {
+    // algorithm
+    // 1. Put fragments that are close to each other togethe
+    // 2. Separate fragments based on type, all DELs go together, all INS go together, fragments that have both go together
+    // TODO: does this make sense? why not just put all close fragments together?
+    // 3. (why) merge close fragments withe each other, how close? what happens if there is an INS between two DELs
+    // 4. Extend each fragment to reach a unique 6bp sequence
+    // 5. Cluster based on 6bp sequences, if we have one cluster, then easy, just genotype it
+    //      a. if we have one cluster then easy just genotype it
+    //      b. if we have multiple clusters, cluster them based on length and overlap
+    //          1. if we end up with one or two clusters then predicts SVs
+    //          2. if we end up with more, then pass to POA or miniasm
 
-    // TODO to parallelize: open multiple iterators to BAM file
-    //      insert everything to vartree after loop is finished
-    //      duplicate osvs for each thread
-    for (const Cluster &pc : pclusters)
-    {
-        if (pc.size() < 2)
-            continue;
+    vector<Cluster> position_clusters = position_cluster() ;
+    cout << "Sorted reads into " << position_clusters.size() << " P-clusters." << endl ;
 
-        list<Cluster> tclusters = tcluster(pc);
-        for (const Cluster &tc : tclusters)
-        {
-            if (tc.size() < 2)
-                continue;
+    vector<vector<SV>> _svs(config->threads) ;
 
-            list<SV> cl_svs;
+    int n = 0 ;
+    vector<int> cluster_status[config->threads] ;
+    for (int i = 0; i < config->threads; i++) {
+        cluster_status[i].reserve(100 + 1) ;
+    }
 
-            Cluster extended_tc = extend(tc);
-            list<Cluster> sclusters = scluster(extended_tc);
-            for (Cluster &sc : sclusters)
-            {
-                if (sc.size() < 2)
-                    continue;
+    #pragma omp parallel for num_threads(config->threads)
+    for (int i = 0; i < position_clusters.size(); i++) {
+        auto& pc = position_clusters[i] ;
+        if (pc.size() < 2) {
+            continue ;
+        }
 
-                // get total number of reads mapping to this locus
-                bam1_t *aln = bam_init1();
-                string region = sc.chrom + ":" + to_string(sc.s) + "-" + to_string(sc.e + 1);
-                hts_itr_t *itr = sam_itr_querys(read_bamindex, read_bamhdr, region.c_str());
-                uint c = 0;
-                while (sam_itr_next(read_bam, itr, aln) > 0)
-                {
-                    if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY)
-                        continue;
-                    ++c;
-                }
-                sc.set_full_coverage(c);
-
-                list<SV> svs = extract(sc, chrom_seq, osam);
-                list<SV> msvs = merge_svs(svs, chrom_seq);
-
-                cl_svs.insert(cl_svs.end(), msvs.begin(), msvs.end());
+        //Parsoa: I don't like this
+        vector<Cluster> type_clusters = type_cluster(pc);
+        for (Cluster &tc : type_clusters) {
+            if (tc.size() < 2) {
+                continue ;
             }
-
-            if (!cl_svs.empty())
-            {
-                // CHECKME maybe useless
-                list<SV> usvs = dedup_svs(cl_svs);
-
-                for (const SV &sv : usvs)
-                {
-                    if (abs(sv.l) >= 30 && (sv.ngaps <= 2 || (sv.ngaps > 2 && sv.w > 10)))
-                    {
-                        osvs.push_back(sv);
-                        vartree.insert({sv.s - 1000, sv.e + 1000});
-                        cout << "Adding new variation at [" << sv.s << " - " << sv.e << "] " << endl ;
-                    }
+            if (tc.s != 37667602) {
+                continue ;
+            }
+            Cluster extended_tc = extend(tc) ;
+            if (extended_tc.size() < 2) {
+                continue ;
+            }
+            int num_anchors = cluster_anchors(extended_tc) ;
+            vector<Cluster> sclusters ;
+            sclusters = scluster(extended_tc) ;
+            if (num_anchors > 2) {
+                if (sclusters.size() == 1) {
+                    cluster_status[omp_get_thread_num()][1] += 1 ;
+                } else {
+                    cluster_status[omp_get_thread_num()][min(100, num_anchors)] += 1 ;
+                }
+            } else {
+                cluster_status[omp_get_thread_num()][min(100, num_anchors)] += 1 ;
+            }
+            n += 1 ;
+            continue ;
+            vector<SV> svs ;
+            vector<SV> cl_svs ;
+            lprint({"Haplotyping cluster", extended_tc.chrom, to_string(extended_tc.s), to_string(extended_tc.e), " with", std::to_string(extended_tc.fragments.size()), " fragments.."}) ;
+            if (extended_tc.size() > 50 || sclusters.size() > 1) {
+                lprint({"Delegating to POA.."}) ;
+                //// get total number of reads mapping to this locus
+                //bam1_t *aln = bam_init1();
+                //string region = extended_tc.chrom + ":" + to_string(extended_tc.s) + "-" + to_string(extended_tc.e + 1);
+                //hts_itr_t *itr = sam_itr_querys(read_bamindex[omp_get_thread_num()], read_bamhdr[omp_get_thread_num()], region.c_str());
+                //uint c = 0;
+                //while (sam_itr_next(read_bam[omp_get_thread_num()], itr, aln) > 0) {
+                //    if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
+                //        continue;
+                //    }
+                //    c++ ;
+                //}
+                //free(aln) ;
+                //extended_tc.set_full_coverage(c);
+                //extract(extended_tc, chrom_seq, osam);
+                //svs = haplotyper.haplotype(extended_tc) ;
+            } else {
+                lprint({"Using basic genotyper.."}) ;
+            }
+            cl_svs.insert(cl_svs.end(), svs.begin(), svs.end()) ;
+            vector<SV> usvs = remove_duplicate_svs(cl_svs) ;
+            for (const SV &sv : usvs) {
+                if (abs(sv.l) >= 25 && (sv.ngaps <= 2 || (sv.ngaps > 2 && sv.w > 10))) {
+                    _svs[omp_get_thread_num()].push_back(sv);
                 }
             }
+        }
+    }
+    cout << "Done.." << endl ;
+    cout << n << endl ;
+    for (int i = 0; i < 100; i++) {
+        int m = 0 ;
+        for (int j = 0; j < config->threads; j++) {
+            m += cluster_status[j][i] ;
+        }
+        cout << i << " : " << m << endl ;
+    }
+    for (int i = 0; i < _svs.size(); i++) {
+        for (const SV &sv : _svs[i]) {
+            osvs.push_back(sv);
+            vartree.insert({sv.s - 1000, sv.e + 1000});
         }
     }
     vartree.deoverlap();
+    for (int i = 0; i < config->threads; i++) {
+        sam_close(read_bam[i]) ;
+    }
 }

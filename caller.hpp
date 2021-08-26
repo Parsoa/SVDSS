@@ -2,17 +2,16 @@
 #define CALLER_HPP
 
 #include <iostream>
-#include <list>
 
 #include "htslib/sam.h"
 #include "htslib/hts.h"
 
-#include "config.hpp"
-#include "chromosomes.hpp"
-#include "vcf.hpp"
 #include "sv.hpp"
+#include "vcf.hpp"
+#include "config.hpp"
+#include "clipper.hpp"
 #include "insdeller.hpp"
-#include "clipler.hpp"
+#include "chromosomes.hpp"
 
 using namespace std;
 

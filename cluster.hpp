@@ -1,77 +1,81 @@
 #ifndef CLUSTER_HPP
 #define CLUSTER_HPP
 
-#include <iostream>
 #include <string>
 #include <vector>
-#include <list>
 #include <algorithm>
+#include <iostream>
 
 #include "abpoa.h"
-
-using namespace std;
 
 // FIXME: we already have something similar in PingPong.hpp - merge?
 // AaCcGgTtNn ==> 0,1,2,3,4
 extern const unsigned char _nt4_table[256];
 
-// CHECKME: maybe we already have something like this (a fragment is a superstring)
-struct Fragment
-{
-    string name;
-    uint s;
-    uint e;
+struct Fragment {
+    std::string name;
+    uint ref_s;
+    uint ref_e;
+    uint read_s;
+    uint read_e;
+    bool left_extended = false ;
+    bool right_extended = false ;
     uint t; // 0: only D; 1: only I; 2: D and I
-    string seq;
+    std::string seq ;
+    std::string qual ;
 
     Fragment() {}
 
-    Fragment(const string &name_, uint s_, uint e_, uint t_, const string &seq_ = "")
-    {
-        name = name_;
-        s = s_;
-        e = e_;
-        t = t_;
-        seq = seq_;
+    Fragment(const std::string& name_, uint _ref_s, uint _ref_e, uint _read_e, uint _read_s, uint t_, const std::string& seq_ = "", const std::string& qual_ = "") {
+        name = name_ ;
+        ref_s = _ref_s ;
+        ref_e = _ref_e ;
+        read_s = _read_s ;
+        read_e = _read_e ;
+        t = t_ ;
+        seq = seq_ ;
+        qual = qual_ ;
     }
 
-    uint size() const
-    {
+    uint size() const {
         return seq.size();
     }
 
-    bool operator<(const Fragment &f) const
-    {
-        return s < f.s;
+    bool operator<(const Fragment &f) const {
+        return ref_s < f.ref_s;
     }
 
-    bool operator==(const Fragment &f) const
-    {
-        return name == f.name and s == f.s and e == f.e;
+    bool operator==(const Fragment &f) const {
+        return name == f.name and ref_s == f.ref_s and ref_e == f.ref_e;
+    }
+
+    void extend(bool left, bool right) {
+        left_extended = left ;
+        right_extended = right ;
     }
 };
 
-class Cluster
-{
+class Cluster {
 public:
-    list<Fragment> fragments;
-    string chrom;
+    std::vector<Fragment> fragments;
+    std::string chrom;
     uint s;
     uint e;
     uint full_cov;
 
-    Cluster(const string &);
-    void add_fragment(const Fragment &);
+    Cluster(const std::string &);
+    void add_fragment(Fragment);
     void set_full_coverage(const uint);
-    string poa() const;
+    std::string poa() const;
     uint get_type() const;
     void clear();
     uint size() const;
     bool empty() const;
+    std::string get_id() const ;
     const Fragment &front() const;
     const Fragment &back() const;
-    list<Fragment>::const_iterator begin() const;
-    list<Fragment>::const_iterator end() const;
+    std::vector<Fragment>::const_iterator begin() const;
+    std::vector<Fragment>::const_iterator end() const;
 };
 
 #endif

@@ -30,14 +30,14 @@ struct CIGAR {
         score = -1;
     }
 
-    CIGAR(std::vector<std::pair<uint, char>> ops_, int score_)
-    {
+    CIGAR(std::vector<std::pair<uint, char>> ops_, int score_) {
         mismatches = -1;
         score = score_;
         ops = ops_;
         ngaps = 0;
-        for (uint i = 0; i < ops_.size(); ++i)
+        for (uint i = 0; i < ops_.size(); ++i) {
             ngaps += ((ops_[i].second == 'I' || ops_[i].second == 'D') ? 1 : 0);
+        }
     }
 
     void add(int l, char op, int e) {
@@ -84,21 +84,19 @@ struct CIGAR {
         }
     }
 
-    const std::pair<uint, char> &operator[](std::size_t i) const
-    {
+    const std::pair<uint, char> &operator[](std::size_t i) const {
         return ops[i];
     }
 
-    uint size() const
-    {
+    uint size() const {
         return ops.size();
     }
 
-    std::string to_str() const
-    {
+    std::string to_str() const {
         std::string cigar_str;
-        for (const auto &op : ops)
+        for (const auto &op : ops) {
             cigar_str += std::to_string(op.first) + op.second;
+        }
         return cigar_str;
     }
 };
