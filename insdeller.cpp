@@ -433,7 +433,7 @@ vector<Cluster> Insdeller::cluster_breakpoints(Cluster& cluster, float ratio) {
                 int o = min(int(c.e), e) - max(int(c.s), s) ;
                 float r = float(min(l_1, l_2)) / float(max(l_1, l_2)) ;
                 if (o >= 0) {
-                    if ((l_1 <= 10 && l_2 <= 10) || r >= ratio) {
+                    if ((l_1 <= 10 && l_2 <= 10) || r >= ratio || o == min(l_1, l_2)) {
                         to_merge.push_back(i) ;
                         //cout << "Comparing " << c.get_id() << " to " << clusters[i].get_id() << " o: " << o << ", r: " << r << endl ;
                     }
@@ -566,12 +566,10 @@ vector<SV> Insdeller::call_poa_svs(const Cluster &c, const string &ref, ofstream
     // << "NM:i:" << 0 << endl;
     // << "AS:i:" << cigar.score << endl;
 
-    // extracting insertions/deletions breakpoints
-    uint qs = 0 ;       // position on consensus
-    uint lrs = 0 ;      // position on local reference
-    uint rs = c.s ; // position on reference
-
+    uint qs = 0 ;
+    uint rs = c.s ;
     for (uint i = 0; i < cigar.size(); i++) {
+        cout << cigar[i].first << cigar[i].second ;
         SV sv ;
         if (cigar[i].second == 'S') {
             qs += cigar[i].first ;
@@ -583,13 +581,14 @@ vector<SV> Insdeller::call_poa_svs(const Cluster &c, const string &ref, ofstream
         } else if (cigar[i].second == 'D') {
             string ref_allele = ref.substr(rs - 1, cigar[i].first + 1) ;
             string alt_allele = ref_allele.substr(0, 1) ;
+            cout << c.s << " " << rs << " " << qs << " " << endl ;
             sv = SV("DEL", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
             rs += cigar[i].first ;
-            lrs += cigar[i].first ;
         } else if (cigar[i].second == 'M') {
             rs += cigar[i].first ;
             qs += cigar[i].first ;
-            lrs += cigar[i].first ;
+        } else if (cigar[i].second == 'N') {
+            rs += cigar[i].first ;
         } else {
             cerr << "Unknown CIGAR op " << cigar[i].second << endl;
             exit(1);
@@ -599,6 +598,7 @@ vector<SV> Insdeller::call_poa_svs(const Cluster &c, const string &ref, ofstream
             svs.push_back(sv) ;
         }
     }
+    cout << endl ;
     return svs;
 }
 
@@ -637,7 +637,7 @@ vector<SV> Insdeller::call_svs(const Cluster& cluster, const string& ref) {
                 found_del = false ;
                 if (r != -1 && last_r != -1) {
                     int svlen = r - last_r - 1 ;
-                    if (svlen < 25) {
+                    if (svlen < config->min_string_length) {
                         continue ;
                     }
                     string ref_allele = ref.substr(last_r, svlen) ;
@@ -666,7 +666,7 @@ vector<SV> Insdeller::call_svs(const Cluster& cluster, const string& ref) {
                 found_ins = false ;
                 if (q != -1 && last_q != -1) {
                     int svlen = q - last_q - 1 ;
-                    if (svlen < 25) {
+                    if (svlen < config->min_string_length) {
                         continue ;
                     }
                     string ref_allele = ref.substr(last_r, 1) ;
@@ -746,17 +746,20 @@ void Insdeller::call(const string &chrom_seq, ofstream &osam) {
             //if (extended_tc.size() < 2) {
             //    continue ;
             //}
+            if (tc.s < 5040000 || tc.e > 5060000) {
+                continue ;
+            }
             vector<SV> svs ;
             vector<SV> cl_svs ;
             auto breakpoints = cluster_breakpoints(tc, 0.7) ;
             if (breakpoints.size() == 1 && tc.get_type() != 2) {
                 cout << "Using normal genotyper" << endl ;
                 svs = call_svs(breakpoints[0], chrom_seq) ;
-            } else {
+            } else if (breakpoints.size() <= 5) {
                 // extend and pass to POA
                 for (auto breakpoint: breakpoints) {
                     auto __svs = call_poa_svs(breakpoint, chrom_seq, osam) ;
-                    svs.insert(svs.begin(), __svs.begin(), __svs.end()) ;
+                    //svs.insert(svs.begin(), __svs.begin(), __svs.end()) ;
                 }
             }
             //if (config->assemble) {
@@ -783,7 +786,7 @@ void Insdeller::call(const string &chrom_seq, ofstream &osam) {
             cl_svs.insert(cl_svs.end(), svs.begin(), svs.end()) ;
             vector<SV> usvs = remove_duplicate_svs(cl_svs) ;
             for (const SV &sv : usvs) {
-                if (abs(sv.l) >= 25 && (sv.ngaps <= 2 || (sv.ngaps > 2 && sv.w > 10))) {
+                if (abs(sv.l) >= config->min_string_length && (sv.ngaps <= 2 || (sv.ngaps > 2 && sv.w > 10))) {
                     _svs[omp_get_thread_num()].push_back(sv);
                 }
             }
