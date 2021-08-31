@@ -82,63 +82,52 @@ int main(int argc, char** argv) {
         print_help() ;
         exit(0) ;
     }
+    c->parse(argc - 1, argv + 1) ;
+    create_workdir() ;
+    cerr << "Running on " << c->threads << " threads." << endl ;
     #ifdef LOCAL_BUILD
     if (strcmp(argv[1], "find") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
         auto finder = new Finder() ;
         finder->run() ;
         exit(0) ;
     }
     if (strcmp(argv[1], "kmer") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
         auto finder = new KmerFinder() ;
         finder->run() ;
         exit(0) ;
     }
     if (strcmp(argv[1], "extract") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
         auto extractor = new Extractor() ;
         extractor->run() ;
         exit(0) ;
     }
-    if (strcmp(argv[1], "haplotype-shifter") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        auto shifter = new HaplotypeShifter() ;
-        shifter->load_tracks() ;
-        exit(0) ;
-    }
     if (strcmp(argv[1], "shift-bed") == 0) {
-        c->parse(argc - 1, argv + 1) ;
         auto shifter = new HaplotypeShifter() ;
         shifter->shift_bed_file() ;
         exit(0) ;
     }
+    if (strcmp(argv[1], "haplotype-shifter") == 0) {
+        auto shifter = new HaplotypeShifter() ;
+        shifter->load_tracks() ;
+        exit(0) ;
+    }
     #endif
     if (strcmp(argv[1], "tau") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
         auto tau = new Tau() ;
         tau->run() ;
         exit(0) ;
-    }
-    if (strcmp(argv[1], "index") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
+    } else if (strcmp(argv[1], "call") == 0) {
+        auto caller = new Caller() ;
+        caller->run() ;
+    } else if (strcmp(argv[1], "index") == 0) {
         auto pingpong = new PingPong() ;
         pingpong->index() ;
-    }
-    else if (strcmp(argv[1], "query") == 0) {
-        c->parse(argc - 2, argv + 2) ;
+    } else if (strcmp(argv[1], "query") == 0) {
+        //TODO
         auto pingpong = new PingPong() ;
         bool b = pingpong->query(string(argv[2])) ;
         cerr << (b ? "SFS" : "Not SFS") << endl ;
-    }
-    else if (strcmp(argv[1], "search") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
+    } else if (strcmp(argv[1], "search") == 0) {
         auto pingpong = new PingPong() ;
         pingpong->search() ;
         if (c->aggregate) {
@@ -146,50 +135,22 @@ int main(int argc, char** argv) {
             c->aggregate_batches = pingpong->num_output_batches ;
             aggregator->run() ;
         }
-    }
-    else if (strcmp(argv[1], "reconstruct") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto reconstructor = new Reconstructor() ;
-        reconstructor->run() ;
-    }
-    else if (strcmp(argv[1], "aggregate") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto aggregator = new Aggregator() ;
-        aggregator->run() ;
-    }
-    else if (strcmp(argv[1], "convert") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto converter = new Converter() ;
-        converter->run() ;
-    }
-    else if (strcmp(argv[1], "assemble") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto assembler = new Assembler() ;
-        assembler->run() ;
-    }
-    else if (strcmp(argv[1], "realign") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
+    } else if (strcmp(argv[1], "realign") == 0) {
         auto aligner = new Realigner() ;
         aligner->run() ;
-    }
-    else if (strcmp(argv[1], "align") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto aligner = new Aligner() ;
-        aligner->run() ;
-    }
-    else if (strcmp(argv[1], "call") == 0) {
-        c->parse(argc - 1, argv + 1) ;
-        create_workdir() ;
-        auto caller = new Caller() ;
-        caller->run() ;
-    }
-    else {
+    } else if (strcmp(argv[1], "convert") == 0) {
+        auto converter = new Converter() ;
+        converter->run() ;
+    } else if (strcmp(argv[1], "assemble") == 0) {
+        auto assembler = new Assembler() ;
+        assembler->run() ;
+    } else if (strcmp(argv[1], "aggregate") == 0) {
+        auto aggregator = new Aggregator() ;
+        aggregator->run() ;
+    } else if (strcmp(argv[1], "reconstruct") == 0) {
+        auto reconstructor = new Reconstructor() ;
+        reconstructor->run() ;
+    } else {
         print_help() ;
     }
 }

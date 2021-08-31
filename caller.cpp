@@ -6,7 +6,7 @@ void Caller::run() {
     load_chromosomes(config->reference);
     cout << "Loaded all chromosomes" << endl ;
 
-    ovcf.open(config->workdir + "/svs.vcf");
+    ovcf.open(config->workdir + "/svs_hybrid.vcf");
     osam.open(config->workdir + "/poa.sam");
 
     map<string, vector<SV>> clips ; // this will contain variations from clipping

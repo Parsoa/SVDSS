@@ -42,7 +42,7 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
     fastq_file.close() ;
     // generate overlap graph
     string graph_path = dir + "/reads.paf.gz" ;
-    string command = "minimap2 -x ava-pb -t8 " + fastq_path + " " + fastq_path + " 2>/dev/null | gzip -1 > " + graph_path ; 
+    string command = "minimap2 -x ava-pb -t 1 " + fastq_path + " " + fastq_path + " 2>/dev/null | gzip -1 > " + graph_path ; 
     //lprint({"Running", command}) ;
     system(command.c_str()) ;
     // run miniasm
@@ -85,7 +85,7 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
         ref_fasta_file.close() ;
         // call SV from this, map to reference again
         string bam_path = dir + "/aln.bam" ;
-        command = "minimap2 -ax map-pb " + ref_fasta + " " + unitig_fasta + " 2>/dev/null | samtools view -b > " + bam_path ;
+        command = "minimap2 -ax map-pb -t 1 " + ref_fasta + " " + unitig_fasta + " 2>/dev/null | samtools view -b > " + bam_path ;
         //cout << command << endl ;
         system(command.c_str()) ; 
         // read BAM and CIGAR 
@@ -115,12 +115,14 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
                     //cout << "INS " << pos << " " << unitigs[0].length() << " " << cigar[i].first << endl ;
                     string alt_allele = ref_allele + unitigs[0].substr(pos, cigar[i].first) ;
                     sv = SV("INS", cluster.chrom, s - d + ref_pos - 1, ref_allele, alt_allele, cigar[i].first, 1, -1, -1) ;
+                    sv.idx = sv.idx + "_" + cluster.get_id() ;
                     pos += cigar[i].first ;
                 }
                 if (cigar[i].second == BAM_CDEL) {
                     string ref_allele = ref_seq.substr(ref_pos - 1, cigar[i].first + 1) ;
                     string alt_allele = ref_allele.substr(0, 1) ;
                     sv = SV("DEL", cluster.chrom, s - d + ref_pos - 1, ref_allele, alt_allele, cigar[i].first, 1, -1, -1) ;
+                    sv.idx = sv.idx + "_" + cluster.get_id() ;
                     ref_pos += cigar[i].first ;
                 }
                 if (cigar[i].second == BAM_CMATCH) {
@@ -141,5 +143,10 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
 }
 
 vector<SV> Haplotyper::haplotype(Cluster cluster) {
+    if (cluster.fragments.size() > 200) {
+        lprint({"Skipping cluster ", cluster.get_id(), "with", to_string(cluster.fragments.size()), "fragments."}, 'E') ;
+        return {} ;
+    }
+    cout << "[C] Cluster " << cluster.get_id() << " with " << cluster.fragments.size() << " fragments.." << endl ;
     return assemble_reads(cluster) ;
 }

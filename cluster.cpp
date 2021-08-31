@@ -27,12 +27,14 @@ Cluster::Cluster(const string &chrom_) {
 }
 
 void Cluster::add_fragment(Fragment f) {
-    // TODO improve this
-    //if (find(fragments.begin(), fragments.end(), f) == fragments.end()) {
     fragments.push_back(f) ;
-    s = min(s, f.ref_s) ;
-    e = max(e, f.ref_e) ;
-    //}
+    if (fragments.size() == 1) {
+        s = f.ref_s ;
+        e = f.ref_e ;
+    } else {
+        s = min(s, f.ref_s) ;
+        e = max(e, f.ref_e) ;
+    }
 }
 
 void Cluster::set_full_coverage(const uint c) {

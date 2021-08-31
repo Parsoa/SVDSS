@@ -237,14 +237,15 @@ vector<batch_atom_type> Realigner::process_batch(int p, int index) {
             int start_pair_index = -1 ;
             int end_pair_index = -1 ;
             for (int i = last_pos; i < alpairs.size(); i++) {
-                if (alpairs[i].first != -1 && alpairs[i].first >= sfs.s && alpairs[i].first < sfs.s + sfs.l) {
+                // if the SFS shows a deletion them some of the pairs in the middle will have first = -1
+                if (alpairs[i].first >= sfs.s && alpairs[i].first < sfs.s + sfs.l) {
                     local_alpairs.push_back(make_pair(alpairs[i].first, alpairs[i].second));
                     if (start_pair_index == -1) {
                         start_pair_index = i ;
                     }
                     end_pair_index = i ;
                 }
-                if (alpairs[i].first != -1 && alpairs[i].first > sfs.s + sfs.l) {
+                if (alpairs[i].first > sfs.s + sfs.l) {
                     break ;
                 }
             }
@@ -297,17 +298,17 @@ vector<batch_atom_type> Realigner::process_batch(int p, int index) {
             // the pairs - but that pair has -1 on the read
             if (qs == -1 || qe == -1) {
                 //cerr << "INS-DEL " << qname << "." << sfs.s << ":" << sfs.l << endl;
-                continue;
+                continue ;
             }
             // If clips, we have trailing -1 in target positions. We have to find the first placed base
-            int ts = local_alpairs.front().second;
+            int ts = local_alpairs.front().second ;
             if (local_alpairs.front().first == 0 && local_alpairs.front().second == -1) {
                 // if we have initial clips, we get the position from original alignments
-                ts = alignment->core.pos;
+                ts = alignment->core.pos ;
             }
             if (local_alpairs.front().second == -1 && local_alpairs.back().second == -1) {
                 //cerr << "FULL CLIP " << qname << "." << sfs.s << ":" << sfs.l << endl;
-                continue;
+                continue ;
             }
             CIGAR localcigar = rebuild_cigar(chromosome_seqs[chrom], qseq, local_alpairs);
             localcigar.fixclips();
@@ -356,8 +357,8 @@ CIGAR Realigner::rebuild_cigar(char* ref_seq, char* read_seq, const vector<pair<
         int ref_pos = p.second ;
         int read_pos = p.first ;
         if (last_ref_pos != -1 && ref_pos != -1) {
+            //TODO first comparison is not necessary
             if (last_ref_pos != ref_pos && last_ref_pos != ref_pos - 1) {
-                // Deletions
                 int d = ref_pos - last_ref_pos - 1;
                 cigar.add(d, 'D', d);
             }
@@ -365,9 +366,9 @@ CIGAR Realigner::rebuild_cigar(char* ref_seq, char* read_seq, const vector<pair<
         if (read_pos != -1 && ref_pos != -1) {
             // (mis)Match
             if (ref_seq[ref_pos] != read_seq[read_pos]) {
-                cigar.add(1, 'M', 1);
+                cigar.add(1, 'M', 1) ;
             } else {
-                cigar.add(1, 'M', 0);
+                cigar.add(1, 'M', 0) ;
             }
         } else if (ref_pos == -1) {
             // Insertion (1bp)

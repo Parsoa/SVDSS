@@ -48,8 +48,9 @@ private:
     // SequenceSimilarity-based clustering
     std::vector<Cluster> scluster(const Cluster &);
     // Extract SVs (poa + realign)
-    std::vector<SV> call_svs(Cluster& cluster, float ratio) ;
-    std::vector<SV> call_poa_svs(const Cluster &, const string &, ofstream &);
+    std::vector<Cluster> cluster_breakpoints(Cluster& cluster, float ratio) ;
+    std::vector<SV> call_svs(const Cluster& cluster, const string&) ;
+    std::vector<SV> call_poa_svs(const Cluster&, const string&, ofstream& osam);
     // Global realignment of consensus and subreference
     CIGAR align(const char *, const char *, int, int, int, int);
     // Remove svs that are duplicate (same variant on different representative)
