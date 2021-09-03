@@ -794,12 +794,56 @@ vector<SV> Insdeller::call_svs(const Cluster& cluster, const string& ref) {
         }
         if (m >= 3) {
             cout << sv << endl ;
+            sv.w = m ;
             svs.push_back(sv) ;
         }
     }
+    sort(svs.begin(), svs.end()) ;
+    int i = 0 ;
+    cout << svs.size() << " SV before chain filtering.." << endl ;
+    vector<SV> final_svs ;
+    while (i < svs.size()) {
+        cout << "Looking for chain starting at " << i << endl ;
+        // this will find a chain of SVs of similar size
+        // e.g see chr21:8,459,874-8,462,286 on CHM13 mapped to hg38
+        vector<SV> sv_cluster ;
+        sv_cluster.push_back(svs[i]) ;
+        int j = i + 1 ;
+        while (j < svs.size()) {
+            cout << "Extending to " << j << endl ;
+            int l_1 = abs(sv_cluster.back().l) ;
+            int l_2 = abs(svs[j].l) ;
+            bool found = false ;
+            if (svs[j].type == sv_cluster.back().type) {
+                if (svs[j].s - sv_cluster.back().s < 100) {
+                    if (min(l_1, l_2) / max(l_1, l_2) > 0.95) {
+                        sv_cluster.push_back(svs[j]) ;
+                        found = true ;
+                    }
+                }
+            }
+            j++ ;
+            if (!found) {
+                break ;
+            }
+        }
+        i = j ;
+        cout << "Found SV chain of svlen " << sv_cluster[0].l << " with " << sv_cluster.size() << " SVs." << endl ;
+        int m = 0 ;
+        SV sv ;
+        for (SV s: sv_cluster) {
+            if (s.w > m) {
+                m = s.w ;
+                sv = s ;
+            }
+        }
+        final_svs.push_back(sv) ;
+        cout << sv << endl ;
+    }
+    // heuristic
     // Maybe do another round when we filter consecutive SVs of similar size
-    cout << svs.size() << " SVs remain." << endl ;
-    return svs ;
+    cout << final_svs.size() << " SVs remain." << endl ;
+    return final_svs ;
 }
 
 vector<SV> Insdeller::remove_duplicate_svs(const vector<SV> &svs) {
