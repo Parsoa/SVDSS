@@ -10,6 +10,7 @@
 
 // FIXME: we already have something similar in PingPong.hpp - merge?
 // AaCcGgTtNn ==> 0,1,2,3,4
+
 extern const unsigned char _nt4_table[256];
 
 struct Fragment {

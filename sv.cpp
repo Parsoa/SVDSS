@@ -1,5 +1,7 @@
 #include "sv.hpp"
 
+using namespace std ;
+
 SV::SV() { l = 0; }
 
 SV::SV(const string type_, const string &chrom_, uint s_, const string &refall_, const string &altall_, const uint w_, const uint cov_, const int ngaps_, const int score_, bool imprecise_, uint l_) {
@@ -52,4 +54,9 @@ ostream &operator<<(ostream &os, const SV &sv) {
        << "\t"
        << sv.gt;
     return os;
+}
+
+void SVCluster::add_sv(SV sv, const int count) {
+    svs[sv] += count ;
+    s = min(s, int(sv.s)) ;
 }

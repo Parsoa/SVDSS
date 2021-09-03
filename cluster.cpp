@@ -42,7 +42,7 @@ void Cluster::set_full_coverage(const uint c) {
 }
 
 string Cluster::get_id() const {
-    return chrom + "_" + std::to_string(s) + "_" + std::to_string(e) ;
+    return chrom + ":" + std::to_string(s) + "-" + std::to_string(e) ;
 }
 
 string Cluster::poa() const {

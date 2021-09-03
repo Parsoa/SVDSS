@@ -44,13 +44,13 @@ private:
     // Type clustering - 2 clusters with all fragments with only I and only D or 1 cluster with both (if we have at least one mixed fragment)
     std::vector<Cluster> type_cluster(const Cluster &);
     // Fragments are extended + Fragments on same reads are merged
-    Cluster extend(Cluster &);
+    Cluster extend(Cluster &, int);
     // SequenceSimilarity-based clustering
     std::vector<Cluster> scluster(const Cluster &);
     // Extract SVs (poa + realign)
     std::vector<Cluster> cluster_breakpoints(Cluster& cluster, float ratio) ;
     std::vector<SV> call_svs(const Cluster& cluster, const string&) ;
-    std::vector<SV> call_poa_svs(const Cluster&, const string&, ofstream& osam);
+    std::vector<SV> call_poa_svs(Cluster&, const string&, ofstream& osam);
     // Global realignment of consensus and subreference
     CIGAR align(const char *, const char *, int, int, int, int);
     // Remove svs that are duplicate (same variant on different representative)

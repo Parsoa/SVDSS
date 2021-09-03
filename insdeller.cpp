@@ -1,3 +1,5 @@
+#include <map>
+
 #include "insdeller.hpp"
 
 #define ANCHOR_SIZE 7
@@ -188,22 +190,19 @@ Cluster Insdeller::merge_close_fragments(const Cluster& cluster, int distance) {
 }
 
 
-Cluster Insdeller::extend(Cluster &cluster) {
-    // sort cluster fragments based on position
+Cluster Insdeller::extend(Cluster &cluster, int extension) {
     std::sort(cluster.fragments.begin(), cluster.fragments.end()) ;
-    // TODO: merge close signatures together?
-    // auto c = merge_close_fragments(cluster, 50) ;
     auto c = cluster ;
     // find anchors
-    int padding = 3000 ;
-    int k = ANCHOR_SIZE ;
-    char* ref = chromosome_seqs[c.chrom] + c.s - padding ;
+    //int padding = 3000 ;
+    //int k = ANCHOR_SIZE ;
+    //char* ref = chromosome_seqs[c.chrom] + c.s - padding ;
     //cout << "Searching for anchors in " << c.chrom << "[" << c.s - padding << "-" << c.e + padding << "]" << endl ; 
-    auto kmers = get_unique_anchors(ref, c.e - c.s + 2 * padding, k) ;
+    //auto kmers = get_unique_anchors(ref, c.e - c.s + 2 * padding, k) ;
     //cout << "Found " << kmers.size() << " anchors.." << endl ;
-    if (!kmers.size()) {
-        lprint({"No anchors found for", c.get_id()}, 'E') ; 
-    }
+    //if (!kmers.size()) {
+    //    lprint({"No anchors found for", c.get_id()}, 'E') ; 
+    //}
 
     unordered_map<string, std::vector<Fragment>> reads_in_cluster; // these are the reads we are interested in
     for (const Fragment& f : c) {
@@ -217,8 +216,8 @@ Cluster Insdeller::extend(Cluster &cluster) {
     int buffer_len = 10000 ;
     uint8_t* seq = (uint8_t*) malloc(buffer_len) ;
     uint8_t* qual = (uint8_t*) malloc(buffer_len) ;
-    char* _kmer = (char*) malloc(sizeof(char) * (k + 1)) ;
-    _kmer[k] = '\0' ;
+    //char* _kmer = (char*) malloc(sizeof(char) * (k + 1)) ;
+    //_kmer[k] = '\0' ;
     while (sam_itr_next(read_bam[omp_get_thread_num()], itr, aln) > 0) {
         bool left_extend = false ;
         bool right_extend = false ;
@@ -247,95 +246,95 @@ Cluster Insdeller::extend(Cluster &cluster) {
         // Extend each fragment on this read
         for (auto& f: reads_in_cluster[qname]) {
             // extend SFS until we reach anchors
-            int new_read_s = -1 ;
-            int new_read_e = -1 ;
-            if (!config->assemble) {
-                for (int i = f.read_s - 1; i >= k - 1; i--) {
-                    memcpy(_kmer, seq + i - (k - 1), k) ;
-                    string canon = canonicalize(string(_kmer)) ;
-                    if (kmers.find(canon) != kmers.end()) {
-                        new_read_s = i - (k - 1) ;
-                        left_extend = true ;
-                        break ;
-                    }
-                } 
-                for (int i = f.read_e; i < l; i++) {
-                    memcpy(_kmer, seq + i, k) ;
-                    string canon = canonicalize(string(_kmer)) ;
-                    if (kmers.find(canon) != kmers.end()) {
-                        new_read_e = i + k ;
-                        right_extend = true ;
-                        break ;
-                    }
-                } 
-                if (new_read_s == -1 || new_read_e == -1) {
-                    //lprint({"Anchor extension unsuccessful for SFS", qname, to_string(f.read_s), "-", to_string(f.read_e)}, 'E') ;
-                }
-            }
+            //int new_read_s = -1 ;
+            //int new_read_e = -1 ;
+            //if (!config->assemble) {
+            //    for (int i = f.read_s - 1; i >= k - 1; i--) {
+            //        memcpy(_kmer, seq + i - (k - 1), k) ;
+            //        string canon = canonicalize(string(_kmer)) ;
+            //        if (kmers.find(canon) != kmers.end()) {
+            //            new_read_s = i - (k - 1) ;
+            //            left_extend = true ;
+            //            break ;
+            //        }
+            //    } 
+            //    for (int i = f.read_e; i < l; i++) {
+            //        memcpy(_kmer, seq + i, k) ;
+            //        string canon = canonicalize(string(_kmer)) ;
+            //        if (kmers.find(canon) != kmers.end()) {
+            //            new_read_e = i + k ;
+            //            right_extend = true ;
+            //            break ;
+            //        }
+            //    } 
+            //    if (new_read_s == -1 || new_read_e == -1) {
+            //        //lprint({"Anchor extension unsuccessful for SFS", qname, to_string(f.read_s), "-", to_string(f.read_e)}, 'E') ;
+            //    }
+            //}
             //cout << "Old: [" << f.read_s << " - " << f.read_e << "], [" << f.ref_s << ", " << f.ref_e << "]" << endl ;
-            new_read_s = new_read_s == -1 ? f.read_s : new_read_s ;
-            new_read_e = new_read_e == -1 ? f.read_e : new_read_e ;
-            // TODO: for minasm only
-            if (config->assemble) {
-                new_read_s = 0 ;
-                new_read_e = l - 1 ;
-            }
+            //new_read_s = new_read_s == -1 ? f.read_s : new_read_s ;
+            //new_read_e = new_read_e == -1 ? f.read_e : new_read_e ;
+            // for minasm only
+            //if (config->assemble) {
+            //int new_read_s = 0 ;
+            //int new_read_e = l - 1 ;
+            //}
             // update alignment
-            int last_r = aln->core.pos ;
-            int new_ref_s = -1 ;
-            int new_ref_e = -1 ;
+            //int last_r = aln->core.pos ;
+            //int new_ref_s = -1 ;
+            //int new_ref_e = -1 ;
             // This will work if we haven't extended the kmer
             // If we have extended the kmer, then it may fail
-            for (uint i = 0; i < alpairs.size(); i++) {
-                int q = alpairs[i].first ;
-                int r = alpairs[i].second ;
-                if (r != -1) {
-                    last_r = r ;
-                }
-                if (q == new_read_s) {
-                    new_ref_s = r != -1 ? r : last_r ;
-                } else if (q >= new_read_e) {
-                    if (new_ref_e == -1) {
-                        new_ref_e = r ;
-                        if (r != -1) {
-                            break ;
-                        }
-                    }
-                }
-            }
-            if (new_read_e == l - 1) {
-                new_ref_e = bam_endpos(aln) ;
-            }
-            if (new_ref_s == -1) {
-                new_ref_s = f.ref_s ;
-            }
-            if (new_ref_e == -1) {
-                new_ref_e = f.ref_e ;
-            }
-            if (new_ref_s == -1 && new_ref_e == -1) {
-                cerr << "[W] no reference base on " << chrom << ":" << c.s << "-" << c.e << " (" << qname << ")" << endl;
-                continue ;
-            }
+            //for (uint i = 0; i < alpairs.size(); i++) {
+            //    int q = alpairs[i].first ;
+            //    int r = alpairs[i].second ;
+            //    if (r != -1) {
+            //        last_r = r ;
+            //    }
+            //    if (q == new_read_s) {
+            //        new_ref_s = r != -1 ? r : last_r ;
+            //    } else if (q >= new_read_e) {
+            //        if (new_ref_e == -1) {
+            //            new_ref_e = r ;
+            //            if (r != -1) {
+            //                break ;
+            //            }
+            //        }
+            //    }
+            //}
+            //if (new_read_e == l - 1) {
+            //    new_ref_e = bam_endpos(aln) ;
+            //}
+            //if (new_ref_s == -1) {
+            //    new_ref_s = f.ref_s ;
+            //}
+            //if (new_ref_e == -1) {
+            //    new_ref_e = f.ref_e ;
+            //}
+            //if (new_ref_s == -1 && new_ref_e == -1) {
+            //    cerr << "[W] no reference base on " << chrom << ":" << c.s << "-" << c.e << " (" << qname << ")" << endl;
+            //    continue ;
+            //}
             //cout << "New: [" << new_read_s << " - " << new_read_e <<"], [" << new_ref_s << ", " << new_ref_e << "]" << endl ;
             //TODO why the heck is this happening?
-            if (new_ref_s > f.ref_s || new_ref_e < f.ref_e) {
-                //lprint({"Invalid SFS mapping for", f.name}, 'E') ;
-                continue ;
-            }
+            //if (new_ref_s > f.ref_s || new_ref_e < f.ref_e) {
+            //    //lprint({"Invalid SFS mapping for", f.name}, 'E') ;
+            //    continue ;
+            //}
             //assert(new_ref_s <= f.ref_s) ;
             //assert(new_ref_e >= f.ref_e) ;
+            int new_read_s = max(0, int(f.read_s) - extension) ; 
+            int new_read_e = min(int(l - 1), int(f.read_e) + extension) ; 
             string subseq((char*) seq, new_read_s, new_read_e - new_read_s + 1);
             string subqual((char*) qual, new_read_s, new_read_e - new_read_s + 1);
-            Fragment new_f(qname, new_ref_s, new_ref_e, new_read_s, new_read_e, 0, subseq, subqual) ;
-            new_f.o_ref_s = f.ref_s ;
-            new_f.o_ref_e = f.ref_e ;
-            new_f.extend(left_extend, right_extend) ;
+            Fragment new_f(qname, f.ref_s, f.ref_e, new_read_s, new_read_e, 0, subseq, subqual) ;
+            new_f.extend(f.read_s - new_read_s, f.read_e - new_read_e) ;
             ext_c.add_fragment(new_f) ;
         }
     }
     free(seq) ;
     free(qual) ;
-    free(_kmer) ;
+    //free(_kmer) ;
     return ext_c ;
 }
 
@@ -433,10 +432,10 @@ vector<Cluster> Insdeller::cluster_breakpoints(Cluster& cluster, float ratio) {
                 int o = min(int(c.e), e) - max(int(c.s), s) ;
                 float r = float(min(l_1, l_2)) / float(max(l_1, l_2)) ;
                 if (o >= 0) {
-                    if ((l_1 <= 10 && l_2 <= 10) || r >= ratio || o == min(l_1, l_2)) {
+                    //if ((l_1 <= 10 && l_2 <= 10) || r >= ratio || o == min(l_1, l_2) || o >= ratio * min(l_1, l_2)) {
                         to_merge.push_back(i) ;
                         //cout << "Comparing " << c.get_id() << " to " << clusters[i].get_id() << " o: " << o << ", r: " << r << endl ;
-                    }
+                    //}
                 }
             }
             if (to_merge.size() != 0) {
@@ -540,12 +539,27 @@ CIGAR Insdeller::align(const char *tseq, const char *qseq, int sc_mch, int sc_mi
     return CIGAR(cigar, score) ;
 }
 
-vector<SV> Insdeller::call_poa_svs(const Cluster &c, const string &ref, ofstream &o) {
+vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
+    int f_l = 0 ;
+    for (auto f: c) {
+        //cout << f.ref_s << "-" << f.ref_e << endl ; 
+        f_l = max(f_l, int(f.seq.length())) ;
+        //cout << f.seq << endl ;
+    }
+    int padding = max(1000, f_l) ;
+    //auto extended_c = extend(c, padding) ;
+    auto extended_c = c ;
+    padding = 0 ;
     cout << "POA: " << c.get_id() << endl ;
     vector<SV> svs;
-    string reference(ref, c.s, c.e - c.s + 1);
-    string consensus = c.poa();
-    cout << "Consensus length: " << consensus.length() << endl ; 
+    string reference(ref, c.s - padding, c.e - c.s + 2 * padding);
+    if (reference.length() > 10000) {
+        return svs ;
+    }
+    string consensus = extended_c.poa();
+    cout << "Reference length:" << reference.length() << ", Consensus length: " << consensus.length() << endl ; 
+    //cout << reference << endl ;
+    //cout << consensus << endl ;
     CIGAR cigar = align(reference.c_str(), consensus.c_str(), 1, -3, 100, 0); // TODO: adjust scores/penalties. I want less gaps
     cigar.fixclips();
 
@@ -566,34 +580,43 @@ vector<SV> Insdeller::call_poa_svs(const Cluster &c, const string &ref, ofstream
     // << "NM:i:" << 0 << endl;
     // << "AS:i:" << cigar.score << endl;
 
-    uint qs = 0 ;
-    uint rs = c.s ;
     for (uint i = 0; i < cigar.size(); i++) {
         cout << cigar[i].first << cigar[i].second ;
+    }
+    cout << endl ;
+    uint qs = 0 ;
+    uint rs = c.s - padding ;
+    bool saw_match = false ;
+    for (uint i = 0; i < cigar.size(); i++) {
         SV sv ;
         if (cigar[i].second == 'S') {
             qs += cigar[i].first ;
+            saw_match = true ;
         } else if (cigar[i].second == 'I') {
             string ref_allele = ref.substr(rs - 1, 1) ;
             string alt_allele = ref_allele + consensus.substr(qs, cigar[i].first) ;
-            sv = SV("INS", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
+            if (saw_match) {
+                sv = SV("INS", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
+                cout << sv << endl ;
+            }
             qs += cigar[i].first ;
         } else if (cigar[i].second == 'D') {
             string ref_allele = ref.substr(rs - 1, cigar[i].first + 1) ;
             string alt_allele = ref_allele.substr(0, 1) ;
-            cout << c.s << " " << rs << " " << qs << " " << endl ;
-            sv = SV("DEL", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
+            if (saw_match) {
+                sv = SV("DEL", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
+                cout << sv << endl ;
+            }
             rs += cigar[i].first ;
         } else if (cigar[i].second == 'M') {
+            saw_match = true ;
             rs += cigar[i].first ;
             qs += cigar[i].first ;
-        } else if (cigar[i].second == 'N') {
-            rs += cigar[i].first ;
         } else {
             cerr << "Unknown CIGAR op " << cigar[i].second << endl;
             exit(1);
         }
-        if (abs(sv.l) > 0) {
+        if (abs(sv.l) > 1 && (sv.s >= c.s - 1 && sv.e <= c.e + 1)) {
             cout << sv << endl ;
             svs.push_back(sv) ;
         }
@@ -603,85 +626,179 @@ vector<SV> Insdeller::call_poa_svs(const Cluster &c, const string &ref, ofstream
 }
 
 vector<SV> Insdeller::call_svs(const Cluster& cluster, const string& ref) {
+    cout << cluster.get_id() << endl ;
     bam1_t *aln = bam_init1() ;
     string region = cluster.chrom + ":" + to_string(cluster.s) + "-" + to_string(cluster.e + 1) ;
     hts_itr_t *itr = sam_itr_querys(read_bamindex[omp_get_thread_num()], read_bamhdr[omp_get_thread_num()], region.c_str()) ;
-    uint c = 0 ;
+    int coverage = 0 ;
     while (sam_itr_next(read_bam[omp_get_thread_num()], itr, aln) > 0) {
         if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
             continue ;
         }
-        c++ ;
+        coverage++ ;
     }
-    Fragment rep ;
-    for (const Fragment &f : cluster) {
-        //cout << f.ref_s << "-" << f.ref_e << endl ;
-        if (f.size() > rep.size()) {
-            rep = f;
+    int distance = 10 ;
+    // This misses many SVs, use all Fragments instead
+    //Fragment rep ;
+    //for (const Fragment &f : cluster) {
+    //    //cout << f.ref_s << "-" << f.ref_e << endl ;
+    //    if (f.size() > rep.size()) {
+    //        rep = f;
+    //    }
+    //}
+    vector<SV> _svs ;
+    for (const Fragment &rep: cluster) {
+        int last_r = -1 ;
+        int last_q = -1 ;
+        bool found_del = true ;
+        for (int i = 0; i < rep.aligned_pairs.size(); i++) {
+            int q = rep.aligned_pairs[i].first ;
+            int r = rep.aligned_pairs[i].second ;
+            if (q == -1) {
+                found_del = true ;
+                continue ;
+            } else {
+                if (found_del) {
+                    found_del = false ;
+                    if (r != -1 && last_r != -1 && r != last_r + 1) {
+                        int svlen = r - last_r - 1 ;
+                        string ref_allele = ref.substr(last_r, svlen) ;
+                        string alt_allele = ref_allele.substr(0, 1) ;
+                        SV sv = SV("DEL", cluster.chrom, last_r, ref_allele, alt_allele, cluster.size(), coverage, -1, -1) ;
+                        if (svlen > 10) {
+                            _svs.push_back(sv) ;
+                        }
+                    }
+                }
+            }
+            last_q = q ;
+            last_r = r ; 
         }
+        // find insertions
+        last_q = -1 ;
+        last_r = -1 ;
+        bool found_ins = true ;
+        for (int i = 0; i < rep.aligned_pairs.size(); i++) {
+            int q = rep.aligned_pairs[i].first ;
+            int r = rep.aligned_pairs[i].second ;
+            if (r == -1) {
+                 found_ins = true ;
+                 continue ;
+            } else {
+                if (found_ins) {
+                    found_ins = false ;
+                    if (q != -1 && last_q != -1 && q != last_q + 1) {
+                        int svlen = q - last_q - 1 ;
+                        string ref_allele = ref.substr(last_r, 1) ;
+                        string alt_allele = ref_allele + rep.seq.substr(last_q + 1, svlen) ;
+                        SV sv = SV("INS", cluster.chrom, last_r, ref_allele, alt_allele, cluster.size(), coverage, -1, -1) ;
+                        if (svlen > 10) {
+                            _svs.push_back(sv) ;
+                        }
+                    }
+                }
+            }
+            last_q = q ;
+            last_r = r ; 
+        }
+    }
+    // cluster the SV, ignore SVs predicted by less than 2 fragments, merge close SV with similar size to the more common SV
+    sort(_svs.begin(), _svs.end()) ;
+    cout << "Predicted " << _svs.size() << " SVs.." << endl ;
+    vector<SVCluster> sv_clusters ;
+    for (int _ = 0; _ < _svs.size(); _++) {
+        auto sv = _svs[_] ;
+        //cout << sv << endl ;
+        vector<int> to_merge ;
+        bool new_cluster = true ;
+        for (int j = 0; j < sv_clusters.size(); j++) {
+            auto& sv_c = sv_clusters[j] ;
+            int l_1 = abs(sv.l) ;
+            int l_2 = sv_c.svlen ;
+            if (sv_c.type == sv.type) {
+                if (abs(sv_c.s - int(sv.s)) <= distance) {
+                    if (min(l_1, l_2) / max(l_1, l_2) >= 0.9) {
+                        new_cluster = false ;
+                        to_merge.push_back(j) ;
+                    }
+                }
+            }
+        }
+        if (new_cluster) {
+            sv_clusters.push_back(SVCluster(sv)) ;
+        } else {
+            int i = to_merge[0] ;
+            for (int j = 1; j < to_merge.size(); j++) {
+                int index = to_merge[j] ;
+                for (auto& sv: sv_clusters[index].svs) {
+                    sv_clusters[i].add_sv(sv.first, sv.second) ;
+                }
+            }
+            sv_clusters[i].add_sv(sv) ;
+            int offset = 0 ;
+            for (int j = 1; j < to_merge.size(); j++) {
+                sv_clusters.erase(sv_clusters.begin() + to_merge[j] - offset) ;
+                offset += 1 ;
+            }
+        }
+    }
+    cout << sv_clusters.size() << " clusters.." << endl ;
+    int last_size = -1 ;
+    int to_remove[sv_clusters.size()] ;
+    memset(&to_remove, 0, sv_clusters.size() * sizeof(int)) ;
+    while (last_size != sv_clusters.size()) {
+        last_size = sv_clusters.size() ;
+        for (int j = 0; j != sv_clusters.size(); j++) {
+            if (to_remove[j] == 1) {
+                continue ;
+            }
+            auto& sv_c = sv_clusters[j] ;
+            vector<int> to_merge ;
+            for (int i = 0; i < sv_clusters.size(); i++) {
+                if (i == j || to_remove[i] == 1 || sv_clusters[i].type != sv_c.type) {
+                    continue ;
+                }
+                int s = sv_clusters[i].s ;
+                int l_1 = sv_c.svlen ;
+                int l_2 = sv_clusters[i].svlen ;
+                float r = float(min(l_1, l_2)) / float(max(l_1, l_2)) ;
+                if (abs(sv_clusters[i].s - sv_c.s) <= distance) {
+                    to_merge.push_back(i) ;
+                }
+            }
+            if (to_merge.size() != 0) {
+                for (int j = 0; j < to_merge.size(); j++) {
+                    int index = to_merge[j] ;
+                    for (auto& sv: sv_clusters[index].svs) {
+                        sv_c.add_sv(sv.first, sv.second) ;
+                    }
+                    to_remove[index] = 1 ;
+                }
+            }
+        }
+        cout << sv_clusters.size() << " clusters.." << endl ;
     }
     vector<SV> svs ;
-    // find deletions
-    // I HATE this
-    int last_r = -1 ;
-    int last_q = -1 ;
-    bool found_del = true ;
-    for (int i = 0; i < rep.aligned_pairs.size(); i++) {
-        int q = rep.aligned_pairs[i].first ;
-        int r = rep.aligned_pairs[i].second ;
-        if (q == -1) {
-            found_del = true ;
+    for (int i = 0; i < sv_clusters.size(); i++) {
+        if (to_remove[i] == 1) {
             continue ;
-        } else {
-            if (found_del) {
-                found_del = false ;
-                if (r != -1 && last_r != -1) {
-                    int svlen = r - last_r - 1 ;
-                    if (svlen < config->min_string_length) {
-                        continue ;
-                    }
-                    string ref_allele = ref.substr(last_r, svlen) ;
-                    string alt_allele = ref_allele.substr(0, 1) ;
-                    SV sv = SV("DEL", cluster.chrom, last_r, ref_allele, alt_allele, cluster.size(), c, -1, -1) ;
-                    cout << sv << endl ;
-                    svs.push_back(sv) ; 
-                }
+        }
+        auto sv_c = sv_clusters[i] ;
+        int m = 0 ;
+        SV sv ;
+        for (auto& kv: sv_c.svs) {
+            if (kv.second > m) {
+                sv = kv.first ;
+                m = kv.second ;
             }
         }
-        last_q = q ;
-        last_r = r ; 
-    }
-    // find insertions
-    last_q = -1 ;
-    last_r = -1 ;
-    bool found_ins = true ;
-    for (int i = 0; i < rep.aligned_pairs.size(); i++) {
-        int q = rep.aligned_pairs[i].first ;
-        int r = rep.aligned_pairs[i].second ;
-        if (r == -1) {
-             found_ins = true ;
-             continue ;
-        } else {
-            if (found_ins) {
-                found_ins = false ;
-                if (q != -1 && last_q != -1) {
-                    int svlen = q - last_q - 1 ;
-                    if (svlen < config->min_string_length) {
-                        continue ;
-                    }
-                    string ref_allele = ref.substr(last_r, 1) ;
-                    string alt_allele = ref_allele + rep.seq.substr(last_q + 1, svlen) ;
-                    SV sv = SV("INS", cluster.chrom, last_r, ref_allele, alt_allele, cluster.size(), c, -1, -1) ;
-                    cout << sv << endl ;
-                    svs.push_back(sv) ; 
-                }
-            }
+        if (m >= 3) {
+            cout << sv << endl ;
+            svs.push_back(sv) ;
         }
-        last_q = q ;
-        last_r = r ; 
     }
-    rep.aligned_pairs.clear() ;
-    free(aln) ;
+    // Maybe do another round when we filter consecutive SVs of similar size
+    cout << svs.size() << " SVs remain." << endl ;
     return svs ;
 }
 
@@ -740,50 +857,31 @@ void Insdeller::call(const string &chrom_seq, ofstream &osam) {
             if (tc.size() < 2) {
                 continue ;
             }
-            //if (tc.s != 37667602) {
+            //if (tc.s < 6565070 || tc.e > 6567200) {
             //    continue ;
             //}
-            //if (extended_tc.size() < 2) {
+            //if (tc.get_id() != "chr21_46383749_46384341") {
             //    continue ;
             //}
-            if (tc.s < 5040000 || tc.e > 5060000) {
-                continue ;
-            }
             vector<SV> svs ;
             vector<SV> cl_svs ;
             auto breakpoints = cluster_breakpoints(tc, 0.7) ;
             if (breakpoints.size() == 1 && tc.get_type() != 2) {
                 cout << "Using normal genotyper" << endl ;
-                svs = call_svs(breakpoints[0], chrom_seq) ;
+                //svs = call_svs(breakpoints[0], chrom_seq) ;
             } else if (breakpoints.size() <= 5) {
                 // extend and pass to POA
                 for (auto breakpoint: breakpoints) {
-                    auto __svs = call_poa_svs(breakpoint, chrom_seq, osam) ;
-                    //svs.insert(svs.begin(), __svs.begin(), __svs.end()) ;
+                    //auto __svs = call_poa_svs(breakpoint, chrom_seq, osam) ;
+                    auto __svs = call_svs(breakpoint, chrom_seq) ;
+                    svs.insert(svs.begin(), __svs.begin(), __svs.end()) ;
                 }
+            } else {
+                //Cluster extended_tc = extend(tc, 100000) ;
+                //auto __svs = call_poa_svs(extended_tc, chrom_seq, osam) ;
+                //svs.insert(svs.begin(), __svs.begin(), __svs.end()) ;
             }
-            //if (config->assemble) {
-            //    svs = haplotyper.haplotype(extended_tc) ;
-            //} else {
-            //    int n = cluster_anchors(breakpoint) ; 
-            //}
-            //for (auto& breakpoint: breakpoints) {
-            //    if (n == 1) {
-            //        // we can call SV
-            //        svs = call_svs(breakpoint) ;
-            //        cout << "Heterzoygous" << endl ;
-            //    } else {
-            //        auto sclusters = scluster(breakpoint) ;
-            //        if (sclusters.size() == 1) {
-            //            svs = call_svs(breakpoint) ;
-            //            cout << "Heterzoygous" << endl ;
-            //        } else {
-            //            lprint({"Delegating to POA.."}) ;
-            //            svs = haplotyper.haplotype(extended_tc) ;
-            //        }
-            //    }
-            //}
-            cl_svs.insert(cl_svs.end(), svs.begin(), svs.end()) ;
+            cl_svs.insert(cl_svs.begin(), svs.begin(), svs.end()) ;
             vector<SV> usvs = remove_duplicate_svs(cl_svs) ;
             for (const SV &sv : usvs) {
                 if (abs(sv.l) >= config->min_string_length && (sv.ngaps <= 2 || (sv.ngaps > 2 && sv.w > 10))) {
@@ -798,24 +896,14 @@ void Insdeller::call(const string &chrom_seq, ofstream &osam) {
     }
     cout << "Done.." << endl ;
     cout << n << endl ;
-    //for (int i = 0; i < 100; i++) {
-    //    int m = 0 ;
-    //    for (int j = 0; j < config->threads; j++) {
-    //        m += cluster_status[j][i] ;
-    //    }
-    //    cout << i << " : " << m << endl ;
-    //}
     vector<SV> merged_svs ; 
     for (int i = 0; i < _svs.size(); i++) {
         for (const SV &sv : _svs[i]) {
             merged_svs.push_back(sv);
-            //vartree.insert({sv.s - 1000, sv.e + 1000});
         }
     }
     osvs = remove_duplicate_svs(merged_svs) ;
     cout << "Discovered " << osvs.size() << " SVs.. " << endl ;
-    
-    //vartree.deoverlap();
     for (int i = 0; i < config->threads; i++) {
         sam_close(read_bam[i]) ;
     }
