@@ -51,6 +51,7 @@ private:
     std::vector<Cluster> cluster_breakpoints(Cluster& cluster, float ratio) ;
     std::vector<SV> call_svs(const Cluster& cluster, const string&) ;
     std::vector<SV> call_poa_svs(Cluster&, const string&, ofstream& osam);
+    std::vector<SV> filter_chain_svs(std::vector<SV> svs) ;
     // Global realignment of consensus and subreference
     CIGAR align(const char *, const char *, int, int, int, int);
     // Remove svs that are duplicate (same variant on different representative)

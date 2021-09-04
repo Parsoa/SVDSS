@@ -807,35 +807,34 @@ vector<SV> Insdeller::filter_chain_svs(vector<SV> svs) {
     vector<SV> deletions ;
     vector<SV> insertions ;
     for (int i = 0; i < svs.size(); i++) {
-        if (svs[i].type == "DEL") {
-            deletions.push_back(svs[i]) ;
+        if (sv.type == "DEL") {
+            deletions.push_back(sv) ;
         } else {
-            insertions.push_back(svs[i]) ;
+            insertions.push_back(sv) ;
         }
     }
     int i = 0 ;
     cout << svs.size() << " SV before chain filtering.." << endl ;
     vector<SV> final_svs ;
     for (auto& _svs: {deletions, insertions}) {
-        while (i < _svs.size()) {
-            cout << "Looking for chain starting at " << _svs[i].idx << endl ;
+        while (i < svs.size()) {
+            cout << "Looking for chain starting at " << i << endl ;
             // this will find a chain of SVs of similar size
             // e.g see chr21:8,459,874-8,462,286 on CHM13 mapped to hg38
             vector<SV> sv_cluster ;
-            sv_cluster.push_back(_svs[i]) ;
+            sv_cluster.push_back(svs[i]) ;
             int j = i + 1 ;
             while (j < _svs.size()) {
-                cout << "Extending to " << _svs[j].idx << endl ;
+                cout << "Extending tto " << j << endl ;
                 int l_1 = abs(sv_cluster.back().l) ;
                 int l_2 = abs(_svs[j].l) ;
                 bool found = false ;
-                int d = abs(_svs[j].s - sv_cluster.back().s) ;
-                float r = float(min(l_1, l_2)) / float(max(l_1, l_2)) ;
-                cout << d << " " << r << endl ;
-                if (d < 500) {
-                    if (r > 0.95) {
-                        sv_cluster.push_back(_svs[j]) ;
-                        found = true ;
+                if (_svs[j].type == sv_cluster.back().type) {
+                    if (_svs[j].s - sv_cluster.back().s < 100) {
+                        if (min(l_1, l_2) / max(l_1, l_2) > 0.95) {
+                            sv_cluster.push_back(_svs[j]) ;
+                            found = true ;
+                        }
                     }
                 }
                 if (!found) {
@@ -919,9 +918,9 @@ void Insdeller::call(const string &chrom_seq, ofstream &osam) {
             if (tc.size() < 2) {
                 continue ;
             }
-            //if (tc.s > 5300000) { //|| tc.e > 5280000) {
-            //    continue ;
-            //}
+            if (tc.s > 5320000) { //|| tc.e > 5280000) {
+                continue ;
+            }
             //if (tc.get_id() != "chr21_46383749_46384341") {
             //    continue ;
             //}

@@ -18,9 +18,7 @@ SV::SV(const string type_, const string &chrom_, uint s_, const string &refall_,
     imprecise = imprecise_;
     l = imprecise ? l_ : (int)altall.size() - (int)refall.size();
     idx = type + "_" + chrom + ":" + to_string(s) + "-" + to_string(e);
-    if (type == "INS") {
-        idx += "_" + to_string(l);
-    }
+    idx += "_" + to_string(abs(l));
     gt = "./.";
 }
 
