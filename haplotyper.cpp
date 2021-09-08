@@ -129,7 +129,7 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
                     pos += cigar[i].first ;
                     ref_pos += cigar[i].first ;
                 }
-                if (abs(sv.l) > 10) {
+                if (abs(sv.l) >= config->min_string_length) {
                     svs.push_back(sv) ;
                 }
             }

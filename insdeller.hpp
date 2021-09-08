@@ -8,6 +8,7 @@
 #include <fstream>
 
 #include "ksw2.h"
+#include "edlib.hpp"
 #include "htslib/sam.h"
 #include "htslib/hts.h"
 #include "interval_tree.hpp"
@@ -48,12 +49,14 @@ private:
     // SequenceSimilarity-based clustering
     std::vector<Cluster> scluster(const Cluster &);
     // Extract SVs (poa + realign)
-    std::vector<Cluster> cluster_breakpoints(Cluster& cluster, float ratio) ;
+    std::vector<Cluster> cluster_breakpoints(const Cluster& cluster, float ratio) ;
+    std::vector<SV> call_batch(std::vector<Cluster>& position_clusters, const string&, ofstream&) ;
     std::vector<SV> call_svs(const Cluster& cluster, const string&) ;
-    std::vector<SV> call_poa_svs(Cluster&, const string&, ofstream& osam);
+    std::vector<SV> call_poa_svs(Cluster&, const string&, std::ofstream &o);
     std::vector<SV> filter_chain_svs(std::vector<SV> svs) ;
     // Global realignment of consensus and subreference
-    CIGAR align(const char *, const char *, int, int, int, int);
+    CIGAR align_ksw2(const char *, const char *, int, int, int, int);
+    CIGAR align_edlib(const char *, const char *, int, int, int, int);
     // Remove svs that are duplicate (same variant on different representative)
     std::vector<SV> remove_duplicate_svs(const vector<SV> &);
     

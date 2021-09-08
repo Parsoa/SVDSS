@@ -4,6 +4,7 @@
 #include <mutex>
 #include <vector>
 #include <string>
+#include <ctype.h>
 #include <utility>
 #include <iterator>
 #include <unordered_map>
@@ -20,23 +21,52 @@ extern uint32_t cigar_type_mask ;
 // CHECKME: I changed this struct but I didn't check if I broke something in realignment
 struct CIGAR {
     std::vector<std::pair<uint, char>> ops;
-    uint mismatches;
-    uint ngaps;
-    uint score;
+    int mismatches;
+    uint ngaps ;
+    uint start ;
+    int score ;
 
     CIGAR() { 
-        mismatches = 0;
-        ngaps = -1;
-        score = -1;
+        mismatches = 0 ;
+        ngaps = -1 ;
+        score = -1 ;
     }
 
-    CIGAR(std::vector<std::pair<uint, char>> ops_, int score_) {
-        mismatches = -1;
-        score = score_;
-        ops = ops_;
-        ngaps = 0;
+    CIGAR(std::vector<std::pair<uint, char>> ops_, int score_, uint start_ = 0) {
+        mismatches = -1 ;
+        score = score_ ;
+        ops = ops_ ;
+        ngaps = 0 ;
+        start = start_ ;
         for (uint i = 0; i < ops_.size(); ++i) {
-            ngaps += ((ops_[i].second == 'I' || ops_[i].second == 'D') ? 1 : 0);
+            ngaps += ((ops_[i].second == 'I' || ops_[i].second == 'D') ? 1 : 0) ;
+        }
+    }
+
+    void parse_cigar(char* cigar) {
+        int b = 0 ;
+        for (int i = 0; i < strlen(cigar); i++) {
+            if (isdigit(cigar[i])) {
+                continue ;
+            } else {
+                char type = cigar[i] ;
+                cigar[i] = '\0' ;
+                int l = std::stoi(std::string(cigar + b)) ;
+                ops.push_back(std::make_pair(l, type)) ;
+                cigar[i] = type ;
+                b = i + 1 ;
+            }
+        }
+    }
+    
+    CIGAR(char* cigar, int score_, int start_ = 0) {
+        mismatches = -1 ;
+        score = score_ ;
+        start = start_ ;
+        parse_cigar(cigar) ;
+        ngaps = 0 ;
+        for (uint i = 0; i < ops.size(); ++i) {
+            ngaps += ((ops[i].second == 'I' || ops[i].second == 'D') ? 1 : 0);
         }
     }
 

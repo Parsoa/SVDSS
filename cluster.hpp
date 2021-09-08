@@ -72,9 +72,9 @@ public:
     uint full_cov ;
 
     Cluster(const std::string &);
-    void add_fragment(Fragment);
+    void add_fragment(const Fragment&);
     void set_full_coverage(const uint);
-    std::string poa() const;
+    std::vector<std::string> poa() const;
     uint get_type() const;
     void clear();
     uint size() const;

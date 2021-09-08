@@ -26,7 +26,7 @@ Cluster::Cluster(const string &chrom_) {
     e = 0;
 }
 
-void Cluster::add_fragment(Fragment f) {
+void Cluster::add_fragment(const Fragment& f) {
     fragments.push_back(f) ;
     if (fragments.size() == 1) {
         s = f.ref_s ;
@@ -45,7 +45,7 @@ string Cluster::get_id() const {
     return chrom + ":" + std::to_string(s) + "-" + std::to_string(e) ;
 }
 
-string Cluster::poa() const {
+vector<string> Cluster::poa() const {
     uint n_seqs = size();
     vector<string> seqs(n_seqs);
     uint i = 0;
@@ -87,10 +87,12 @@ string Cluster::poa() const {
     }
     // for (int i = 0; i < cons_n; ++i) { }
 
-    string consensus = "";
+    vector<string> consensus ;
+    string _c = "" ;
     for (int j = 0; j < cons_l[0]; ++j) {
-        consensus += "ACGTN"[cons_seq[0][j]];
+        _c += "ACGTN"[cons_seq[0][j]];
     }
+    consensus.push_back(_c) ;
 
     for (int i = 0; i < cons_n; ++i) {
         free(cons_seq[i]);
