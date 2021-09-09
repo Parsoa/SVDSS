@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <stdlib.h>
 
 #include "ksw2.h"
 #include "edlib.hpp"
@@ -36,6 +37,8 @@ private:
     std::vector<bam_hdr_t*> read_bamhdr;
     std::vector<hts_idx_t*> read_bamindex;
 
+    double expected_mismatch_rate ;
+
     Haplotyper haplotyper ;
     Configuration* config ;
 
@@ -49,11 +52,13 @@ private:
     // SequenceSimilarity-based clustering
     std::vector<Cluster> scluster(const Cluster &);
     // Extract SVs (poa + realign)
+    Cluster compress_cluster(const Cluster& c) ;
     std::vector<Cluster> cluster_breakpoints(const Cluster& cluster, float ratio) ;
     std::vector<SV> call_batch(std::vector<Cluster>& position_clusters, const string&, ofstream&) ;
     std::vector<SV> call_svs(const Cluster& cluster, const string&) ;
     std::vector<SV> call_poa_svs(Cluster&, const string&, std::ofstream &o);
     std::vector<SV> filter_chain_svs(std::vector<SV> svs) ;
+    bool should_filter_read(bam1_t* alignment, char* read_seq, string chrom, int* global_num_bases, int* global_num_mismatch) ;
     // Global realignment of consensus and subreference
     CIGAR align_ksw2(const char *, const char *, int, int, int, int);
     CIGAR align_edlib(const char *, const char *, int, int, int, int);

@@ -23,6 +23,7 @@ Insdeller::Insdeller(const string &chrom_) {
     sfs_bam = hts_open(config->sfsbam.c_str(), "r") ;
     sfs_bamhdr = sam_hdr_read(sfs_bam) ;
     sfs_bamindex = sam_index_load(sfs_bam, config->sfsbam.c_str()) ;
+    expected_mismatch_rate = 0.005 ;
     for (int i = 0; i < config->threads; i++) {
         read_bam.push_back(hts_open(config->bam.c_str(), "r")) ;
         read_bamhdr.push_back(sam_hdr_read(read_bam[i])) ;
@@ -197,6 +198,80 @@ Cluster Insdeller::merge_close_fragments(const Cluster& cluster, int distance) {
     return merged_cluster ;
 }
 
+bool Insdeller::should_filter_read(bam1_t* alignment, char* read_seq, string chrom, int* global_num_bases, int* global_num_mismatch) {
+    auto cigar_offsets = decode_cigar(alignment) ;
+    int l = 0 ;
+    for (auto p: cigar_offsets) {
+        l += p.first ;
+    }
+    //
+    int n = 0 ;
+    int m = 0 ;
+    int ref_offset = alignment->core.pos ;
+    int ins_offset = 0 ;
+    int del_offset = 0 ;
+    int match_offset = 0 ;
+    int soft_clip_offset = 0 ;
+    // Modify current bam1_t* struct
+    int m_diff = 0 ;
+    double num_match = 0 ;
+    double num_mismatch = 0 ;
+    while (true) {
+        if (m == cigar_offsets.size()) {
+            break ;
+        }
+        if (cigar_offsets[m].second == BAM_CMATCH || cigar_offsets[m].second == BAM_CEQUAL || cigar_offsets[m].second == BAM_CDIFF) {
+            for (int j = 0; j < cigar_offsets[m].first; j++) {
+                num_mismatch += 1 ? chromosome_seqs[chrom][ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
+                n++ ;
+            }
+            ref_offset += cigar_offsets[m].first ;
+            match_offset += cigar_offsets[m].first ;
+            num_match += cigar_offsets[m].first ;
+            m_diff = 0 ;
+        } else if (cigar_offsets[m].second == BAM_CINS) {
+            if (cigar_offsets[m].first <= 10) {
+                // if a short INDEL then just don't add it to read
+            } else {
+                // for long INS, this is probably a SV so add it to the read
+                for (int j = 0; j < cigar_offsets[m].first; j++) {
+                    n++ ;
+                }
+            }
+            ins_offset += cigar_offsets[m].first ;
+        } else if (cigar_offsets[m].second == BAM_CDEL) {
+            if (cigar_offsets[m].first <= 10) {
+                // if a short DEL so let's just fix it
+                for (int j = 0; j < cigar_offsets[m].first; j++) {
+                    n++ ;
+                }
+                m_diff += cigar_offsets[m].first ;
+            } else {
+                // for long DEL, this is probably a SV so let it be what it was
+            }
+            del_offset += cigar_offsets[m].first ;
+            ref_offset += cigar_offsets[m].first ;
+        } else if (cigar_offsets[m].second == BAM_CSOFT_CLIP) {
+            for (int j = 0; j < cigar_offsets[m].first; j++) {
+                n++ ;
+            }
+            soft_clip_offset += cigar_offsets[m].first ;
+        } else {
+            // pass
+        }
+        m += 1 ;
+    }
+    *global_num_bases += num_match ;
+    *global_num_mismatch += num_mismatch ;
+    if (num_mismatch / num_match > 3 * expected_mismatch_rate) {
+        return true ;
+    }
+    if (ins_offset + del_offset > 0.7 * strlen(read_seq)) {
+        return true ;
+    }
+    return false ;
+}
+
 Cluster Insdeller::extend(Cluster &cluster, int extension) {
     std::sort(cluster.fragments.begin(), cluster.fragments.end()) ;
     auto c = cluster ;
@@ -204,12 +279,18 @@ Cluster Insdeller::extend(Cluster &cluster, int extension) {
     int padding = 3000 ;
     int k = ANCHOR_SIZE ;
     char* ref = chromosome_seqs[c.chrom] + c.s - padding ;
-    cout << "Searching for anchors in " << c.chrom << "[" << c.s - padding << "-" << c.e + padding << "]" << endl ; 
-    auto kmers = get_unique_anchors(ref, c.e - c.s + 2 * padding, k) ;
-    //if (!kmers.size()) {
-    //    lprint({"No anchors found for", c.get_id()}, 'E') ; 
-    //    return cluster ;
-    //}
+    unordered_map<string, int> kmers ; //= 
+    if (extension == EXTENSION_TYPE_KMER) { 
+        cout << "Searching for anchors in " << c.chrom << "[" << c.s - padding << "-" << c.e + padding << "]" << endl ; 
+        kmers = get_unique_anchors(ref, c.e - c.s + 2 * padding, k) ; 
+        if (!kmers.size()) {
+            lprint({"No anchors found for", c.get_id()}, 'E') ; 
+            return cluster ;
+        }
+    }
+
+    int global_num_bases = 0 ;
+    int global_num_mismatch = 0 ;
 
     unordered_map<string, std::vector<Fragment>> reads_in_cluster; // these are the reads we are interested in
     for (const Fragment& f : c) {
@@ -225,6 +306,8 @@ Cluster Insdeller::extend(Cluster &cluster, int extension) {
     uint8_t* qual = (uint8_t*) malloc(buffer_len) ;
     char* _kmer = (char*) malloc(sizeof(char) * (k + 1)) ;
     _kmer[k] = '\0' ;
+    int f = 0 ;
+    int n = 0 ;
     while (sam_itr_next(read_bam[omp_get_thread_num()], itr, aln) > 0) {
         bool left_extend = false ;
         bool right_extend = false ;
@@ -250,6 +333,11 @@ Cluster Insdeller::extend(Cluster &cluster, int extension) {
         seq[l] = '\0' ;
         qual[l] = '\0' ;
         vector<pair<int, int>> alpairs = get_aligned_pairs(aln) ;
+        n++ ;
+        if (extension == EXTENSION_TYPE_FULL && should_filter_read(aln, (char*) seq, cluster.chrom, &global_num_bases, &global_num_mismatch)) {
+            f++ ;
+            continue ;
+        }
         // Extend each fragment on this read
         for (auto& f: reads_in_cluster[qname]) {
             // extend SFS until we reach anchors
@@ -291,7 +379,8 @@ Cluster Insdeller::extend(Cluster &cluster, int extension) {
                 new_read_s = f.read_s ;
                 new_read_e = f.read_e ;
             } else {
-                //TODO
+                new_read_s = max(int(f.read_s) - extension, 0) ;
+                new_read_e = min(int(l - 1), int(f.read_e) + extension) ;
             }
             string subseq((char*) seq, new_read_s, new_read_e - new_read_s + 1);
             string subqual((char*) qual, new_read_s, new_read_e - new_read_s + 1);
@@ -300,6 +389,7 @@ Cluster Insdeller::extend(Cluster &cluster, int extension) {
             ext_c.add_fragment(new_f) ;
         }
     }
+    cout << "Filtered " << f << " fragments out of " << n << endl ;
     free(seq) ;
     free(qual) ;
     free(_kmer) ;
@@ -526,10 +616,32 @@ CIGAR Insdeller::align_edlib(const char *ref, const char *query, int sc_mch, int
     }
 }
 
+Cluster Insdeller::compress_cluster(const Cluster& c) {
+    if (c.size() < 100) {
+        return c ;
+    }
+    cout << "Compressing cluster with " << c.size() << " fragments.." << endl ;
+    Cluster cluster(c.chrom) ;
+    unordered_map<int, bool> indices ;
+    while (true) {
+        int r = rand() % c.size() ;
+        if (indices.find(r) == indices.end()) {
+            indices[r] = true ;
+            cluster.add_fragment(c.fragments[r]) ;
+        } else {
+            continue ;
+        }
+        if (cluster.fragments.size() == 100) {
+            break ;
+        }
+    }
+    cout << cluster.fragments.size() << " remaining." << endl ;
+    return cluster ;
+}
+
 vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
     int padding = 0 ;
-    auto extended_c = c ; //extend(c, padding) ;
-    auto _consensus = extended_c.poa() ;
+    auto _consensus = c.poa() ;
     vector<SV> svs ;
     cout << _consensus.size() << " POA assemblies." << endl ;
     for (auto consensus: _consensus) {
@@ -541,9 +653,10 @@ vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
         cout << "Reference length:" << reference.length() << ", Consensus length: " << consensus.length() << endl ; 
         CIGAR cigar = align_ksw2(reference.c_str(), consensus.c_str(), 1, -3, 100, 0); // TODO: adjust scores/penalties. I want less gaps
         if (cigar.score == -1) {
-            cout << "Local alignmen fail, trying global global alignemnt.." << endl ;
+            cout << "Local alignment fail, trying global global alignemnt.." << endl ;
         }
-        cigar.fixclips();
+        cigar.fixclips() ;
+        cigar.print() ;
     
         o << chrom << ":" << c.s + 1 << "-" << c.e + 1 << ":" << c.size() << "\t"
             << 0 << "\t"
@@ -589,7 +702,7 @@ vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
                 cerr << "Unknown CIGAR op " << cigar[i].second << endl;
                 exit(1);
             }
-            if (abs(sv.l) > 25 && (sv.s >= c.s - 1 && sv.e <= c.e + 1)) {
+            if (abs(sv.l) > 25 && (sv.s >= c.s - 100 && sv.e <= c.e + 100)) {
                 cout << sv << endl ;
                 svs.push_back(sv) ;
             }
@@ -598,7 +711,6 @@ vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
     }
     sort(svs.begin(), svs.end()) ;
     int a ; 
-    cin >> a ;
     return svs ;
 }
 
@@ -872,20 +984,6 @@ vector<SV> Insdeller::remove_duplicate_svs(const vector<SV> &svs) {
     return usvs ;
 }
 
-bool should_assemble(const vector<Fragment>& fragments) {
-    //int s = fragments[0].ref_s ;
-    //int e = fragments[0].ref_e ;
-    //for (int i = 1; i < fragments.size(); i++) {
-    //    s = max(int(fragments[i].ref_s), s) ;
-    //    e = min(int(fragments[i].ref_e), e) ;
-    //    if (e - s <= 0) {
-    //        return false ;
-    //    }
-    //}
-    //cout << "Fragments overlap on [" << s << "-" << e << "]." << endl ;
-    return true ;
-}
-
 vector<SV> Insdeller::call_batch(vector<Cluster>& position_clusters, const string& chrom_seq, ofstream& osam) {
     vector<SV> svs ;
     for (auto& pc: position_clusters) {
@@ -914,34 +1012,32 @@ vector<SV> Insdeller::call_batch(vector<Cluster>& position_clusters, const strin
             } else if (breakpoints.size() < 25) {
                 cout << omp_get_thread_num() << " " << "Delegating to POA for " << tc.get_id() << endl ;
                 // Miniasm
-                auto full_extended_tc = extend(tc, EXTENSION_TYPE_FULL) ;
-                auto _miniasm_svs = Haplotyper().haplotype(full_extended_tc) ;
-                svs.insert(svs.begin(), _miniasm_svs.begin(), _miniasm_svs.end()) ;
-                for (auto breakpoint: breakpoints) {
-                    break ;
-                    cout << breakpoint.get_id() << endl ;
-                    for (auto& f: breakpoint.fragments) {
-                        cout << f.seq << endl ;
-                    }
-                    if (should_assemble(breakpoint.fragments)) {
-                        auto _cluster_svs = call_svs(breakpoint, chrom_seq) ;
-                        auto _poa_svs = call_poa_svs(breakpoint, chrom_seq, osam) ;
-                        //auto _both_svs = intersect_svs(_cluster_svs, _poa_svs) ; 
-                        //cout << _poa_svs.size() << " POA SVs " << _cluster_svs.size() << " clustering SVs, " << _both_svs.size() << " intersection." << endl ;
-                        //svs.insert(svs.begin(), _both_svs.begin(), _both_svs.end()) ;
-                        //svs.insert(svs.begin(), _cluster_svs.begin(), _cluster_svs.end()) ;
-                        svs.insert(svs.begin(), _poa_svs.begin(), _poa_svs.end()) ;
-                    } else {
-                        cout << "Can't assemble breakpoint." << endl ;
-                    }
-                }
+                auto compressed_tc = compress_cluster(tc) ;
+                auto full_extended_tc = extend(compressed_tc, EXTENSION_TYPE_FULL) ;
+                auto _poa_svs = call_poa_svs(full_extended_tc, chrom_seq, osam) ;
+                //auto _miniasm_svs = Haplotyper().haplotype(full_extended_tc) ;
+                //svs.insert(svs.begin(), _miniasm_svs.begin(), _miniasm_svs.end()) ;
+                svs.insert(svs.begin(), _poa_svs.begin(), _poa_svs.end()) ;
+                //for (auto breakpoint: breakpoints) {
+                //    break ;
+                //    cout << breakpoint.get_id() << endl ;
+                //    //for (auto& f: breakpoint.fragments) {
+                //    //    cout << f.seq << endl ;
+                //    //}
+                //    if (should_assemble(breakpoint.fragments)) {
+                //        //auto _cluster_svs = call_svs(breakpoint, chrom_seq) ;
+                //        auto _poa_svs = call_poa_svs(breakpoint, chrom_seq, osam) ;
+                //        //auto _both_svs = intersect_svs(_cluster_svs, _poa_svs) ; 
+                //        //cout << _poa_svs.size() << " POA SVs " << _cluster_svs.size() << " clustering SVs, " << _both_svs.size() << " intersection." << endl ;
+                //        //svs.insert(svs.begin(), _both_svs.begin(), _both_svs.end()) ;
+                //        //svs.insert(svs.begin(), _cluster_svs.begin(), _cluster_svs.end()) ;
+                //        svs.insert(svs.begin(), _poa_svs.begin(), _poa_svs.end()) ;
+                //    } else {
+                //        cout << "Can't assemble breakpoint." << endl ;
+                //    }
+                //}
             }
             breakpoints.clear() ;
-            //for (const SV &sv : svs) {
-           //     if (abs(sv.l) >= config->min_string_length && (sv.ngaps <= 2 || (sv.ngaps > 2 && sv.w > 10))) {
-           //         _svs[omp_get_thread_num()].push_back(sv);
-           //     }
-            //}
             tc.clear() ;
         }
         pc.clear() ;
@@ -950,6 +1046,7 @@ vector<SV> Insdeller::call_batch(vector<Cluster>& position_clusters, const strin
 }
 
 void Insdeller::call(const string &chrom_seq, ofstream &osam) {
+    srand(9216429) ;
     vector<Cluster> _position_clusters = position_cluster() ;
     cout << "Sorted reads into " << _position_clusters.size() << " P-clusters." << endl ;
     vector<vector<Cluster>> position_clusters(config->threads) ;

@@ -84,6 +84,13 @@ struct CIGAR {
         ops.insert(ops.begin(), std::make_pair(1, 'M'));
     }
 
+    void print() {
+        for (uint i = 0; i < ops.size(); ++i) {
+            std::cout << ops[i].first << ops[i].second ;
+        }
+        std::cout << std::endl ;
+    }
+
     void fixclips()
     {
         if (ops.front().second != 'M')
