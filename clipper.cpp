@@ -2,13 +2,13 @@
 
 #include "clipper.hpp"
 
+using namespace std ;
+
 vector<Clip> Clipper::remove_duplicates(const vector<Clip> &clips) {
     vector<Clip> unique_clips;
     set<string> qnames;
-    for (const Clip &clip : clips)
-    {
-        if (qnames.find(clip.name) == qnames.end())
-        {
+    for (const Clip &clip : clips) {
+        if (qnames.find(clip.name) == qnames.end()) {
             qnames.insert(clip.name);
             unique_clips.push_back(clip);
         }

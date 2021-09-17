@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <utility>
 #include <iterator>
+#include <iostream>
 #include <unordered_map>
 
 #include <htslib/hts.h>

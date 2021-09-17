@@ -10,17 +10,41 @@ Haplotyper::Haplotyper() {
     config = Configuration::getInstance() ;
 }
 
-vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
+vector<SV> Haplotyper::map_to_chm13(Cluster cluster, string assembly) {
+    string ref_path = "/share/hormozdiarilab/Codes/Stella/output/T2T/v1.1/chr21.fasta" ; 
+    string ref_seq = load_chromosome(ref_path) ;
+    cout << ref_seq.length() << endl ;
+    string cluster_id = cluster.chrom + "_" + to_string(cluster.s) + "_" + to_string(cluster.e) ;
+    int check = make_working_dir(cluster) ;
+    if (check != 0) {
+        exit(check) ;
+    }
+    string dir = config->workdir + "/miniasm/" + cluster_id ;
+    string poa_fasta = dir + "/poa.fasta" ;
+    cout << poa_fasta << endl ;
+    ofstream poa_fasta_file(poa_fasta) ;
+    poa_fasta_file << ">" + cluster_id << endl ;
+    poa_fasta_file << assembly << endl ;
+    poa_fasta_file.close() ; 
+    // map with minimap
+    string bam_path = dir + "/aln.bam" ;
+    string command = "minimap2 -ax map-pb -t 1 " + ref_path + " " + poa_fasta + " 2>/dev/null | samtools view -b > " + bam_path ;
+    cout << command << endl ;
+    system(command.c_str()) ; 
+    auto svs = call_svs(cluster, bam_path, ref_seq, assembly, 0) ;
+    return svs ;
+}
+
+int Haplotyper::make_working_dir(Cluster cluster) {
     struct stat info ;
-    string name = cluster.chrom + "_" + to_string(cluster.s) + "_" + to_string(cluster.e) ;
-    string cluster_id = cluster.get_id() ;
+    string cluster_id = cluster.chrom + "_" + to_string(cluster.s) + "_" + to_string(cluster.e) ;
     // make working directory
     string dir = config->workdir + "/miniasm" ;
     if (stat(dir.c_str(), &info) != 0) {
         int check = mkdir(dir.c_str(), 0777) ;
         if (check != 0) {
             cerr << "Error creating output directory " << dir << ".." << endl ;
-            exit(check) ;
+            return check ;
         }
     }
     dir += "/" + cluster_id ;
@@ -28,9 +52,19 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
         int check = mkdir(dir.c_str(), 0777) ;
         if (check != 0) {
             cerr << "Error creating output directory " << dir << ".." << endl ;
-            exit(check) ;
+            return check ;
         }
     }
+    return 0 ;
+}
+
+vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
+    string cluster_id = cluster.chrom + "_" + to_string(cluster.s) + "_" + to_string(cluster.e) ;
+    int check = make_working_dir(cluster) ;
+    if (check != 0) {
+        exit(check) ;
+    }
+    string dir = config->workdir + "/miniasm/" + cluster_id ;
     auto fastq_path = dir + "/reads.fastq" ;
     ofstream fastq_file(fastq_path) ;
     for (const auto& fragment: cluster.fragments) {
@@ -60,16 +94,23 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
         unitigs.push_back(tokens[2]) ;
     }
     gfa_file.close() ;
-    lprint({"Generated", std::to_string(unitigs.size()), "unitigs."}) ;
     vector<SV> svs ;
+    lprint({"Generated", std::to_string(unitigs.size()), "unitigs."}) ;
     if (unitigs.size() == 0) {
-        lprint({"Error assembling cluster", cluster_id}, 'E') ;
+        lprint({"Error assembling cluster", cluster.get_id()}, 'E') ;
     } else {
+        // 
+        //auto svs_ = map_to_chm13(cluster, unitigs[0]) ;
+        //if (svs_.size() != 0) {
+        //    cout << "[E]" << " assembly may be invalid." << endl ;
+        //    int a ; 
+        //    cin >> a ;
+        //}
         // create a FASTA file for unitigs
         string unitig_fasta = dir + "/unitigs.fasta" ;
         //cout << unitig_fasta << endl ;
         ofstream unitig_fasta_file(unitig_fasta) ;
-        unitig_fasta_file << ">" + name << endl ;
+        unitig_fasta_file << ">" + cluster_id << endl ;
         unitig_fasta_file << unitigs[0] << endl ;
         unitig_fasta_file.close() ; 
         // get reference sequence corresponding to cluster
@@ -77,6 +118,7 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
         int e = cluster.e ;
         string ref_fasta = dir + "/ref.fasta" ;
         int d = 2 * unitigs[0].length() ;
+        cout << "Generated " << unitigs.size() << " unitigs.." << endl ;
         //cout << s - d << " " << e - s + d << " " << strlen(chromosome_seqs[cluster.chrom]) << endl ; 
         string ref_seq = string(chromosome_seqs[cluster.chrom]).substr(s - d, (e - s) + 2 * d) ; 
         ofstream ref_fasta_file(ref_fasta) ;
@@ -89,56 +131,61 @@ vector<SV> Haplotyper::assemble_reads(Cluster cluster) {
         //cout << command << endl ;
         system(command.c_str()) ; 
         // read BAM and CIGAR 
-        samFile *bam_file = hts_open(bam_path.c_str(), "r") ;
-        if (bam_file == nullptr) {
-            lprint({"Error openning consesnsus alignemnt for", name}, 'E') ;
-            return svs ;
-        }
-        bam_hdr_t *bam_header = sam_hdr_read(bam_file) ;
-        bam1_t *aln = bam_init1();
-        cout << "Generated " << unitigs.size() << " unitigs.." << endl ;
-        while (sam_read1(bam_file, bam_header, aln) >= 0) {
-            if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
-                continue ;
-            }
-            // get CIGAR and process
-            uint pos = 0 ;
-            uint ref_pos = aln->core.pos ;
-            auto cigar = decode_cigar(aln) ;
-            for (uint i = 0; i < cigar.size(); i++) {
-                SV sv ;
-                if (cigar[i].second == BAM_CSOFT_CLIP) {
-                    pos += cigar[i].first;
-                }
-                if (cigar[i].second == BAM_CINS) {
-                    string ref_allele = ref_seq.substr(ref_pos - 1, 1) ;
-                    //cout << "INS " << pos << " " << unitigs[0].length() << " " << cigar[i].first << endl ;
-                    string alt_allele = ref_allele + unitigs[0].substr(pos, cigar[i].first) ;
-                    sv = SV("INS", cluster.chrom, s - d + ref_pos - 1, ref_allele, alt_allele, cigar[i].first, 1, -1, -1) ;
-                    sv.idx = sv.idx + "_" + cluster.get_id() ;
-                    pos += cigar[i].first ;
-                }
-                if (cigar[i].second == BAM_CDEL) {
-                    string ref_allele = ref_seq.substr(ref_pos - 1, cigar[i].first + 1) ;
-                    string alt_allele = ref_allele.substr(0, 1) ;
-                    sv = SV("DEL", cluster.chrom, s - d + ref_pos - 1, ref_allele, alt_allele, cigar[i].first, 1, -1, -1) ;
-                    sv.idx = sv.idx + "_" + cluster.get_id() ;
-                    ref_pos += cigar[i].first ;
-                }
-                if (cigar[i].second == BAM_CMATCH) {
-                    pos += cigar[i].first ;
-                    ref_pos += cigar[i].first ;
-                }
-                if (abs(sv.l) >= config->min_string_length) {
-                    svs.push_back(sv) ;
-                }
-            }
-        }
-        sam_close(bam_file) ;
+        svs = call_svs(cluster, bam_path, ref_seq, unitigs[0], s - d) ;
     }
     for (auto sv: svs) {
        cout << "[S]" << sv << endl ; 
     }
+    return svs ;
+}
+
+vector<SV> Haplotyper::call_svs(Cluster cluster, string bam_path, string ref_seq, string query, int ref_start) {
+    vector<SV> svs ;
+    samFile *bam_file = hts_open(bam_path.c_str(), "r") ;
+    if (bam_file == nullptr) {
+        lprint({"Error openning consesnsus alignemnt for", cluster.get_id()}, 'E') ;
+        return svs ;
+    }
+    bam_hdr_t *bam_header = sam_hdr_read(bam_file) ;
+    bam1_t *aln = bam_init1();
+    while (sam_read1(bam_file, bam_header, aln) >= 0) {
+        if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
+            continue ;
+        }
+        // get CIGAR and process
+        uint pos = 0 ;
+        uint ref_pos = aln->core.pos ;
+        auto cigar = decode_cigar(aln) ;
+        for (uint i = 0; i < cigar.size(); i++) {
+            SV sv ;
+            if (cigar[i].second == BAM_CSOFT_CLIP) {
+                pos += cigar[i].first;
+            }
+            if (cigar[i].second == BAM_CINS) {
+                string ref_allele = ref_seq.substr(ref_pos - 1, 1) ;
+                //cout << "INS " << pos << " " << unitigs[0].length() << " " << cigar[i].first << endl ;
+                string alt_allele = ref_allele + query.substr(pos, cigar[i].first) ;
+                sv = SV("INS", cluster.chrom, ref_start + ref_pos - 1, ref_allele, alt_allele, cigar[i].first, 1, -1, -1) ;
+                sv.idx = sv.idx + "_" + cluster.get_id() ;
+                pos += cigar[i].first ;
+            }
+            if (cigar[i].second == BAM_CDEL) {
+                string ref_allele = ref_seq.substr(ref_pos - 1, cigar[i].first + 1) ;
+                string alt_allele = ref_allele.substr(0, 1) ;
+                sv = SV("DEL", cluster.chrom, ref_start + ref_pos - 1, ref_allele, alt_allele, cigar[i].first, 1, -1, -1) ;
+                sv.idx = sv.idx + "_" + cluster.get_id() ;
+                ref_pos += cigar[i].first ;
+            }
+            if (cigar[i].second == BAM_CMATCH) {
+                pos += cigar[i].first ;
+                ref_pos += cigar[i].first ;
+            }
+            if (abs(sv.l) >= 10) {
+                svs.push_back(sv) ;
+            }
+        }
+    }
+    sam_close(bam_file) ;
     return svs ;
 }
 

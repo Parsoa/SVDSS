@@ -22,5 +22,6 @@ int get_reference_size(std::ifstream &fasta_file) ;
 void load_chromosomes(std::string path) ;
 std::string canonicalize(std::string) ;
 std::string reverse_complement(std::string) ;
+std::string load_chromosome(string path) ;
 
 #endif

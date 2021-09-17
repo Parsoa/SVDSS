@@ -287,6 +287,7 @@ Cluster Insdeller::extend(Cluster &cluster, int extension) {
             lprint({"No anchors found for", c.get_id()}, 'E') ; 
             return cluster ;
         }
+        cout << "Found" << kmers.size() << " anchors." << endl ;
     }
 
     int global_num_bases = 0 ;
@@ -309,8 +310,6 @@ Cluster Insdeller::extend(Cluster &cluster, int extension) {
     int f = 0 ;
     int n = 0 ;
     while (sam_itr_next(read_bam[omp_get_thread_num()], itr, aln) > 0) {
-        bool left_extend = false ;
-        bool right_extend = false ;
         string qname(bam_get_qname(aln)) ;
         if (reads_in_cluster.find(qname) == reads_in_cluster.end()) {
             continue ;
@@ -341,55 +340,55 @@ Cluster Insdeller::extend(Cluster &cluster, int extension) {
         // Extend each fragment on this read
         for (auto& f: reads_in_cluster[qname]) {
             // extend SFS until we reach anchors
-            int new_read_s ;
-            int new_read_e ;
+            int new_ref_s ;
+            int new_ref_e ;
+            int new_read_s = -1 ;
+            int new_read_e = -1 ;
             if (extension == EXTENSION_TYPE_KMER) { // kmer extension
-                int new_read_s = -1 ;
-                int new_read_e = -1 ;
-                if (!config->assemble) {
-                    for (int i = f.read_s - 10; i >= k - 1; i--) {
-                        memcpy(_kmer, seq + i - (k - 1), k) ;
-                        string canon = canonicalize(string(_kmer)) ;
-                        if (kmers.find(canon) != kmers.end()) {
-                            new_read_s = i - (k - 1) ;
-                            left_extend = true ;
-                            break ;
-                        }
-                    } 
-                    for (int i = f.read_e + 10; i < l; i++) {
-                        memcpy(_kmer, seq + i, k) ;
-                        string canon = canonicalize(string(_kmer)) ;
-                        if (kmers.find(canon) != kmers.end()) {
-                            new_read_e = i + k ;
-                            right_extend = true ;
-                            break ;
-                        }
-                    } 
-                    //if (new_read_s == -1 || new_read_e == -1) {
-                    //    lprint({"Anchor extension unsuccessful for SFS", qname, to_string(f.read_s), "-", to_string(f.read_e)}, 'E') ;
-                    //}
+                for (int i = f.read_s; i >= k - 1; i--) {
+                    memcpy(_kmer, seq + i - (k - 1), k) ;
+                    string canon = canonicalize(string(_kmer)) ;
+                    if (kmers.find(canon) != kmers.end()) {
+                        new_read_s = i - (k - 1) ;
+                        break ;
+                    }
+                } 
+                for (int i = f.read_e; i < l; i++) {
+                    memcpy(_kmer, seq + i, k) ;
+                    string canon = canonicalize(string(_kmer)) ;
+                    if (kmers.find(canon) != kmers.end()) {
+                        new_read_e = i + k ;
+                        break ;
+                    }
                 }
                 //cout << "Old: [" << f.read_s << " - " << f.read_e << "], [" << f.ref_s << ", " << f.ref_e << "]" << endl ;
                 new_read_s = new_read_s == -1 ? f.read_s : new_read_s ;
                 new_read_e = new_read_e == -1 ? f.read_e : new_read_e ;
+                new_ref_s = f.ref_s - (f.read_s - new_read_s) ;
+                new_ref_e = f.ref_e + (new_read_e - f.read_e) ;
             } else if (extension == EXTENSION_TYPE_FULL) { // full read
                 new_read_s = 0 ;
                 new_read_e = l - 1 ;
+                new_ref_s = f.ref_s ;
+                new_ref_e = f.ref_e ;
             } else if (extension == EXTENSION_TYPE_NONE) {
                 new_read_s = f.read_s ;
                 new_read_e = f.read_e ;
+                new_ref_s = f.ref_s ;
+                new_ref_e = f.ref_e ;
             } else {
                 new_read_s = max(int(f.read_s) - extension, 0) ;
                 new_read_e = min(int(l - 1), int(f.read_e) + extension) ;
+                new_ref_s = f.ref_s - extension ;
+                new_ref_e = f.ref_e + extension ;
             }
             string subseq((char*) seq, new_read_s, new_read_e - new_read_s + 1);
             string subqual((char*) qual, new_read_s, new_read_e - new_read_s + 1);
-            Fragment new_f(qname, f.ref_s, f.ref_e, new_read_s, new_read_e, 0, subseq, subqual) ;
-            new_f.extend(f.read_s - new_read_s, f.read_e - new_read_e) ;
+            Fragment new_f(qname, new_ref_s, new_ref_e, new_read_s, new_read_e, 0, subseq, subqual) ;
             ext_c.add_fragment(new_f) ;
         }
     }
-    cout << "Filtered " << f << " fragments out of " << n << endl ;
+    cout << "Filtered " << f << " fragments out of " << n << ". " << ext_c.size() << " remaining." << endl ;
     free(seq) ;
     free(qual) ;
     free(_kmer) ;
@@ -616,8 +615,8 @@ CIGAR Insdeller::align_edlib(const char *ref, const char *query, int sc_mch, int
     }
 }
 
-Cluster Insdeller::compress_cluster(const Cluster& c) {
-    if (c.size() < 100) {
+Cluster Insdeller::compress_cluster(const Cluster& c, int size) {
+    if (c.size() <= size) {
         return c ;
     }
     cout << "Compressing cluster with " << c.size() << " fragments.." << endl ;
@@ -631,7 +630,7 @@ Cluster Insdeller::compress_cluster(const Cluster& c) {
         } else {
             continue ;
         }
-        if (cluster.fragments.size() == 100) {
+        if (cluster.fragments.size() == size) {
             break ;
         }
     }
@@ -639,29 +638,38 @@ Cluster Insdeller::compress_cluster(const Cluster& c) {
     return cluster ;
 }
 
-vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
+vector<SV> Insdeller::call_poa_svs(Cluster &cluster, const string &ref, ofstream &o) {
     int padding = 0 ;
-    auto _consensus = c.poa() ;
+    vector<string> _consensus = cluster.poa() ;
     vector<SV> svs ;
     cout << _consensus.size() << " POA assemblies." << endl ;
     for (auto consensus: _consensus) {
         cout << consensus << endl ;
     }
     for (auto consensus: _consensus) {
-        padding = max(0, int(consensus.length()) - int(c.e - c.s)) ;
-        string reference = string(ref, c.s - padding, c.e - c.s + 2 * padding) ; 
+        vector<SV> _svs = Haplotyper().map_to_chm13(cluster, consensus) ;
+        if (_svs.size() != 0) {
+            cout << "[E]" << " found SVs in POA mapping to CHM13. Consensus is invalid." << endl ;
+            for (const auto& sv: _svs) {
+                cout << sv << endl ;
+            }
+            int a ; 
+            cin >> a ;
+        }
+        padding = max(0, int(consensus.length()) - int(cluster.e - cluster.s)) ;
+        string reference = string(ref, cluster.s - padding, cluster.e - cluster.s + 2 * padding) ; 
         cout << "Reference length:" << reference.length() << ", Consensus length: " << consensus.length() << endl ; 
         CIGAR cigar = align_ksw2(reference.c_str(), consensus.c_str(), 1, -3, 100, 0); // TODO: adjust scores/penalties. I want less gaps
         if (cigar.score == -1) {
-            cout << "Local alignment fail, trying global global alignemnt.." << endl ;
+            cout << "Local alignment fail, trying global alignemnt.." << endl ;
         }
         cigar.fixclips() ;
         cigar.print() ;
     
-        o << chrom << ":" << c.s + 1 << "-" << c.e + 1 << ":" << c.size() << "\t"
+        o << chrom << ":" << cluster.s + 1 << "-" << cluster.e + 1 << ":" << cluster.size() << "\t"
             << 0 << "\t"
-            << c.chrom << "\t"
-            << c.s + 1 << "\t"
+            << cluster.chrom << "\t"
+            << cluster.s + 1 << "\t"
             << 60 << "\t"
             << cigar.to_str() << "\t"
             << "*"
@@ -673,7 +681,7 @@ vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
             << endl;
 
         uint qs = 0 ;
-        uint rs = c.s - padding + cigar.start ;
+        uint rs = cluster.s - padding + cigar.start ;
         bool saw_match = false ;
         for (uint i = 0; i < cigar.size(); i++) {
             SV sv ;
@@ -684,14 +692,14 @@ vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
                 string ref_allele = ref.substr(rs - 1, 1) ;
                 string alt_allele = ref_allele + consensus.substr(qs, cigar[i].first) ;
                 if (saw_match) {
-                    sv = SV("INS", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
+                    sv = SV("INS", cluster.chrom, rs - 1, ref_allele, alt_allele, cluster.size(), cluster.full_cov, cigar.ngaps, cigar.score) ;
                 }
                 qs += cigar[i].first ;
             } else if (cigar[i].second == 'D') {
                 string ref_allele = ref.substr(rs - 1, cigar[i].first + 1) ;
                 string alt_allele = ref_allele.substr(0, 1) ;
                 if (saw_match) {
-                    sv = SV("DEL", c.chrom, rs - 1, ref_allele, alt_allele, c.size(), c.full_cov, cigar.ngaps, cigar.score) ;
+                    sv = SV("DEL", cluster.chrom, rs - 1, ref_allele, alt_allele, cluster.size(), cluster.full_cov, cigar.ngaps, cigar.score) ;
                 }
                 rs += cigar[i].first ;
             } else if (cigar[i].second == 'M') {
@@ -702,7 +710,7 @@ vector<SV> Insdeller::call_poa_svs(Cluster &c, const string &ref, ofstream &o) {
                 cerr << "Unknown CIGAR op " << cigar[i].second << endl;
                 exit(1);
             }
-            if (abs(sv.l) > 25 && (sv.s >= c.s - 100 && sv.e <= c.e + 100)) {
+            if (abs(sv.l) > 25 && (sv.s >= cluster.s - 100 && sv.e <= cluster.e + 100)) {
                 cout << sv << endl ;
                 svs.push_back(sv) ;
             }
@@ -992,13 +1000,13 @@ vector<SV> Insdeller::call_batch(vector<Cluster>& position_clusters, const strin
         }
         vector<Cluster> type_clusters = type_cluster(pc);
         for (Cluster &tc : type_clusters) {
-            if (tc.size() < 2) {
-                continue ;
-            }
+            //if (tc.size() < 2) {
+            //    continue ;
+            //}
             //if (tc.s > 5300000) { //|| tc.e > 5280000) {
             //    continue ;
             //}
-            //if (tc.get_id() != "chr21_46383749_46384341") {
+            //if (tc.get_id() != "chr21:7933252-7946087") {
             //    continue ;
             //}
             auto breakpoints = cluster_breakpoints(tc, 0.7) ;
@@ -1008,34 +1016,29 @@ vector<SV> Insdeller::call_batch(vector<Cluster>& position_clusters, const strin
             }
             if (breakpoints.size() == 1 && tc.get_type() != 2) {
                 cout << omp_get_thread_num() << " " << "Using normal genotyper for " << tc.get_id() << endl ;
-                //svs = call_svs(breakpoints[0], chrom_seq) ;
+                auto cluster_svs = call_svs(breakpoints[0], chrom_seq) ;
+                svs.insert(svs.begin(), cluster_svs.begin(), cluster_svs.end()) ;
             } else if (breakpoints.size() < 25) {
-                cout << omp_get_thread_num() << " " << "Delegating to POA for " << tc.get_id() << endl ;
-                // Miniasm
-                auto compressed_tc = compress_cluster(tc) ;
-                auto full_extended_tc = extend(compressed_tc, EXTENSION_TYPE_FULL) ;
-                auto _poa_svs = call_poa_svs(full_extended_tc, chrom_seq, osam) ;
-                //auto _miniasm_svs = Haplotyper().haplotype(full_extended_tc) ;
-                //svs.insert(svs.begin(), _miniasm_svs.begin(), _miniasm_svs.end()) ;
-                svs.insert(svs.begin(), _poa_svs.begin(), _poa_svs.end()) ;
+                cout << omp_get_thread_num() << "Delegating to assembler for " << tc.get_id() << endl ;
+                // 1. SFS-only POA
                 //for (auto breakpoint: breakpoints) {
-                //    break ;
-                //    cout << breakpoint.get_id() << endl ;
-                //    //for (auto& f: breakpoint.fragments) {
-                //    //    cout << f.seq << endl ;
-                //    //}
-                //    if (should_assemble(breakpoint.fragments)) {
-                //        //auto _cluster_svs = call_svs(breakpoint, chrom_seq) ;
-                //        auto _poa_svs = call_poa_svs(breakpoint, chrom_seq, osam) ;
-                //        //auto _both_svs = intersect_svs(_cluster_svs, _poa_svs) ; 
-                //        //cout << _poa_svs.size() << " POA SVs " << _cluster_svs.size() << " clustering SVs, " << _both_svs.size() << " intersection." << endl ;
-                //        //svs.insert(svs.begin(), _both_svs.begin(), _both_svs.end()) ;
-                //        //svs.insert(svs.begin(), _cluster_svs.begin(), _cluster_svs.end()) ;
-                //        svs.insert(svs.begin(), _poa_svs.begin(), _poa_svs.end()) ;
-                //    } else {
-                //        cout << "Can't assemble breakpoint." << endl ;
-                //    }
+                //    Cluster extended_breakpoint = extend(breakpoint, EXTENSION_TYPE_KMER) ;
+                //    cout << extended_breakpoint.get_id() << endl ;
+                //    auto _poa_svs = call_poa_svs(breakpoint, chrom_seq, osam) ;
+                //    svs.insert(svs.begin(), _poa_svs.begin(), _poa_svs.end()) ;
                 //}
+                // 2. Full-read POA
+                //auto full_extended_tc = extend(tc, EXTENSION_TYPE_FULL) ;
+                //auto compressed_tc = compress_cluster(full_extended_tc, 100) ;
+                //if (compressed_tc.size() < 2) {
+                //    continue ;
+                //}
+                //auto _poa_svs = call_poa_svs(compressed_tc, chrom_seq, osam) ;
+                //svs.insert(svs.begin(), _poa_svs.begin(), _poa_svs.end()) ;
+                // 3. Full-read miniasm
+                auto full_extended_tc = extend(tc, EXTENSION_TYPE_FULL) ;
+                auto _miniasm_svs = Haplotyper().haplotype(full_extended_tc) ;
+                svs.insert(svs.begin(), _miniasm_svs.begin(), _miniasm_svs.end()) ;
             }
             breakpoints.clear() ;
             tc.clear() ;

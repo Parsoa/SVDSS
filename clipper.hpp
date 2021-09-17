@@ -3,8 +3,8 @@
 
 #include <map>
 #include <set>
-#include <string>
 #include <vector>
+#include <string>
 
 #include "htslib/sam.h"
 #include "htslib/hts.h"

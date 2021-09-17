@@ -85,14 +85,16 @@ vector<string> Cluster::poa() const {
     if (cons_n > 1) {
         cerr << "[W] " << cons_n << " consensus!" << endl;
     }
-    // for (int i = 0; i < cons_n; ++i) { }
 
     vector<string> consensus ;
-    string _c = "" ;
-    for (int j = 0; j < cons_l[0]; ++j) {
-        _c += "ACGTN"[cons_seq[0][j]];
+
+    for (int i = 0; i < cons_n; ++i) {
+        string _c = "" ;
+        for (int j = 0; j < cons_l[i]; ++j) {
+            _c += "ACGTN"[cons_seq[i][j]];
+        }
+        consensus.push_back(_c) ;
     }
-    consensus.push_back(_c) ;
 
     for (int i = 0; i < cons_n; ++i) {
         free(cons_seq[i]);

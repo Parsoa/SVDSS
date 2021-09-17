@@ -52,7 +52,7 @@ private:
     // SequenceSimilarity-based clustering
     std::vector<Cluster> scluster(const Cluster &);
     // Extract SVs (poa + realign)
-    Cluster compress_cluster(const Cluster& c) ;
+    Cluster compress_cluster(const Cluster& c, int size) ;
     std::vector<Cluster> cluster_breakpoints(const Cluster& cluster, float ratio) ;
     std::vector<SV> call_batch(std::vector<Cluster>& position_clusters, const string&, ofstream&) ;
     std::vector<SV> call_svs(const Cluster& cluster, const string&) ;
