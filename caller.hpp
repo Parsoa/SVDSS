@@ -10,7 +10,7 @@
 #include "vcf.hpp"
 #include "config.hpp"
 #include "clipper.hpp"
-#include "insdeller.hpp"
+#include "extender.hpp"
 #include "chromosomes.hpp"
 
 using namespace std;
@@ -33,6 +33,10 @@ private:
     samFile *read_bam;
     bam_hdr_t *read_bamhdr;
     hts_idx_t *read_bamindex;
+
+    std::unordered_map<std::string, std::vector<SFS>> SFSs ;
+    void print_vcf_header() ;
+    void load_input_sfs() ;
 };
 
 #endif

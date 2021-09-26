@@ -1,4 +1,6 @@
-#include "sfsutils.hpp"
+#include "sfs.hpp"
+
+using namespace std ;
 
 bool operator<(const SFS &x, const SFS &y) { return x.s < y.s; }
 

@@ -14,18 +14,18 @@
 
 using namespace lib_interval_tree;
 
-struct Clip
-{
-    std::string name;
-    uint p;
-    uint l;
-    bool starting;
-    uint w;
+struct Clip {
+    std::string name ;
+    uint p ;
+    uint l ;
+    bool starting ;
+    uint w ;
 
-    Clip() { w = 0; }
+    Clip() { 
+        w = 0;
+    }
 
-    Clip(const std::string &name_, uint p_, uint l_, bool starting_, uint w_ = 0)
-    {
+    Clip(const std::string &name_, uint p_, uint l_, bool starting_, uint w_ = 0) {
         name = name_;
         p = p_;
         l = l_;
@@ -33,8 +33,7 @@ struct Clip
         w = w_;
     }
 
-    bool operator<(const Clip &c) const
-    {
+    bool operator<(const Clip &c) const {
         return p < c.p;
     }
 };
@@ -42,11 +41,13 @@ struct Clip
 class Clipper {
 
 private:
-    std::string chrom;
-    samFile *sfs_bam;
-    bam_hdr_t *sfs_bamhdr;
-    hts_idx_t *sfs_bamindex;
+    std::string chrom ;
 
+    samFile *sfs_bam ;
+    bam_hdr_t *sfs_bamhdr ;
+    hts_idx_t *sfs_bamindex ;
+
+    std::vector<Clip> clips ;
     std::vector<Clip> extract_clips();
     std::vector<Clip> remove_duplicates(const std::vector<Clip> &);
     std::vector<Clip> combine(const std::vector<Clip> &);
@@ -55,10 +56,10 @@ private:
     std::vector<Clip> filter_tooclose_clips(const std::vector<Clip> &, interval_tree_t<int> &);
 
 public:
-    std::vector<SV> osvs;
+    std::vector<SV> svs;
 
-    Clipper(const std::string&, samFile *, bam_hdr_t *, hts_idx_t *);
-    void call(const std::string &, interval_tree_t<int> &);
+    Clipper(const std::string&, const std::vector<Clip>&) ;
+    void call(const std::string &, interval_tree_t<int> &) ;
 };
 
 #endif

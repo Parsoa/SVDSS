@@ -29,10 +29,10 @@
 #include "htslib/hfile.h"
 #include "htslib/hts_endian.h"
 
-#include "lprint.hpp"
+#include "sfs.hpp"
 #include "fastq.hpp"
 #include "config.hpp"
-#include "sfsutils.hpp"
+#include "lprint.hpp"
 #include "assembler.hpp"
 #include "chromosomes.hpp"
 

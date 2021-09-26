@@ -20,13 +20,11 @@
 #include "chromosomes.hpp"
 
 #include "tau.hpp"
-#include "aligner.hpp"
+#include "caller.hpp"
 #include "assembler.hpp"
 #include "converter.hpp"
-#include "realigner.hpp"
 #include "aggregator.hpp"
 #include "reconstructor.hpp"
-#include "caller.hpp"
 
 #ifdef LOCAL_BUILD
 #include "finder.hpp"
@@ -135,9 +133,6 @@ int main(int argc, char** argv) {
             c->aggregate_batches = pingpong->num_output_batches ;
             aggregator->run() ;
         }
-    } else if (strcmp(argv[1], "realign") == 0) {
-        auto aligner = new Realigner() ;
-        aligner->run() ;
     } else if (strcmp(argv[1], "convert") == 0) {
         auto converter = new Converter() ;
         converter->run() ;

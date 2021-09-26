@@ -8,6 +8,7 @@
 #include <regex>
 #include <zlib.h>
 
+#include "kseq.h"
 #include "htslib/sam.h"
 #include "htslib/hts.h"
 #include "abpoa.h"
@@ -22,6 +23,240 @@ KSEQ_INIT(gzFile, gzread)
 
 using namespace std;
 using namespace lib_interval_tree;
+
+// AaCcGgTtNn ... ==> 0,1,2,3,4 ...
+// BbDdEeFf   ... ==> 5,6,7,8 ...
+unsigned char _char26_table[256] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 0, 5, 1, 6, 7, 8, 2, 9, 10, 11, 12, 13, 14, 4, 15,
+    16, 17, 18, 19, 3, 20, 21, 22, 23, 24, 25, 26, 26, 26, 26, 26,
+    26, 0, 5, 1, 6, 7, 8, 2, 9, 10, 11, 12, 13, 14, 4, 15,
+    16, 17, 18, 19, 3, 20, 21, 22, 23, 24, 25, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+    26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26};
+
+struct ExtSFS
+{
+    string chrom;
+    string qname;
+    int s;
+    int e;
+    // string seq;
+
+    ExtSFS(const string &chrom_, const string &qname_, int s_, int e_ /*, const string &seq_*/)
+    {
+        chrom = chrom_;
+        qname = qname_;
+        s = s_;
+        e = e_;
+        // seq = seq_;
+    }
+};
+
+struct Cluster
+{
+    string chrom;
+    int s;
+    int e;
+    int cov;
+    vector<string> seqs;
+
+    Cluster(const string &chrom_, uint s_, uint e_, uint cov_ = 0)
+    {
+        chrom = chrom_;
+        s = s_;
+        e = e_;
+        cov = cov_;
+    }
+
+    void set_cov(uint cov_)
+    {
+        cov = cov_;
+    }
+
+    void add(const string &seq)
+    {
+        seqs.push_back(seq);
+    }
+
+    int get_len() const
+    {
+        uint l = 0;
+        uint n = 0;
+        for (const string &seq : seqs)
+        {
+            ++n;
+            l += seq.size();
+        }
+        return l / n;
+    }
+
+    vector<string> get_seqs() const
+    {
+        return seqs;
+    }
+
+    uint size() const
+    {
+        return seqs.size();
+    }
+
+    void dump(ofstream &o) const
+    {
+        o << chrom << " " << s << " " << e << " " << cov << " " << size();
+        for (const string &seq : seqs)
+            o << " " << seq;
+        o << endl;
+    }
+};
+
+void print_vcf_header(const unordered_map<string, string> &ref, ofstream &o)
+{
+    // TODO: improve and fix
+    o << "##fileformat=VCFv4.2" << endl;
+    // print("##fileDate=", date.today().strftime("%Y%m%d"), sep="")
+    o << "##reference=ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC2/technical/reference/20200513_hg38_NoALT/hg38.no_alt.fa.gz" << endl;
+    for (unordered_map<string, string>::const_iterator it = ref.begin(); it != ref.end(); ++it)
+        o << "##contig=<ID=" << it->first << ",length=" << it->second.size() << ">" << endl;
+    o << "##FILTER=<ID=PASS,Description=\"All filters passed\">" << endl;
+    o << "##INFO=<ID=VARTYPE,Number=A,Type=String,Description=\"Variant class\">" << endl;
+    o << "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Variant type\">" << endl;
+    o << "##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"Difference in length between REF and ALT alleles\">" << endl;
+    o << "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the variant described in this record\">" << endl;
+    o << "##INFO=<ID=WEIGHT,Number=1,Type=Integer,Description=\"Number of alignments supporting this record\">" << endl;
+    o << "##INFO=<ID=COV,Number=1,Type=Integer,Description=\"Total number of alignments covering this locus\">" << endl;
+    o << "##INFO=<ID=ASCORE,Number=1,Type=Integer,Description=\"Alignment score\">" << endl;
+    o << "##INFO=<ID=NV,Number=1,Type=Integer,Description=\"Number of variations on same consensus\">" << endl;
+    o << "##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">" << endl;
+    o << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl;
+    o << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tDEFAULT" << endl;
+}
+
+struct SFS
+{
+    uint s;
+    uint l;
+    uint c;
+    bool isreversed;
+
+    SFS()
+    {
+        s = 0;
+        l = 0;
+        c = 0;
+        isreversed = false;
+    }
+
+    SFS(uint s_, uint l_, uint c_, bool isreversed_)
+    {
+        s = s_;
+        l = l_;
+        c = c_;
+        isreversed = isreversed_;
+    }
+
+    void reverse(uint p) { s = p - s - l; }
+};
+
+map<string, vector<SFS>> parse_sfsfile(const string &sfs_path)
+{
+    map<string, vector<SFS>> SFSs;
+    string line;
+    ifstream inf(sfs_path);
+    if (inf.is_open())
+    {
+        string info[5];
+        string read_name;
+        while (getline(inf, line))
+        {
+            stringstream ssin(line);
+            int i = 0;
+            while (ssin.good() && i < 5)
+            {
+                ssin >> info[i++];
+            }
+            if (info[0].compare("*") != 0)
+            {
+                read_name = info[0];
+                SFSs[read_name] = vector<SFS>();
+            }
+            //TODO
+            SFSs[read_name].push_back(SFS(stoi(info[1]), stoi(info[2]), stoi(info[3]), true));
+        }
+    }
+    return SFSs;
+}
+
+// Partial reimplementation of
+// https://github.com/pysam-developers/pysam/blob/6ad0a57ef9c9b05d1492e10228ca7bccb5c7b30e/pysam/libcalignedsegment.pyx#L1867
+// TODO run additional tests
+vector<pair<int, int>> get_aligned_pairs(bam1_t *aln)
+{
+    vector<pair<int, int>> result;
+    uint pos = aln->core.pos;
+    uint qpos = 0;
+    uint32_t *cigar = bam_get_cigar(aln);
+    for (uint k = 0; k < aln->core.n_cigar; ++k)
+    {
+        uint32_t e = *(cigar + k);
+        uint op = bam_cigar_op(e);   // e & 15
+        uint l = bam_cigar_oplen(e); // e >> 4
+        // char opc = bam_cigar_opchr(op);
+        if (op == BAM_CMATCH or op == BAM_CEQUAL or op == BAM_CDIFF)
+        {
+            for (uint i = pos; i < pos + l; ++i)
+            {
+                result.push_back(make_pair(qpos, i));
+                ++qpos;
+            }
+            pos += l;
+        }
+        else if (op == BAM_CINS or op == BAM_CSOFT_CLIP)
+        {
+            for (uint i = pos; i < pos + l; ++i)
+            {
+                result.push_back(make_pair(qpos, -1));
+                ++qpos;
+            }
+        }
+        else if (op == BAM_CDEL)
+        {
+            for (uint i = pos; i < pos + l; ++i)
+            {
+                result.push_back(make_pair(-1, i));
+            }
+            pos += l;
+        }
+        else if (op == BAM_CHARD_CLIP)
+        {
+            // advances neither
+        }
+        else if (op == BAM_CREF_SKIP)
+        {
+            for (uint i = pos; i < pos + l; ++i)
+            {
+                result.push_back(make_pair(-1, i));
+            }
+            pos += l;
+        }
+        else if (op == BAM_CPAD)
+        {
+            // raise NotImplementedError(
+            //     "Padding (BAM_CPAD, 6) is currently not supported. "
+            //     "Please implement. Sorry about that.")
+        }
+    }
+    return result;
+}
 
 pair<int, int> get_unique_kmer(const vector<pair<int, int>> &alpairs, const string &refseq, const uint k, const bool fromend)
 {
@@ -493,6 +728,25 @@ int main_call(char *fa_path, char *out_prefix)
     // some hardcoded parameters FIXME
     uint minw = 2;
     uint mind = 15;
+
+    // --- REFERENCE
+    unordered_map<string, string> reference;
+    gzFile fasta_in = gzopen(fa_path, "r");
+    kseq_t *refseq = kseq_init(fasta_in);
+    int l;
+    while ((l = kseq_read(refseq)) >= 0)
+        reference[refseq->name.s] = refseq->seq.s;
+    kseq_destroy(refseq);
+    gzclose(fasta_in);
+
+    // --- EXTENDED REGIONS
+    uint n_regions = 0;
+    map<string, vector<Cluster>> clusters;
+    string line;
+    ifstream inf(clusters_path);
+    if (inf.is_open())
+    {
+        string line;
         while (getline(inf, line))
         {
             stringstream ssin(line);

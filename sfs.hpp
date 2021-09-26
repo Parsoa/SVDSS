@@ -1,14 +1,12 @@
-#ifndef SFSUTILS_HPP
-#define SFSUTILS_HPP
+#ifndef SFS_HPP
+#define SFS_HPP
 
-#include <fstream>
-#include <iostream>
 #include <map>
-#include <sstream>
 #include <string>
 #include <vector>
-
-using namespace std;
+#include <fstream>
+#include <sstream>
+#include <iostream>
 
 static const char RCN[128] = {
     0,   0,   0, 0,   0,   0,   0,   0,   0,   0,   //  0
@@ -51,6 +49,37 @@ struct SFS {
 
 bool operator<(const SFS &, const SFS &);
 
-map<string, vector<SFS>> parse_sfsfile(const string &, int);
+struct ExtSFS {
+    std::string chrom ;
+    std::string qname ;
+    int s ;
+    int e ;
+
+    ExtSFS(const std::string& _chrom, const std::string& _qname, int _s, int _e) {
+        chrom = _chrom ;
+        qname = _qname ;
+        s = _s ;
+        e = _e ;
+    }
+};
+
+class Consensus {
+public:
+    std::string seq ;
+    std::string chrom ;
+    std::string cigar ;
+    int s ;
+    int e ;
+
+    Consensus(const std::string _seq, const std::string _cigar, const std::string _chrom, int _s, int _e) {
+        seq = _seq ;
+        cigar = _cigar ;
+        chrom = _chrom ;
+        s = _s ;
+        e = _e ;
+    }
+};
+
+std::map<std::string, std::vector<SFS>> parse_sfsfile(const std::string &, int);
 
 #endif
