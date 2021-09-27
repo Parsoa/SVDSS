@@ -18,7 +18,7 @@ public:
     std::string altall ;
     uint w ;
     uint cov ;
-    int l ;
+    int l = 0 ;
     int ngaps ;
     int score ;
     std::string gt ;

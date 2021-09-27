@@ -26,6 +26,7 @@ void Caller::run() {
 
         Extender extender = Extender(chrom, &SFSs) ;
         extender.extend() ;
+        extender.cluster() ;
         extender.call() ;
         alignments[omp_get_thread_num()].insert(alignments[omp_get_thread_num()].begin(), extender.alignments.begin(), extender.alignments.end()) ;
         svs[omp_get_thread_num()].insert(svs[omp_get_thread_num()].begin(), extender.svs.begin(), extender.svs.end()) ;
@@ -100,7 +101,7 @@ void Caller::load_input_sfs() {
             c += read.second.size() ;
         }
     }
-    lprint({"Aligning", to_string(c), "SFS strings on", to_string(r), " reads.", to_string(config->threads), "threads.."}) ;
+    lprint({"Loaded", to_string(c), "SFS strings on", to_string(r), " reads."}) ;
 }
 
 void Caller::print_vcf_header() {

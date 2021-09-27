@@ -28,6 +28,7 @@
 #include "sfs.hpp"
 #include "fastq.hpp"
 #include "lprint.hpp"
+#include "config.hpp"
 
 using namespace std;
 

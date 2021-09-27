@@ -42,20 +42,34 @@ private:
 
     std::string chrom ;
     std::string ref_seq ;
+    Configuration* config ;
 
     samFile* bam_file ;
     bam_hdr_t* bam_header ;
     hts_idx_t* bam_index ;
+    hts_itr_t* bam_iter ;
 
     std::vector<ExtSFS> extended_sfs ;
     std::vector<Cluster> clusters ;
     std::unordered_map<std::string, std::vector<SFS>>* SFSs ;
+
+    void extend_alignment(bam1_t* aln) ;
     
     std::pair<int, int> get_unique_kmers(const std::vector<std::pair<int, int>> &alpairs, const uint k, const bool from_end) ;
     std::vector<Cluster> cluster_by_length(const Cluster& cluster) ;
     std::vector<std::pair<uint, char>> parse_cigar(std::string) ;
 
-    Configuration* config ;
+
+    // parallelize
+    int threads ; 
+    int batch_size ;
+    std::vector<std::vector<Clip>> _p_clips ;
+    std::vector<std::vector<Consensus>> _p_alignments ;
+    std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
+
+    void extended_parallel() ;
+    void process_batch(vector<bam1_t*> bam_entries) ;
+    bool load_batch_bam(int threads, int batch_size, int p) ;
 
 public:
     Extender(const std::string&, std::unordered_map<std::string, std::vector<SFS>>*) ;
