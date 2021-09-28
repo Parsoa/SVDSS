@@ -68,7 +68,7 @@ pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
     return last_kmer ;
 }
 
-void Extender::extend_alignment(bam1_t* aln) {
+void Extender::extend_alignment(bam1_t* aln, int index) {
     char *qname = bam_get_qname(aln);
     uint32_t *cigar = bam_get_cigar(aln);
     vector<pair<int, int>> alpairs = get_aligned_pairs(aln);
@@ -77,7 +77,7 @@ void Extender::extend_alignment(bam1_t* aln) {
     pair<uint, uint> lclip ;
     pair<uint, uint> rclip ;
     int last_pos = 0 ;
-    for (SFS &sfs : SFSs->at(qname)) {
+    for (const SFS &sfs : SFSs->at(qname)) {
         int s = sfs.s;
         int e = sfs.s + sfs.l - 1;
         int aln_start = -1 ;
@@ -196,13 +196,13 @@ void Extender::extend_alignment(bam1_t* aln) {
         if ((uint) prekmer.second > postkmer.second + kmer_size) {
             cerr << "Error on " << qname << ". SFS starting at " << sfs.s << " (length " << sfs.l << ")." << endl;
         } else {
-            extended_sfs.push_back(ExtSFS(string(chrom), string(qname), prekmer.second, postkmer.second + kmer_size));
+            _p_extended_sfs[index].push_back(ExtSFS(string(chrom), string(qname), prekmer.second, postkmer.second + kmer_size));
         }
         if (lclip.second > 0) {
-            clips.push_back(Clip(qname, lclip.first, lclip.second, true)) ;
+            _p_clips[index].push_back(Clip(qname, lclip.first, lclip.second, true)) ;
         }
         if (rclip.second > 0) {
-            clips.push_back(Clip(qname, rclip.first, rclip.second, false)) ;
+            _p_clips[index].push_back(Clip(qname, rclip.first, rclip.second, false)) ;
         }
     }
 }
@@ -219,7 +219,7 @@ void Extender::extend() {
         if (SFSs->find(qname) == SFSs->end()) {
             continue ;
         }
-        extend_alignment(aln) ;
+        extend_alignment(aln, 0) ;
         ++n_al ;
         if (n_al % 10000 == 0) {
             cerr << "Parsed " << n_al << " alignments." << endl;
@@ -229,7 +229,7 @@ void Extender::extend() {
 
 void Extender::cluster() {
     interval_tree_t<int> tree;
-    cout << "Clustering " << extended_sfs.size() << " extended SFS.." << endl ;
+    lprint({"Clustering", to_string(extended_sfs.size()), "extended SFS on", chrom + ".."});
     for (const ExtSFS &sfs: extended_sfs) {
         vector<pair<int, int>> overlaps ;
         tree.overlap_find_all({sfs.s, sfs.e}, [&overlaps](auto iter) {
@@ -250,22 +250,42 @@ void Extender::cluster() {
     }
     tree.deoverlap();
 
-    map<pair<int, int>, vector<ExtSFS>> _clusters ;
+    map<pair<int, int>, vector<ExtSFS>> __clusters ;
     for (const ExtSFS &sfs : extended_sfs) {
         auto overlap = tree.overlap_find({sfs.s, sfs.e});
-        _clusters[make_pair(overlap->low(), overlap->high())].push_back(sfs);
+        __clusters[make_pair(overlap->low(), overlap->high())].push_back(sfs);
+    }
+    // flatten clusters for easier parallelization
+    vector<vector<ExtSFS>> _clusters ;
+    for (const auto &cluster : __clusters) {
+        _clusters.push_back(cluster.second) ;
     }
 
     // --- CLUSTERS CLEANING
-    cerr << "Analyzing " << _clusters.size() << " clusters from " << extended_sfs.size() << " extSFSs.." << endl;
+    lprint({"Analyzing", to_string(_clusters.size()), "clusters from", to_string(extended_sfs.size()), "extSFSs.."});
 
-    char* seq = (char*) malloc(10000) ;
-    uint32_t len = 10000 ;
-    for (const auto &cluster : _clusters) {
+    char* seq[threads] ; 
+    uint32_t len[threads] ; 
+    samFile* _p_bam_file[threads] ;
+    bam_hdr_t* _p_bam_header[threads] ;
+    hts_idx_t* _p_bam_index[threads] ;
+    bam1_t* _p_aln[threads] ;
+    for (int i = 0; i < threads; i++) {
+        len[i] = 0 ;
+        _p_aln[i] = bam_init1() ;
+        _p_bam_file[i] = hts_open(config->bam.c_str(), "r") ;
+        _p_bam_index[i] = sam_index_load(_p_bam_file[i], config->bam.c_str()) ;
+        _p_bam_header[i] = sam_hdr_read(_p_bam_file[i]) ;
+    }
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for (int i = 0; i < _clusters.size(); i++) {
+        int t = i % threads ;
+        const auto& cluster = _clusters[i] ;
+
         unordered_map<string, bool> reads ;
         int cluster_s = numeric_limits<int>::max() ;
         int cluster_e = 0;
-        for (const ExtSFS &esfs: cluster.second) {
+        for (const ExtSFS &esfs: cluster) {
             cluster_s = min(cluster_s, esfs.s);
             cluster_e = max(cluster_e, esfs.e);
             reads[esfs.qname] = true ;
@@ -279,11 +299,11 @@ void Extender::cluster() {
         Cluster global_cluster = Cluster(chrom, cluster_s, cluster_e);
 
         uint cov = 0;
-        bam1_t* aln = bam_init1();
         string region = chrom + ":" + to_string(cluster_s) + "-" + to_string(cluster_e);
-        hts_itr_t *itr = sam_itr_querys(bam_index, bam_header, region.c_str());
+        hts_itr_t *itr = sam_itr_querys(_p_bam_index[t], _p_bam_header[t], region.c_str());
         // add second level of parallelization inside Extender
-        while (sam_itr_next(bam_file, itr, aln) > 0) {
+        while (sam_itr_next(_p_bam_file[t], itr, _p_aln[t]) > 0) {
+            bam1_t* aln = _p_aln[t] ;
             if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
                 continue;
             }
@@ -295,16 +315,18 @@ void Extender::cluster() {
             }
 
             uint32_t l = aln->core.l_qseq;
-            if (l >= len) {
-                len = l ;
-                free(seq) ;
-                seq = (char*) malloc(l + 1) ;
+            if (l >= len[t]) {
+                if (len[t] != 0) {
+                    free(seq[t]) ;
+                }
+                len[t] = l ;
+                seq[t] = (char*) malloc(l + 1) ;
             }
             uint8_t *q = bam_get_seq(aln) ; //quality string
             for (int i = 0; i < l; i++){
-                seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
+                seq[t][i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
             }
-            seq[l] = '\0';
+            seq[t][l] = '\0';
 
             vector<pair<int, int>> alpairs = get_aligned_pairs(aln);
             int qs = -1, qe = -1;
@@ -338,24 +360,28 @@ void Extender::cluster() {
                 // TODO: get only remaining prefix/suffix? but this may make POA and realignment harder
                 ++skip_3;
             } else {
-                string _seq(seq, qs, qe - qs + 1) ;
-                global_cluster.add(_seq);
+                string _seq(seq[t], qs, qe - qs + 1) ;
+                global_cluster.add(_seq) ;
             }
         }
         if (global_cluster.size() >= minsupp) {
             global_cluster.set_cov(cov) ;
-            clusters.push_back(global_cluster) ;
-            ++extcl;
+            _p_clusters[t].push_back(global_cluster) ;
+            ++extcl ;
         } else {
-            ++small_extcl;
+            ++small_extcl ;
         }
     }
-    free(seq) ;
-    cerr << "Dumped " << extcl << " clusters." << endl << endl;
-    cerr << "Skipped due to unplaced alignment: " << skip_1 << endl;
-    cerr << "Skipped due to unplaced extension: " << skip_2 << endl;
-    cerr << "Skipped due to start/end inside extended cluster: " << skip_3 << endl;
-    cerr << "Skipped extended clusters (due to support): " << small_extcl << endl;
+    for (int i = 0; i < threads; i++) {
+        free(seq[i]) ;
+        bam_destroy1(_p_aln[i]) ;
+        sam_close(_p_bam_file[i]) ;
+    }
+    //cerr << "Dumped " << extcl << " clusters." << endl << endl;
+    //cerr << "Skipped due to unplaced alignment: " << skip_1 << endl;
+    //cerr << "Skipped due to unplaced extension: " << skip_2 << endl;
+    //cerr << "Skipped due to start/end inside extended cluster: " << skip_3 << endl;
+    //cerr << "Skipped extended clusters (due to support): " << small_extcl << endl;
 }
 
 vector<Cluster> Extender::cluster_by_length(const Cluster& cluster) {
@@ -395,17 +421,15 @@ vector<pair<uint, char>> Extender::parse_cigar(string cigar) {
 }
 
 void Extender::call() {
-
     cout << "Calling SVs from " << clusters.size() << " clusters.." << endl ;
-
-    for (const Cluster &cluster: clusters) {
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for (int _ = 0; _ < clusters.size(); _++) {
+        int t = _ % threads ; 
+        const Cluster &cluster = clusters[_] ;
         if (cluster.size() < minw) {
             continue ;
         }
-        // cout << cluster.s << " " << cluster.e << endl ;
-        // --- Splitting cluster by sequence length
         const auto& clusters_by_len = cluster_by_length(cluster) ;
-        //cout << clusters_by_len.size() << " subclusters.." << endl ;
         // --- Sorting clusters by #sequences to get first 2 most weighted clusters
         int i_max1 = -1 ;
         int i_max2 = -1 ;
@@ -444,7 +468,7 @@ void Extender::call() {
             int score = result->score ;
             parasail_cigar_free(cigar) ;
             parasail_result_free(result) ;
-            alignments.push_back(Consensus(consensus, cigar_str, chrom, c.s, c.e)) ;
+            _p_alignments[t].push_back(Consensus(consensus, cigar_str, chrom, c.s, c.e)) ;
             // -- Extracting SVs
             uint rpos = c.s ; // position on reference
             uint cpos = 0 ;   // position on consensus
@@ -458,14 +482,12 @@ void Extender::call() {
                 } else if (op == 'I') {
                     if (l > 25) {
                         SV sv = SV("INS", c.chrom, rpos, ref_seq.substr(rpos - 1, 1), consensus.substr(cpos, l), c.size(), c.cov, 0, score, false, l) ;
-                        cout << sv << endl ;
                         _svs.push_back(sv) ;
                     }
                     cpos += l;
                 } else if (op == 'D') {
                     if (l > 25) {
                         SV sv = SV("DEL", c.chrom, rpos, ref_seq.substr(rpos - 1, l), ref_seq.substr(rpos - 1, 1), c.size(), c.cov, 0, score, false, l) ;
-                        cout << sv << endl ;
                         _svs.push_back(sv) ;
                     }
                     rpos += l;
@@ -473,7 +495,6 @@ void Extender::call() {
             }
             // --- combine SVs on same consensus ---
             // TODO: Parsoa: isn't this wrong? what if they the deletions are not overlapping or what if there is an ins in between?
-            // cout << _svs.size() << " SVs. " << endl ;
             vector<SV> merged_svs ;
             SV ins("", "", 0, "", "", 0, 0, 0, 0, false, 0)  ;
             SV del("", "", 0, "", "", 0, 0, 0, 0, false, 0)  ;
@@ -503,7 +524,6 @@ void Extender::call() {
             if (del.type != "") {
                 merged_svs.push_back(del) ;
             }
-            //cout << merged_svs.size() << " merged SVs. " << endl ;
             // -- Combine svs with same length (maybe useless now - only if diploid mode)
             // TODO: Parsoa, I think this is buggy. Will need multiple passes over data
             vector<SV> comb_svs;
@@ -520,25 +540,53 @@ void Extender::call() {
                 }
             }
             for (const SV &sv: comb_svs) {
-                svs.push_back(sv);
-                cout << sv << endl ;
+                _p_svs[t].push_back(sv);
             }
         }
     }
-    cout << "Extracted " << svs.size() << " SVs.." << endl ;
+    lprint({"Extracted", to_string(svs.size()), "SVs from", chrom + "."}) ;
+}
+
+void Extender::run(int _threads) {
+    threads = _threads ;
+    _p_svs.resize(threads) ;
+    _p_clips.resize(threads) ;
+    _p_clusters.resize(threads) ;
+    _p_alignments.resize(threads) ;
+    _p_extended_sfs.resize(threads) ;
+    // extend reads
+    extend_parallel() ;
+    //extend() ;
+    // merge clips and extended SFS
+    for (int i = 0; i < threads; i++) {
+        extended_sfs.insert(extended_sfs.begin(), _p_extended_sfs[i].begin(), _p_extended_sfs[i].end()) ;
+        clips.insert(clips.begin(), _p_clips[i].begin(), _p_clips[i].end()) ;
+    }
+    cout << "Extension complete." << endl ;
+    // cluster SFS
+    cluster() ;
+    for (int i = 0; i < threads; i++) {
+        clusters.insert(clusters.begin(), _p_clusters[i].begin(), _p_clusters[i].end()) ;
+    }
+    // merge POA alignments
+    call() ;
+    for (int i = 0; i < threads; i++) {
+        svs.insert(svs.begin(), _p_svs[i].begin(), _p_svs[i].end()) ;
+        alignments.insert(alignments.begin(), _p_alignments[i].begin(), _p_alignments[i].end()) ;
+    }
+    sam_close(bam_file) ;
 }
 
 // Parallelize within each chromosome
-void Extender::extended_parallel() {
+void Extender::extend_parallel() {
+    cout << "Extending superstrings on " << threads << " threads.." << endl ;
     int p = 0 ;
     int b = 0 ;
-    _p_clips.reserve(threads) ;
-    _p_alignments.reserve(threads) ;
     bam_iter = sam_itr_querys(bam_index, bam_header, chrom.c_str()) ;
     for (int i = 0; i < 2; i++) {
-        bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
-        for (int j = 0; j < config->threads; j++) {
-            for (int k = 0; k < batch_size / config->threads; k++) {
+        bam_entries.push_back(vector<vector<bam1_t*>>(threads)) ;
+        for (int j = 0; j < threads; j++) {
+            for (int k = 0; k < batch_size / threads; k++) {
                 bam_entries[i][j].push_back(bam_init1()) ;
             }
         }
@@ -554,14 +602,8 @@ void Extender::extended_parallel() {
     int num_reads = 0 ;
     while (true) {
       lprint({"Beginning batch", to_string(b + 1)});
-        for (int i = 0 ; i < config->threads ; i++) {
+        for (int i = 0 ; i < threads ; i++) {
             u += bam_entries[p][i].size() ;
-        }
-        if (!should_load) {
-            should_process = false ;
-        }
-        if (loaded_last_batch) {
-            should_load = false ;
         }
         #pragma omp parallel for num_threads(threads + 1)
         for(int i = 0; i < threads + 1; i++) {
@@ -576,19 +618,10 @@ void Extender::extended_parallel() {
                     }
                 }
             } else {
-                // process current batch
-                if (should_process) {
-                    process_batch(bam_entries[p][i - 2]) ;
-                }
+                process_batch(bam_entries[p][i - 1], i - 1) ;
             }
         }
-        if (should_terminate) {
-            lprint({"Something went wrong, aborting.."}, 2);
-        }
-        if (!should_load) {
-            lprint({"Processed last batch of inputs."});
-        }
-        if (!should_process) {
+        if (loaded_last_batch) {
             break ;
         }
         p += 1 ;
@@ -602,30 +635,22 @@ void Extender::extended_parallel() {
         cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
     }
     lprint({"Done."});
-    sam_close(bam_file) ;
 }
 
 bool Extender::load_batch_bam(int threads, int batch_size, int p) {
     int i = 0 ;
     int n = 0 ;
-    while (sam_itr_next(bam_file, bam_iter, bam_entries[p][n % threads][i]) > 0) {
-        auto aln = bam_entries[p][n % threads][i] ;
+    while (sam_itr_next(bam_file, bam_iter, bam_entries[p][n % threads][i]) >= 0) {
+        bam1_t* aln = bam_entries[p][n % threads][i] ;
         if (aln == nullptr) {
+            cout << "Last added: " << n % threads << " " << i << endl ;
             break ;
         }
-        // these reads have not been reconstructed
         if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
             continue ;
         }
         char *qname = bam_get_qname(aln);
         if (SFSs->find(qname) == SFSs->end()) {
-            continue;
-        }
-        if (aln->core.l_qseq < 2) {
-            //cerr << "Read too short, ignoring.." << endl ;
-            continue ;
-        }
-        if (aln->core.tid < 0) {
             continue ;
         }
         n += 1 ;
@@ -636,20 +661,31 @@ bool Extender::load_batch_bam(int threads, int batch_size, int p) {
             return true ;
         }
     }
+    //TODO: we need this wherever BAM files are being processed
+    if (n != 0) {
+        for (int j = n % threads; j < threads; j++) {
+            //cout << "Terminus at " << j << " " << i << endl ;
+            bam_entries[p][j][i] = nullptr ;
+        }
+        for (int j = 0; j < n % threads; j++) {
+            if (i + 1 < bam_entries[p][j].size()) {
+                //cout << "Terminus at " << j << " " << i + 1 << endl ;
+                bam_entries[p][j][i + 1] = nullptr ;
+            }
+        }
+    }
     lprint({"Loaded", to_string(n), "BAM reads.."});
     return n != 0 ? true : false ;
 }
 
-void Extender::process_batch(vector<bam1_t*> bam_entries) {
-    char* seq = (char*) malloc(10000) ;
-    uint32_t len = 0 ;
+void Extender::process_batch(vector<bam1_t*> bam_entries, int index) {
     bam1_t* aln ;
     for (int b = 0; b < bam_entries.size(); b++) {
         aln = bam_entries[b] ;
         if (aln == nullptr) {
+            //cout << "Terminus " << b << " " << index << " " << endl ;
             break ;
         }
-        extend_alignment(aln) ;
+        extend_alignment(aln, index) ;
     }
-    free(seq) ;
 }

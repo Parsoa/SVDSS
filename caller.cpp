@@ -19,17 +19,18 @@ void Caller::run() {
     vector<vector<Consensus>> alignments(config->threads) ; // produce a SAM file of consensus alignments
     vector<vector<SV>> svs(config->threads) ; // produce a SAM file of consensus alignments
 
-    #pragma omp parallel for num_threads(config->threads)
+    #pragma omp parallel for num_threads(config->threads) schedule(static,1)
     for(int i = 0; i < chromosomes.size(); i++) {
         string chrom = chromosomes[i] ;
+        int t = i % config->threads ;
         cout << "Processing chromosome " << chrom << ".. " << endl ;
 
         Extender extender = Extender(chrom, &SFSs) ;
-        extender.extend() ;
-        extender.cluster() ;
-        extender.call() ;
-        alignments[omp_get_thread_num()].insert(alignments[omp_get_thread_num()].begin(), extender.alignments.begin(), extender.alignments.end()) ;
-        svs[omp_get_thread_num()].insert(svs[omp_get_thread_num()].begin(), extender.svs.begin(), extender.svs.end()) ;
+        extender.run(4) ;
+        alignments[t].insert(alignments[t].begin(), extender.alignments.begin(), extender.alignments.end()) ;
+        svs[t].insert(svs[t].begin(), extender.svs.begin(), extender.svs.end()) ;
+
+        cout << svs[t].size() << " SVs." << endl ;
 
         //Clipper clipper(chrom, extender.clips);
         //clipper.call(reference[chrom], sv_tree);

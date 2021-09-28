@@ -53,22 +53,24 @@ private:
     std::vector<Cluster> clusters ;
     std::unordered_map<std::string, std::vector<SFS>>* SFSs ;
 
-    void extend_alignment(bam1_t* aln) ;
+    void extend_alignment(bam1_t* aln, int index) ;
     
     std::pair<int, int> get_unique_kmers(const std::vector<std::pair<int, int>> &alpairs, const uint k, const bool from_end) ;
     std::vector<Cluster> cluster_by_length(const Cluster& cluster) ;
     std::vector<std::pair<uint, char>> parse_cigar(std::string) ;
 
-
     // parallelize
     int threads ; 
-    int batch_size ;
+    int batch_size = 10000 ;
+    std::vector<std::vector<SV>> _p_svs ;
     std::vector<std::vector<Clip>> _p_clips ;
+    std::vector<std::vector<ExtSFS>> _p_extended_sfs ;
+    std::vector<std::vector<Cluster>> _p_clusters ;
     std::vector<std::vector<Consensus>> _p_alignments ;
     std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
 
-    void extended_parallel() ;
-    void process_batch(vector<bam1_t*> bam_entries) ;
+    void extend_parallel() ;
+    void process_batch(vector<bam1_t*> bam_entries, int) ;
     bool load_batch_bam(int threads, int batch_size, int p) ;
 
 public:
@@ -78,6 +80,7 @@ public:
     std::vector<Clip> clips ;
     std::vector<Consensus> alignments ;
 
+    void run(int threads) ;
     void call() ;
     void extend() ;
     void cluster() ;
