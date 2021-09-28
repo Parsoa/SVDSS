@@ -262,7 +262,7 @@ void Extender::cluster() {
     }
 
     // --- CLUSTERS CLEANING
-    lprint({"Analyzing", to_string(_clusters.size()), "clusters from", to_string(extended_sfs.size()), "extSFSs.."});
+    lprint({"Analyzing", to_string(_clusters.size()), "clusters from", to_string(extended_sfs.size()), "extSFSs on", chrom + ".."});
 
     char* seq[threads] ; 
     uint32_t len[threads] ; 
@@ -633,6 +633,14 @@ void Extender::extend_parallel() {
             s += 1 ;
         }
         cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+    }
+    // cleanup
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < threads; j++) {
+            for (int k = 0; k < batch_size / threads; k++) {
+                bam_destroy1(bam_entries[i][j][k]) ;
+            }
+        }
     }
     lprint({"Done."});
 }
