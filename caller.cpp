@@ -16,46 +16,71 @@ void Caller::run() {
     }
     // --- VCF header
     print_vcf_header() ;
-    vector<vector<Consensus>> alignments(config->threads) ; // produce a SAM file of consensus alignments
-    vector<vector<SV>> svs(config->threads) ; // produce a SAM file of consensus alignments
 
-    #pragma omp parallel for num_threads(config->threads) schedule(static,1)
-    for(int i = 0; i < chromosomes.size(); i++) {
-        string chrom = chromosomes[i] ;
-        int t = i % config->threads ;
-        cout << "Processing chromosome " << chrom << ".. " << endl ;
+    //vector<vector<Consensus>> alignments(config->threads) ; // produce a SAM file of consensus alignments
+    //vector<vector<SV>> svs(config->threads) ; // produce a SAM file of consensus alignments
+    //#pragma omp parallel for num_threads(config->threads) schedule(static,1)
+    //for(int i = 0; i < chromosomes.size(); i++) {
+    //    string chrom = chromosomes[i] ;
+    //    int t = i % config->threads ;
+    //    cout << "Processing chromosome " << chrom << ".. " << endl ;
 
-        Extender extender = Extender(chrom, &SFSs) ;
-        extender.run(4) ;
-        alignments[t].insert(alignments[t].begin(), extender.alignments.begin(), extender.alignments.end()) ;
-        svs[t].insert(svs[t].begin(), extender.svs.begin(), extender.svs.end()) ;
+    //    Extender extender = Extender(chrom, &SFSs) ;
+    //    extender.run(4) ;
+    //    alignments[t].insert(alignments[t].begin(), extender.alignments.begin(), extender.alignments.end()) ;
+    //    svs[t].insert(svs[t].begin(), extender.svs.begin(), extender.svs.end()) ;
 
-        cout << svs[t].size() << " SVs." << endl ;
+    //    cout << svs[t].size() << " SVs." << endl ;
 
-        //Clipper clipper(chrom, extender.clips);
-        //clipper.call(reference[chrom], sv_tree);
-        //svs[omp_get_thread_num()].insert(svs[omp_get_thread_num()].begin(), clipper.svs.begin(), clipper.svs.end()) ;
+    //    //Clipper clipper(chrom, extender.clips);
+    //    //clipper.call(reference[chrom], sv_tree);
+    //    //svs[omp_get_thread_num()].insert(svs[omp_get_thread_num()].begin(), clipper.svs.begin(), clipper.svs.end()) ;
+    //}
+    //for (int i = 0; i < config->threads; i++) {
+    //    for (int j = 0; j < alignments[i].size(); j++) {
+    //        const auto& c = alignments[i][j] ;
+    //        osam << c.chrom << ":" << c.s + 1 << "-" << c.e + 1 << "\t"
+    //            << "0"
+    //            << "\t" << c.chrom << "\t" << c.s + 1 << "\t"
+    //            << "60"
+    //            << "\t" << c.cigar << "\t"
+    //            << "*"
+    //            << "\t"
+    //            << "0"
+    //            << "\t"
+    //            << "0"
+    //            << "\t" << c.seq << "\t"
+    //            << "*" << endl ;
+    //    }
+    //    for (const SV& sv: svs[i]) {
+    //        ovcf << sv << endl ;
+    //    }
+    //}
+
+
+    Extender extender = Extender(&SFSs) ;
+    extender.run(config->threads) ;
+    //Clipper clipper(chrom, extender.clips);
+    //clipper.call(reference[chrom], sv_tree);
+    //svs[omp_get_thread_num()].insert(svs[omp_get_thread_num()].begin(), clipper.svs.begin(), clipper.svs.end()) ;
+
+    for (int j = 0; j < extender.alignments.size(); j++) {
+        const auto& c = extender.alignments[j] ;
+        osam << c.chrom << ":" << c.s + 1 << "-" << c.e + 1 << "\t"
+            << "0"
+            << "\t" << c.chrom << "\t" << c.s + 1 << "\t"
+            << "60"
+            << "\t" << c.cigar << "\t"
+            << "*"
+            << "\t"
+            << "0"
+            << "\t"
+            << "0"
+            << "\t" << c.seq << "\t"
+            << "*" << endl ;
     }
-
-    for (int i = 0; i < config->threads; i++) {
-        for (int j = 0; j < alignments[i].size(); j++) {
-            const auto& c = alignments[i][j] ;
-            osam << c.chrom << ":" << c.s + 1 << "-" << c.e + 1 << "\t"
-                << "0"
-                << "\t" << c.chrom << "\t" << c.s + 1 << "\t"
-                << "60"
-                << "\t" << c.cigar << "\t"
-                << "*"
-                << "\t"
-                << "0"
-                << "\t"
-                << "0"
-                << "\t" << c.seq << "\t"
-                << "*" << endl ;
-        }
-        for (const SV& sv: svs[i]) {
-            ovcf << sv << endl ;
-        }
+    for (const SV& sv: extender.svs) {
+        ovcf << sv << endl ;
     }
 
     osam.close() ;

@@ -9,6 +9,8 @@
 
 #include "abpoa.h"
 
+#include "sfs.hpp"
+
 struct Cluster {
     std::string chrom ;
     int s ;
@@ -52,6 +54,16 @@ struct Cluster {
     void dump(std::ofstream &o) const ;
     
     std::string poa() ;
+};
+
+struct ExtCluster {
+    std::string chrom ;
+    std::vector<ExtSFS> seqs ;
+    
+    ExtCluster(const std::string& _chrom, const std::vector<ExtSFS>& _seqs) {
+        chrom = _chrom ;
+        seqs = _seqs ;
+    }
 };
 
 #endif

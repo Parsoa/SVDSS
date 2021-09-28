@@ -40,50 +40,50 @@ private:
     uint minsupp = 2 ;
     uint kmer_size = 7 ;
 
-    std::string chrom ;
-    std::string ref_seq ;
     Configuration* config ;
 
     samFile* bam_file ;
-    bam_hdr_t* bam_header ;
     hts_idx_t* bam_index ;
-    hts_itr_t* bam_iter ;
+    bam_hdr_t* bam_header ;
 
-    std::vector<ExtSFS> extended_sfs ;
     std::vector<Cluster> clusters ;
+    std::vector<ExtCluster> ext_clusters ;
     std::unordered_map<std::string, std::vector<SFS>>* SFSs ;
-
-    void extend_alignment(bam1_t* aln, int index) ;
+    std::unordered_map<std::string, std::vector<ExtSFS>> extended_sfs ;
     
-    std::pair<int, int> get_unique_kmers(const std::vector<std::pair<int, int>> &alpairs, const uint k, const bool from_end) ;
-    std::vector<Cluster> cluster_by_length(const Cluster& cluster) ;
-    std::vector<std::pair<uint, char>> parse_cigar(std::string) ;
+    void extend_parallel() ;
+    void extend_alignment(bam1_t* aln, int index) ;
+    void process_batch(vector<bam1_t*> bam_entries, int) ;
+    bool load_batch_bam(int threads, int batch_size, int p) ;
+    std::pair<int, int> get_unique_kmers(const std::vector<std::pair<int, int>> &alpairs, const uint k, const bool from_end, std::string chrom) ;
 
+    void cluster() ;
+    void cluster_interval_tree(std::string chrom, int index) ;
+
+    void call() ;
+    std::vector<std::pair<uint, char>> parse_cigar(std::string) ;
+    std::vector<Cluster> cluster_by_length(const Cluster& cluster) ;
+    
     // parallelize
     int threads ; 
-    int batch_size = 10000 ;
+    int batch_size ;
     std::vector<std::vector<SV>> _p_svs ;
     std::vector<std::vector<Clip>> _p_clips ;
     std::vector<std::vector<ExtSFS>> _p_extended_sfs ;
     std::vector<std::vector<Cluster>> _p_clusters ;
     std::vector<std::vector<Consensus>> _p_alignments ;
     std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
-
-    void extend_parallel() ;
-    void process_batch(vector<bam1_t*> bam_entries, int) ;
-    bool load_batch_bam(int threads, int batch_size, int p) ;
+    std::vector<std::map<std::pair<int, int>, std::vector<ExtSFS>>> _p_sfs_clusters ;
+    std::vector<interval_tree_t<int>> _p_tree ;
 
 public:
-    Extender(const std::string&, std::unordered_map<std::string, std::vector<SFS>>*) ;
+    Extender(std::unordered_map<std::string, std::vector<SFS>>*) ;
     
     std::vector<SV> svs ;
     std::vector<Clip> clips ;
     std::vector<Consensus> alignments ;
 
     void run(int threads) ;
-    void call() ;
-    void extend() ;
-    void cluster() ;
 };
 
 #endif

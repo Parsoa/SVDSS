@@ -3,17 +3,63 @@
 using namespace std ;
 using namespace lib_interval_tree;
 
-Extender::Extender(const string& _chrom, unordered_map<string, vector<SFS>>* _SFSs) {
+Extender::Extender(unordered_map<string, vector<SFS>>* _SFSs) {
     SFSs = _SFSs ;
-    chrom = _chrom ;
-    ref_seq = string(chromosome_seqs[chrom]) ;
     config = Configuration::getInstance() ;
+}
+
+void Extender::run(int _threads) {
+    threads = _threads ;
+    batch_size = int(10000 / threads) * threads ;
     bam_file = hts_open(config->bam.c_str(), "r") ;
     bam_index = sam_index_load(bam_file, config->bam.c_str()) ;
     bam_header = sam_hdr_read(bam_file) ;
+    // extend reads
+    _p_clips.resize(threads) ;
+    _p_extended_sfs.resize(threads) ;
+    extend_parallel() ;
+    for (int i = 0; i < threads; i++) {
+        //extended_sfs.insert(extended_sfs.begin(), _p_extended_sfs[i].begin(), _p_extended_sfs[i].end()) ;
+        for (const auto& extsfs: _p_extended_sfs[i]) {
+            extended_sfs[extsfs.chrom].push_back(extsfs) ;
+        }
+        clips.insert(clips.begin(), _p_clips[i].begin(), _p_clips[i].end()) ;
+    }
+    cout << "Extension complete." << endl ;
+    // build a separate interval tree for each chromosome
+    _p_tree.resize(chromosomes.size()) ;
+    _p_sfs_clusters.resize(chromosomes.size()) ;
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for(int i = 0; i < chromosomes.size(); i++) {
+        int t = i % threads ;
+        cluster_interval_tree(chromosomes[i], i) ;
+    }
+    // put all clusters in a single vector
+    for(int i = 0; i < chromosomes.size(); i++) {
+        for (const auto& cluster: _p_sfs_clusters[i]) {
+            ext_clusters.push_back(ExtCluster(chromosomes[i], cluster.second)) ;
+        }
+    }
+    // process each cluster separately 
+    _p_clusters.resize(threads) ;
+    cluster() ;
+    // flatten clusters into a single vector
+    for (int i = 0; i < threads; i++) {
+        clusters.insert(clusters.begin(), _p_clusters[i].begin(), _p_clusters[i].end()) ;
+    }
+    // merge POA alignments
+    _p_svs.resize(threads) ;
+    _p_alignments.resize(threads) ;
+    call() ;
+    for (int i = 0; i < threads; i++) {
+        svs.insert(svs.begin(), _p_svs[i].begin(), _p_svs[i].end()) ;
+        alignments.insert(alignments.begin(), _p_alignments[i].begin(), _p_alignments[i].end()) ;
+    }
+    lprint({"Extracted", to_string(svs.size()), "SVs."});
+    sam_close(bam_file) ;
 }
 
-pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs, const uint k, const bool from_end) {
+pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs, const uint k, const bool from_end, string chrom) {
     if (alpairs.size() < k) {
         return make_pair(-1, -1) ;
     }
@@ -34,9 +80,8 @@ pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
         if (skip) {
             continue ;
         }
-        kmer_seq = ref_seq.substr(alpairs[i].second, k);
-        // note: after read reconstruction, if the kmer is placed, than the kmer on the read and the kmer on the refernece should be the same
-        kmers[kmer_seq] += 1 ;
+        string kmer(chromosome_seqs[chrom] + alpairs[i].second, k) ; 
+        kmers[kmer] += 1 ;
         i++ ;
     }
     pair<int, int> last_kmer = make_pair(-1, -1) ;
@@ -59,8 +104,8 @@ pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
             continue ;
         }
         last_kmer = alpairs[offset] ;
-        kmer_seq = ref_seq.substr(alpairs[offset].second, k);
-        if (kmers[kmer_seq] == 1) {
+        string kmer(chromosome_seqs[chrom] + alpairs[offset].second, k) ; 
+        if (kmers[kmer] == 1) {
             break ;
         }
         i++ ;
@@ -68,10 +113,134 @@ pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
     return last_kmer ;
 }
 
+// Parallelize within each chromosome
+void Extender::extend_parallel() {
+    cout << "Extending superstrings on " << threads << " threads.." << endl ;
+    int p = 0 ;
+    int b = 0 ;
+    for (int i = 0; i < 2; i++) {
+        bam_entries.push_back(vector<vector<bam1_t*>>(threads)) ;
+        for (int j = 0; j < threads; j++) {
+            for (int k = 0; k < batch_size / threads; k++) {
+                bam_entries[i][j].push_back(bam_init1()) ;
+            }
+        }
+    }
+    load_batch_bam(threads, batch_size, p) ;
+    time_t t ;
+    time(&t) ;
+    bool should_load = true ;
+    bool should_process = true ;
+    bool should_terminate = false ;
+    bool loaded_last_batch = false ;
+    uint64_t u = 0 ;
+    int num_reads = 0 ;
+    while (true) {
+      lprint({"Beginning batch", to_string(b + 1)});
+        for (int i = 0 ; i < threads ; i++) {
+            u += bam_entries[p][i].size() ;
+        }
+        #pragma omp parallel for num_threads(threads + 1)
+        for(int i = 0; i < threads + 1; i++) {
+            if (i == 0) {
+                // load next batch of entries
+                if (should_load) {
+                    loaded_last_batch = !load_batch_bam(threads, batch_size, (p + 1) % 2) ;
+                    if (loaded_last_batch) {
+                        lprint({"Last input batch loaded."});
+                    } else {
+                        lprint({"Loaded."});
+                    }
+                }
+            } else {
+                process_batch(bam_entries[p][i - 1], i - 1) ;
+            }
+        }
+        if (loaded_last_batch) {
+            break ;
+        }
+        p += 1 ;
+        p %= 2 ;
+        b += 1 ;
+        time_t s ;
+        time(&s) ;
+        if (s - t == 0) {
+            s += 1 ;
+        }
+        cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+    }
+    // cleanup
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < threads; j++) {
+            for (int k = 0; k < batch_size / threads; k++) {
+                bam_destroy1(bam_entries[i][j][k]) ;
+            }
+        }
+    }
+    lprint({"Done."});
+}
+
+bool Extender::load_batch_bam(int threads, int batch_size, int p) {
+    int i = 0 ;
+    int n = 0 ;
+    while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
+        bam1_t* aln = bam_entries[p][n % threads][i] ;
+        if (aln == nullptr) {
+            cout << "Last added: " << n % threads << " " << i << endl ;
+            break ;
+        }
+        if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
+            continue ;
+        }
+        char *qname = bam_get_qname(aln);
+        if (SFSs->find(qname) == SFSs->end()) {
+            continue ;
+        }
+        n += 1 ;
+        if (n % threads == 0) {
+            i += 1 ;
+        }
+        if (n == batch_size) {
+            return true ;
+        }
+    }
+    //TODO: we need this wherever BAM files are being processed
+    if (n != 0 && n != batch_size) {
+        for (int j = n % threads; j < threads; j++) {
+            //cout << "Terminus at " << j << " " << i << endl ;
+            bam_entries[p][j][i] = nullptr ;
+        }
+        for (int j = 0; j < n % threads; j++) {
+            if (i + 1 < bam_entries[p][j].size()) {
+                //cout << "Terminus at " << j << " " << i + 1 << endl ;
+                bam_entries[p][j][i + 1] = nullptr ;
+            }
+        }
+    }
+    lprint({"Loaded", to_string(n), "BAM reads.."});
+    return n != 0 ? true : false ;
+}
+
+void Extender::process_batch(vector<bam1_t*> bam_entries, int index) {
+    bam1_t* aln ;
+    for (int b = 0; b < bam_entries.size(); b++) {
+        aln = bam_entries[b] ;
+        if (aln == nullptr) {
+            //cout << "Terminus " << b << " " << index << " " << endl ;
+            break ;
+        }
+        extend_alignment(aln, index) ;
+    }
+}
+
 void Extender::extend_alignment(bam1_t* aln, int index) {
     char *qname = bam_get_qname(aln);
     uint32_t *cigar = bam_get_cigar(aln);
     vector<pair<int, int>> alpairs = get_aligned_pairs(aln);
+    string chrom(bam_header->target_name[aln->core.tid]) ;
+    if (chromosome_seqs.find(chrom) == chromosome_seqs.end()) {
+        return ;
+    }
 
     // NOTE: we may have more sfs on a clipped read, but all of them will produce the same clip
     pair<uint, uint> lclip ;
@@ -174,8 +343,8 @@ void Extender::extend_alignment(bam1_t* aln, int index) {
         }
 
         // 5 we get the unique kmer in the upstream and downstream maxw-bp regions
-        pair<int, int> prekmer = get_unique_kmers(pre_alpairs, kmer_size, true);    // true for first kmer found (shorter cluster)
-        pair<int, int> postkmer = get_unique_kmers(post_alpairs, kmer_size, false); // false for first kmer found (shorter cluster)
+        pair<int, int> prekmer = get_unique_kmers(pre_alpairs, kmer_size, true, chrom);    // true for first kmer found (shorter cluster)
+        pair<int, int> postkmer = get_unique_kmers(post_alpairs, kmer_size, false, chrom); // false for first kmer found (shorter cluster)
 
         // if we couldn't place a kmer, we just get the entire region
         if (prekmer.first == -1 || prekmer.second == -1) {
@@ -207,37 +376,36 @@ void Extender::extend_alignment(bam1_t* aln, int index) {
     }
 }
 
-void Extender::extend() {
-    bam1_t *aln = bam_init1() ;
-    hts_itr_t *itr = sam_itr_querys(bam_index, bam_header, chrom.c_str()) ;
-    uint n_al = 0 ;
-    while (sam_itr_next(bam_file, itr, aln) > 0) {
-        if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
-            continue ;
-        }
-        char *qname = bam_get_qname(aln);
-        if (SFSs->find(qname) == SFSs->end()) {
-            continue ;
-        }
-        extend_alignment(aln, 0) ;
-        ++n_al ;
-        if (n_al % 10000 == 0) {
-            cerr << "Parsed " << n_al << " alignments." << endl;
-        }
-    }
-}
+//void Extender::extend() {
+//    bam1_t *aln = bam_init1() ;
+//    hts_itr_t *itr = sam_itr_querys(bam_index, bam_header, chrom.c_str()) ;
+//    uint n_al = 0 ;
+//    while (sam_itr_next(bam_file, itr, aln) > 0) {
+//        if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
+//            continue ;
+//        }
+//        char *qname = bam_get_qname(aln);
+//        if (SFSs->find(qname) == SFSs->end()) {
+//            continue ;
+//        }
+//        extend_alignment(aln, 0) ;
+//        ++n_al ;
+//        if (n_al % 10000 == 0) {
+//            cerr << "Parsed " << n_al << " alignments." << endl;
+//        }
+//    }
+//}
 
-void Extender::cluster() {
-    interval_tree_t<int> tree;
-    lprint({"Clustering", to_string(extended_sfs.size()), "extended SFS on", chrom + ".."});
-    for (const ExtSFS &sfs: extended_sfs) {
+void Extender::cluster_interval_tree(string chrom, int index) {
+    lprint({"Clustering", to_string(extended_sfs[chrom].size()), "extended SFS on", chrom + ".."});
+    for (const ExtSFS &sfs: extended_sfs[chrom]) {
         vector<pair<int, int>> overlaps ;
-        tree.overlap_find_all({sfs.s, sfs.e}, [&overlaps](auto iter) {
+        _p_tree[index].overlap_find_all({sfs.s, sfs.e}, [&overlaps](auto iter) {
             overlaps.push_back(make_pair(iter->low(), iter->high()));
             return true;
         });
         if (overlaps.empty()) {
-            tree.insert({sfs.s, sfs.e});
+            _p_tree[index].insert({sfs.s, sfs.e});
         } else {
             int mins = sfs.s;
             int maxe = sfs.e;
@@ -245,31 +413,24 @@ void Extender::cluster() {
                 mins = min(mins, overlap.first);
                 maxe = max(maxe, overlap.second);
             }
-            tree.insert({mins, maxe});
+            _p_tree[index].insert({mins, maxe});
         }
     }
-    tree.deoverlap();
-
-    map<pair<int, int>, vector<ExtSFS>> __clusters ;
-    for (const ExtSFS &sfs : extended_sfs) {
-        auto overlap = tree.overlap_find({sfs.s, sfs.e});
-        __clusters[make_pair(overlap->low(), overlap->high())].push_back(sfs);
+    _p_tree[index].deoverlap();
+    for (const ExtSFS&sfs: extended_sfs[chrom]) {
+        auto overlap = _p_tree[index].overlap_find({sfs.s, sfs.e});
+        _p_sfs_clusters[index][make_pair(overlap->low(), overlap->high())].push_back(sfs);
     }
-    // flatten clusters for easier parallelization
-    vector<vector<ExtSFS>> _clusters ;
-    for (const auto &cluster : __clusters) {
-        _clusters.push_back(cluster.second) ;
-    }
+}
 
-    // --- CLUSTERS CLEANING
-    lprint({"Analyzing", to_string(_clusters.size()), "clusters from", to_string(extended_sfs.size()), "extSFSs on", chrom + ".."});
-
+void Extender::cluster() {
+    lprint({"Analyzing", to_string(ext_clusters.size()), "clusters.."}) ;
     char* seq[threads] ; 
     uint32_t len[threads] ; 
-    samFile* _p_bam_file[threads] ;
-    bam_hdr_t* _p_bam_header[threads] ;
-    hts_idx_t* _p_bam_index[threads] ;
     bam1_t* _p_aln[threads] ;
+    samFile* _p_bam_file[threads] ;
+    hts_idx_t* _p_bam_index[threads] ;
+    bam_hdr_t* _p_bam_header[threads] ;
     for (int i = 0; i < threads; i++) {
         len[i] = 0 ;
         _p_aln[i] = bam_init1() ;
@@ -278,14 +439,14 @@ void Extender::cluster() {
         _p_bam_header[i] = sam_hdr_read(_p_bam_file[i]) ;
     }
     #pragma omp parallel for num_threads(threads) schedule(static,1)
-    for (int i = 0; i < _clusters.size(); i++) {
+    for (int i = 0; i < ext_clusters.size(); i++) {
         int t = i % threads ;
-        const auto& cluster = _clusters[i] ;
+        const auto& cluster = ext_clusters[i] ;
 
         unordered_map<string, bool> reads ;
         int cluster_s = numeric_limits<int>::max() ;
         int cluster_e = 0;
-        for (const ExtSFS &esfs: cluster) {
+        for (const ExtSFS &esfs: cluster.seqs) {
             cluster_s = min(cluster_s, esfs.s);
             cluster_e = max(cluster_e, esfs.e);
             reads[esfs.qname] = true ;
@@ -295,7 +456,8 @@ void Extender::cluster() {
             ++small_cl ;
             continue ;
         }
-
+        
+        string chrom = cluster.chrom ;
         Cluster global_cluster = Cluster(chrom, cluster_s, cluster_e);
 
         uint cov = 0;
@@ -426,6 +588,7 @@ void Extender::call() {
     for (int _ = 0; _ < clusters.size(); _++) {
         int t = _ % threads ; 
         const Cluster &cluster = clusters[_] ;
+        string chrom = cluster.chrom ;
         if (cluster.size() < minw) {
             continue ;
         }
@@ -458,8 +621,8 @@ void Extender::call() {
                 continue;
             }
             // --- Local realignment
-            vector<SV> _svs; // svs on current cluster
-            string ref = ref_seq.substr(c.s, c.e - c.s + 1);
+            vector<SV> _svs ; // svs on current cluster
+            string ref = string(chromosome_seqs[chrom] + c.s, c.e - c.s + 1);
             string consensus = c.poa() ;
             parasail_result_t *result = NULL;
             result = parasail_nw_trace_striped_16(consensus.c_str(), consensus.size(), ref.c_str(), ref.size(), 10, 1, &parasail_blosum62);
@@ -481,13 +644,13 @@ void Extender::call() {
                     cpos += l;
                 } else if (op == 'I') {
                     if (l > 25) {
-                        SV sv = SV("INS", c.chrom, rpos, ref_seq.substr(rpos - 1, 1), consensus.substr(cpos, l), c.size(), c.cov, 0, score, false, l) ;
+                        SV sv = SV("INS", c.chrom, rpos, string(chromosome_seqs[chrom] + rpos - 1, 1), consensus.substr(cpos, l), c.size(), c.cov, 0, score, false, l) ;
                         _svs.push_back(sv) ;
                     }
                     cpos += l;
                 } else if (op == 'D') {
                     if (l > 25) {
-                        SV sv = SV("DEL", c.chrom, rpos, ref_seq.substr(rpos - 1, l), ref_seq.substr(rpos - 1, 1), c.size(), c.cov, 0, score, false, l) ;
+                        SV sv = SV("DEL", c.chrom, rpos, string(chromosome_seqs[chrom] + rpos - 1, l), string(chromosome_seqs[chrom] + rpos - 1, 1), c.size(), c.cov, 0, score, false, l) ;
                         _svs.push_back(sv) ;
                     }
                     rpos += l;
@@ -544,156 +707,6 @@ void Extender::call() {
             }
         }
     }
-    lprint({"Extracted", to_string(svs.size()), "SVs from", chrom + "."}) ;
 }
 
-void Extender::run(int _threads) {
-    threads = _threads ;
-    _p_svs.resize(threads) ;
-    _p_clips.resize(threads) ;
-    _p_clusters.resize(threads) ;
-    _p_alignments.resize(threads) ;
-    _p_extended_sfs.resize(threads) ;
-    // extend reads
-    extend_parallel() ;
-    //extend() ;
-    // merge clips and extended SFS
-    for (int i = 0; i < threads; i++) {
-        extended_sfs.insert(extended_sfs.begin(), _p_extended_sfs[i].begin(), _p_extended_sfs[i].end()) ;
-        clips.insert(clips.begin(), _p_clips[i].begin(), _p_clips[i].end()) ;
-    }
-    cout << "Extension complete." << endl ;
-    // cluster SFS
-    cluster() ;
-    for (int i = 0; i < threads; i++) {
-        clusters.insert(clusters.begin(), _p_clusters[i].begin(), _p_clusters[i].end()) ;
-    }
-    // merge POA alignments
-    call() ;
-    for (int i = 0; i < threads; i++) {
-        svs.insert(svs.begin(), _p_svs[i].begin(), _p_svs[i].end()) ;
-        alignments.insert(alignments.begin(), _p_alignments[i].begin(), _p_alignments[i].end()) ;
-    }
-    sam_close(bam_file) ;
-}
 
-// Parallelize within each chromosome
-void Extender::extend_parallel() {
-    cout << "Extending superstrings on " << threads << " threads.." << endl ;
-    int p = 0 ;
-    int b = 0 ;
-    bam_iter = sam_itr_querys(bam_index, bam_header, chrom.c_str()) ;
-    for (int i = 0; i < 2; i++) {
-        bam_entries.push_back(vector<vector<bam1_t*>>(threads)) ;
-        for (int j = 0; j < threads; j++) {
-            for (int k = 0; k < batch_size / threads; k++) {
-                bam_entries[i][j].push_back(bam_init1()) ;
-            }
-        }
-    }
-    load_batch_bam(threads, batch_size, p) ;
-    time_t t ;
-    time(&t) ;
-    bool should_load = true ;
-    bool should_process = true ;
-    bool should_terminate = false ;
-    bool loaded_last_batch = false ;
-    uint64_t u = 0 ;
-    int num_reads = 0 ;
-    while (true) {
-      lprint({"Beginning batch", to_string(b + 1)});
-        for (int i = 0 ; i < threads ; i++) {
-            u += bam_entries[p][i].size() ;
-        }
-        #pragma omp parallel for num_threads(threads + 1)
-        for(int i = 0; i < threads + 1; i++) {
-            if (i == 0) {
-                // load next batch of entries
-                if (should_load) {
-                    loaded_last_batch = !load_batch_bam(threads, batch_size, (p + 1) % 2) ;
-                    if (loaded_last_batch) {
-                        lprint({"Last input batch loaded."});
-                    } else {
-                        lprint({"Loaded."});
-                    }
-                }
-            } else {
-                process_batch(bam_entries[p][i - 1], i - 1) ;
-            }
-        }
-        if (loaded_last_batch) {
-            break ;
-        }
-        p += 1 ;
-        p %= 2 ;
-        b += 1 ;
-        time_t s ;
-        time(&s) ;
-        if (s - t == 0) {
-            s += 1 ;
-        }
-        cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
-    }
-    // cleanup
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < threads; j++) {
-            for (int k = 0; k < batch_size / threads; k++) {
-                bam_destroy1(bam_entries[i][j][k]) ;
-            }
-        }
-    }
-    lprint({"Done."});
-}
-
-bool Extender::load_batch_bam(int threads, int batch_size, int p) {
-    int i = 0 ;
-    int n = 0 ;
-    while (sam_itr_next(bam_file, bam_iter, bam_entries[p][n % threads][i]) >= 0) {
-        bam1_t* aln = bam_entries[p][n % threads][i] ;
-        if (aln == nullptr) {
-            cout << "Last added: " << n % threads << " " << i << endl ;
-            break ;
-        }
-        if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
-            continue ;
-        }
-        char *qname = bam_get_qname(aln);
-        if (SFSs->find(qname) == SFSs->end()) {
-            continue ;
-        }
-        n += 1 ;
-        if (n % threads == 0) {
-            i += 1 ;
-        }
-        if (n == batch_size) {
-            return true ;
-        }
-    }
-    //TODO: we need this wherever BAM files are being processed
-    if (n != 0) {
-        for (int j = n % threads; j < threads; j++) {
-            //cout << "Terminus at " << j << " " << i << endl ;
-            bam_entries[p][j][i] = nullptr ;
-        }
-        for (int j = 0; j < n % threads; j++) {
-            if (i + 1 < bam_entries[p][j].size()) {
-                //cout << "Terminus at " << j << " " << i + 1 << endl ;
-                bam_entries[p][j][i + 1] = nullptr ;
-            }
-        }
-    }
-    lprint({"Loaded", to_string(n), "BAM reads.."});
-    return n != 0 ? true : false ;
-}
-
-void Extender::process_batch(vector<bam1_t*> bam_entries, int index) {
-    bam1_t* aln ;
-    for (int b = 0; b < bam_entries.size(); b++) {
-        aln = bam_entries[b] ;
-        if (aln == nullptr) {
-            //cout << "Terminus " << b << " " << index << " " << endl ;
-            break ;
-        }
-        extend_alignment(aln, index) ;
-    }
-}

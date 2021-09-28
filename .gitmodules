@@ -16,3 +16,6 @@
 [submodule "interval-tree"]
 	path = interval-tree
 	url = https://github.com/5cript/interval-tree.git
+[submodule "libdeflate"]
+	path = libdeflate
+	url = git@github.com:ebiggers/libdeflate.git
