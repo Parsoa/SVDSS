@@ -14,6 +14,7 @@ void Extender::run(int _threads) {
     bam_file = hts_open(config->bam.c_str(), "r") ;
     bam_index = sam_index_load(bam_file, config->bam.c_str()) ;
     bam_header = sam_hdr_read(bam_file) ;
+    bgzf_mt(bam_file->fp.bgzf, 8, 1) ;
     // extend reads
     _p_clips.resize(threads) ;
     _p_extended_sfs.resize(threads) ;
