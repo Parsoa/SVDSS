@@ -59,10 +59,12 @@ struct Cluster {
 struct ExtCluster {
     std::string chrom ;
     std::vector<ExtSFS> seqs ;
+
+    ExtCluster() {} ;
     
-    ExtCluster(const std::string& _chrom, const std::vector<ExtSFS>& _seqs) {
-        chrom = _chrom ;
+    ExtCluster(const std::vector<ExtSFS>& _seqs) {
         seqs = _seqs ;
+        chrom = seqs[0].chrom ;
     }
 };
 

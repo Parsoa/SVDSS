@@ -29,7 +29,11 @@ public:
     void genotype();
     
     bool operator<(const SV& c) const {
-        return s < c.s;
+        if (chrom == c.chrom) {
+            return s < c.s ;
+        } else {
+            return chrom < c.chrom ;
+        }
     }
 
     bool operator==(const SV& c) const {

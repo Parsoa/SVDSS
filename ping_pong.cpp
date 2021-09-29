@@ -259,6 +259,7 @@ int PingPong::search() {
         lprint({"BAM input.."});
         bam_file = hts_open(config->bam.c_str(), "r") ;
         bam_header = sam_hdr_read(bam_file) ; //read header
+        bgzf_mt(bam_file->fp.bgzf, 8, 1) ;
         mode = 1 ;
     } else {
         lprint({"No input file provided, aborting.."}, 2);
@@ -272,7 +273,7 @@ int PingPong::search() {
         fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // current and next output
     }
     int p = 0 ;
-    int batch_size = 10000 ;
+    int batch_size = (10000 / config->threads) * config->threads ;
     lprint({"Extracting SFS strings on", to_string(config->threads), "threads.."});
     lprint({"Loading first batch.."});
     if (mode == 0) {

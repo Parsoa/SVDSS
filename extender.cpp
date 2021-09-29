@@ -1,3 +1,5 @@
+#include <ctime>
+
 #include "extender.hpp"
 
 using namespace std ;
@@ -22,24 +24,27 @@ void Extender::run(int _threads) {
     for (int i = 0; i < threads; i++) {
         //extended_sfs.insert(extended_sfs.begin(), _p_extended_sfs[i].begin(), _p_extended_sfs[i].end()) ;
         for (const auto& extsfs: _p_extended_sfs[i]) {
-            extended_sfs[extsfs.chrom].push_back(extsfs) ;
+            extended_sfs.push_back(extsfs) ;
         }
         clips.insert(clips.begin(), _p_clips[i].begin(), _p_clips[i].end()) ;
     }
-    cout << "Extension complete." << endl ;
+    lprint({"Extension complete."}) ;
     // build a separate interval tree for each chromosome
-    _p_tree.resize(chromosomes.size()) ;
-    _p_sfs_clusters.resize(chromosomes.size()) ;
-    #pragma omp parallel for num_threads(threads) schedule(static,1)
-    for(int i = 0; i < chromosomes.size(); i++) {
-        int t = i % threads ;
-        cluster_interval_tree(chromosomes[i], i) ;
-    }
+    cluster_interval_tree() ;
     // put all clusters in a single vector
-    for(int i = 0; i < chromosomes.size(); i++) {
+    lprint({"Flattening interval clusters.."}) ;
+    map<pair<int, int>, ExtCluster> _ext_clusters ;
+    for(int i = 0; i < threads; i++) {
         for (const auto& cluster: _p_sfs_clusters[i]) {
-            ext_clusters.push_back(ExtCluster(chromosomes[i], cluster.second)) ;
+            if (_ext_clusters.find(cluster.first) == _ext_clusters.end()) {
+                _ext_clusters.insert(make_pair(cluster.first, ExtCluster(cluster.second))) ;
+            } else {
+                _ext_clusters[cluster.first].seqs.insert(_ext_clusters[cluster.first].seqs.begin(), cluster.second.begin(), cluster.second.end()) ;
+            }
         }
+    }
+    for (const auto& cluster: _ext_clusters) {
+        ext_clusters.push_back(cluster.second) ;
     }
     // process each cluster separately 
     _p_clusters.resize(threads) ;
@@ -377,36 +382,27 @@ void Extender::extend_alignment(bam1_t* aln, int index) {
     }
 }
 
-//void Extender::extend() {
-//    bam1_t *aln = bam_init1() ;
-//    hts_itr_t *itr = sam_itr_querys(bam_index, bam_header, chrom.c_str()) ;
-//    uint n_al = 0 ;
-//    while (sam_itr_next(bam_file, itr, aln) > 0) {
-//        if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
-//            continue ;
-//        }
-//        char *qname = bam_get_qname(aln);
-//        if (SFSs->find(qname) == SFSs->end()) {
-//            continue ;
-//        }
-//        extend_alignment(aln, 0) ;
-//        ++n_al ;
-//        if (n_al % 10000 == 0) {
-//            cerr << "Parsed " << n_al << " alignments." << endl;
-//        }
-//    }
-//}
-
-void Extender::cluster_interval_tree(string chrom, int index) {
-    lprint({"Clustering", to_string(extended_sfs[chrom].size()), "extended SFS on", chrom + ".."});
-    for (const ExtSFS &sfs: extended_sfs[chrom]) {
+// TODO: this is our performance bottleneck because we can't use multiple threads per chromosome
+void Extender::cluster_interval_tree() {
+    lprint({"Clustering ", to_string(extended_sfs.size()), " extended SFS.."});
+    // have a tree per chromosome for each thread
+    _p_tree.resize(threads) ;
+    time_t f ;
+    time(&f) ;
+    time_t s ;
+    time(&s) ;
+    time_t u ;
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for (int i = 0; i < extended_sfs.size(); i++) {
+        int t = omp_get_thread_num() ;
+        const ExtSFS& sfs = extended_sfs[i] ;
         vector<pair<int, int>> overlaps ;
-        _p_tree[index].overlap_find_all({sfs.s, sfs.e}, [&overlaps](auto iter) {
+        _p_tree[t][sfs.chrom].overlap_find_all({sfs.s, sfs.e}, [&overlaps](auto iter) {
             overlaps.push_back(make_pair(iter->low(), iter->high()));
             return true;
         });
         if (overlaps.empty()) {
-            _p_tree[index].insert({sfs.s, sfs.e});
+            _p_tree[t][sfs.chrom].insert({sfs.s, sfs.e});
         } else {
             int mins = sfs.s;
             int maxe = sfs.e;
@@ -414,13 +410,66 @@ void Extender::cluster_interval_tree(string chrom, int index) {
                 mins = min(mins, overlap.first);
                 maxe = max(maxe, overlap.second);
             }
-            _p_tree[index].insert({mins, maxe});
+            _p_tree[t][sfs.chrom].insert({mins, maxe});
+        }
+        if (t == 0) {
+            time(&u) ;
+            if (u - s > 30) {
+                cerr << "[I] Processed " << i << " SFS so far. SFS per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
+                time(&s) ;
+            }
         }
     }
-    _p_tree[index].deoverlap();
-    for (const ExtSFS&sfs: extended_sfs[chrom]) {
-        auto overlap = _p_tree[index].overlap_find({sfs.s, sfs.e});
-        _p_sfs_clusters[index][make_pair(overlap->low(), overlap->high())].push_back(sfs);
+    // deoverlap each tree
+    lprint({"Compressing interval trees.."}) ;
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for (int j = 0; j < threads; j++) {
+        for (int i = 0; i < chromosomes.size(); i++) {
+            const auto& chrom = chromosomes[i] ;
+            _p_tree[j][chrom].deoverlap();
+        }
+    }
+    lprint({"Merging interval trees.."}) ;
+    _p_sfs_clusters.resize(threads) ;
+    time(&f) ;
+    time(&s) ;
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for (int i = 0; i < extended_sfs.size(); i++) {
+        const ExtSFS& sfs = extended_sfs[i] ;
+        const auto& chrom = sfs.chrom ; 
+        int t = omp_get_thread_num() ;
+        // this finds the largest interval across all trees that contains this SFS. Any other SFS in any of those
+        // intervals should map to the exact same interval in the end
+        int low = sfs.s ;
+        int high = sfs.e ;
+        unordered_map<int, bool> checked ;
+        int size = checked.size() ;
+        // Parsoa: I might be overthinking this..
+        while (true) {
+            for (int j = 0; j < threads; j++) {
+                if (checked.find(j) == checked.end()) {
+                    auto overlap = _p_tree[j][chrom].overlap_find({low, high});
+                    if (overlap != _p_tree[j][chrom].end()) {
+                        low = min(low, overlap->low()) ;
+                        high = max(high, overlap->high()) ;
+                        checked[j] = true ;
+                    }
+                }
+            }
+            if (checked.size() == size) {
+                break ;
+            }
+            size = checked.size() ;
+        }
+        // Same pair will be made by all other threads that have some SFS in this interval
+        _p_sfs_clusters[t][make_pair(low, high)].push_back(sfs);
+        if (t == 0) {
+            time(&u) ;
+            if (u - s > 30) {
+                cerr << "[I] Processed " << i << " SFS so far. SFS per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
+                time(&s) ;
+            }
+        }
     }
 }
 
@@ -438,7 +487,13 @@ void Extender::cluster() {
         _p_bam_file[i] = hts_open(config->bam.c_str(), "r") ;
         _p_bam_index[i] = sam_index_load(_p_bam_file[i], config->bam.c_str()) ;
         _p_bam_header[i] = sam_hdr_read(_p_bam_file[i]) ;
+        bgzf_mt(_p_bam_file[i]->fp.bgzf, 8, 1) ;
     }
+    time_t f ;
+    time(&f) ;
+    time_t s ;
+    time(&s) ;
+    time_t u ;
     #pragma omp parallel for num_threads(threads) schedule(static,1)
     for (int i = 0; i < ext_clusters.size(); i++) {
         int t = i % threads ;
@@ -464,7 +519,6 @@ void Extender::cluster() {
         uint cov = 0;
         string region = chrom + ":" + to_string(cluster_s) + "-" + to_string(cluster_e);
         hts_itr_t *itr = sam_itr_querys(_p_bam_index[t], _p_bam_header[t], region.c_str());
-        // add second level of parallelization inside Extender
         while (sam_itr_next(_p_bam_file[t], itr, _p_aln[t]) > 0) {
             bam1_t* aln = _p_aln[t] ;
             if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
@@ -485,9 +539,9 @@ void Extender::cluster() {
                 len[t] = l ;
                 seq[t] = (char*) malloc(l + 1) ;
             }
-            uint8_t *q = bam_get_seq(aln) ; //quality string
+            uint8_t *q = bam_get_seq(aln) ;
             for (int i = 0; i < l; i++){
-                seq[t][i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
+                seq[t][i] = seq_nt16_str[bam_seqi(q, i)];
             }
             seq[t][l] = '\0';
 
@@ -533,6 +587,13 @@ void Extender::cluster() {
             ++extcl ;
         } else {
             ++small_extcl ;
+        }
+        if (t == 0) {
+            time(&u) ;
+            if (u - s > 30) {
+                cerr << "[I] Processed " << i << " clusters so far. Clusters per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
+                time(&s) ;
+            }
         }
     }
     for (int i = 0; i < threads; i++) {
@@ -584,7 +645,7 @@ vector<pair<uint, char>> Extender::parse_cigar(string cigar) {
 }
 
 void Extender::call() {
-    cout << "Calling SVs from " << clusters.size() << " clusters.." << endl ;
+    lprint({"Calling SVs from", to_string(clusters.size()), "clusters.."}) ;
     #pragma omp parallel for num_threads(threads) schedule(static,1)
     for (int _ = 0; _ < clusters.size(); _++) {
         int t = _ % threads ; 

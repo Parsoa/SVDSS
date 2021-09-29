@@ -79,6 +79,8 @@ void Caller::run() {
             << "\t" << c.seq << "\t"
             << "*" << endl ;
     }
+    
+    std::sort(extender.svs.begin(), extender.svs.end()) ;
     for (const SV& sv: extender.svs) {
         ovcf << sv << endl ;
     }

@@ -242,6 +242,7 @@ void Reconstructor::run() {
     // parse arguments
     bam_file = sam_open(config->bam.c_str(), "r") ;
     bam_header = sam_hdr_read(bam_file) ; //read header
+    bgzf_mt(bam_file->fp.bgzf, 8, 1) ;
     auto out_bam_path = config->workdir + (config->selective ? "/reconstructed.selective.bam" : "/reconstructed.bam") ;
     out_bam_file = sam_open(out_bam_path.c_str(), "wb") ;
     int r = sam_hdr_write(out_bam_file, bam_header) ;
@@ -254,7 +255,7 @@ void Reconstructor::run() {
     }
     int p = 0 ;
     int b = 0 ;
-    int batch_size = 10000 ;
+    int batch_size = (10000 / config->threads) * config->threads ;
     lprint({"Loading first batch.."});
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < config->threads; j++) {

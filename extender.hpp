@@ -49,7 +49,7 @@ private:
     std::vector<Cluster> clusters ;
     std::vector<ExtCluster> ext_clusters ;
     std::unordered_map<std::string, std::vector<SFS>>* SFSs ;
-    std::unordered_map<std::string, std::vector<ExtSFS>> extended_sfs ;
+    std::vector<ExtSFS> extended_sfs ;
     
     void extend_parallel() ;
     void extend_alignment(bam1_t* aln, int index) ;
@@ -58,7 +58,7 @@ private:
     std::pair<int, int> get_unique_kmers(const std::vector<std::pair<int, int>> &alpairs, const uint k, const bool from_end, std::string chrom) ;
 
     void cluster() ;
-    void cluster_interval_tree(std::string chrom, int index) ;
+    void cluster_interval_tree() ;
 
     void call() ;
     std::vector<std::pair<uint, char>> parse_cigar(std::string) ;
@@ -73,8 +73,8 @@ private:
     std::vector<std::vector<Cluster>> _p_clusters ;
     std::vector<std::vector<Consensus>> _p_alignments ;
     std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
+    std::vector<std::unordered_map<string, interval_tree_t<int>>> _p_tree ;
     std::vector<std::map<std::pair<int, int>, std::vector<ExtSFS>>> _p_sfs_clusters ;
-    std::vector<interval_tree_t<int>> _p_tree ;
 
 public:
     Extender(std::unordered_map<std::string, std::vector<SFS>>*) ;
