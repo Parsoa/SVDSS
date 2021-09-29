@@ -173,7 +173,7 @@ void Extender::extend_parallel() {
         if (s - t == 0) {
             s += 1 ;
         }
-        cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+        cerr << "[I] Processed batch " << std::left << std::setw(7) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
     }
     // cleanup
     for (int i = 0; i < 2; i++) {
@@ -392,6 +392,13 @@ void Extender::cluster_interval_tree() {
     time_t s ;
     time(&s) ;
     time_t u ;
+    int print_width = 0 ;
+    int _w = extended_sfs.size() ;
+    while (_w > 0) {
+        _w /= 10 ;
+        print_width += 1 ;
+    }
+    print_width += 1 ;
     #pragma omp parallel for num_threads(threads) schedule(static,1)
     for (int i = 0; i < extended_sfs.size(); i++) {
         int t = omp_get_thread_num() ;
@@ -415,7 +422,7 @@ void Extender::cluster_interval_tree() {
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << i << " SFS so far. SFS per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
+                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " SFS so far. SFS per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
                 time(&s) ;
             }
         }
@@ -466,7 +473,7 @@ void Extender::cluster_interval_tree() {
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << i << " SFS so far. SFS per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
+                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " SFS so far. SFS per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
                 time(&s) ;
             }
         }
@@ -631,14 +638,10 @@ vector<pair<uint, char>> Extender::parse_cigar(string cigar) {
     regex r("([0-9]+)([MIDNSHPX=])") ;
     regex_iterator<string::iterator> rit(cigar.begin(), cigar.end(), r) ;
     regex_iterator<string::iterator> rend ;
-    uint nv = 0 ;
     while (rit != rend) {
         int l = stoi(rit->str().substr(0, rit->str().size() - 1)) ;
         char op = rit->str().substr(rit->str().size() - 1, 1)[0] ;
         cigar_pairs.push_back(make_pair(l, op)) ;
-        if (l > 25 && (op == 'I' || op == 'D')) {
-            ++nv ;
-        }
         ++rit ;
     }
     return cigar_pairs ;
@@ -698,6 +701,7 @@ void Extender::call() {
             uint rpos = c.s ; // position on reference
             uint cpos = 0 ;   // position on consensus
             auto cigar_pairs = parse_cigar(cigar_str) ; 
+            int nv = 0 ;
             for (const auto cigar_pair: cigar_pairs) {
                 uint l = cigar_pair.first;
                 char op = cigar_pair.second;
@@ -706,20 +710,24 @@ void Extender::call() {
                     cpos += l;
                 } else if (op == 'I') {
                     if (l > 25) {
-                        SV sv = SV("INS", c.chrom, rpos, string(chromosome_seqs[chrom] + rpos - 1, 1), consensus.substr(cpos, l), c.size(), c.cov, 0, score, false, l) ;
+                        SV sv = SV("INS", c.chrom, rpos, string(chromosome_seqs[chrom] + rpos - 1, 1), consensus.substr(cpos, l), c.size(), c.cov, nv, score, false, l) ;
                         _svs.push_back(sv) ;
+                        nv++ ;
                     }
                     cpos += l;
                 } else if (op == 'D') {
                     if (l > 25) {
-                        SV sv = SV("DEL", c.chrom, rpos, string(chromosome_seqs[chrom] + rpos - 1, l), string(chromosome_seqs[chrom] + rpos - 1, 1), c.size(), c.cov, 0, score, false, l) ;
+                        SV sv = SV("DEL", c.chrom, rpos, string(chromosome_seqs[chrom] + rpos - 1, l), string(chromosome_seqs[chrom] + rpos - 1, 1), c.size(), c.cov, nv, score, false, l) ;
                         _svs.push_back(sv) ;
+                        nv++ ;
                     }
                     rpos += l;
                 }
             }
+            for (int v = 0; v <  _svs.size(); v++) {
+                _svs[v].ngaps = nv ;
+            }
             // --- combine SVs on same consensus ---
-            // TODO: Parsoa: isn't this wrong? what if they the deletions are not overlapping or what if there is an ins in between?
             vector<SV> merged_svs ;
             SV ins("", "", 0, "", "", 0, 0, 0, 0, false, 0)  ;
             SV del("", "", 0, "", "", 0, 0, 0, 0, false, 0)  ;

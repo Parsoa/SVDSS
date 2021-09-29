@@ -7,7 +7,7 @@ void Caller::run() {
     cout << "Loaded all chromosomes" << endl ;
     load_input_sfs() ;
 
-    ovcf.open(config->workdir + "/svs_hybrid.vcf");
+    ovcf.open(config->workdir + "/svs_poa.vcf");
     osam.open(config->workdir + "/poa.sam");
     // --- SAM header
     osam << "@HD\tVN:1.4" << endl;
@@ -145,7 +145,7 @@ void Caller::print_vcf_header() {
     ovcf << "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the variant described in this record\">" << endl;
     ovcf << "##INFO=<ID=WEIGHT,Number=1,Type=Integer,Description=\"Number of alignments supporting this record\">" << endl;
     ovcf << "##INFO=<ID=COV,Number=1,Type=Integer,Description=\"Total number of alignments covering this locus\">" << endl;
-    ovcf << "##INFO=<ID=ASCORE,Number=1,Type=Integer,Description=\"Alignment score\">" << endl;
+    ovcf << "##INFO=<ID=AS,Number=1,Type=Integer,Description=\"Alignment score\">" << endl;
     ovcf << "##INFO=<ID=NV,Number=1,Type=Integer,Description=\"Number of variations on same consensus\">" << endl;
     ovcf << "##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">" << endl;
     ovcf << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl;

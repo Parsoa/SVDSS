@@ -12,18 +12,29 @@ SV::SV(const string type_, const string &chrom_, uint s_, const string &refall_,
     altall = altall_;
     e = s + refall.size() - 1;
     w = w_;
+    l = l_;
     cov = cov_;
     ngaps = ngaps_;
     score = score_;
     imprecise = imprecise_;
-    l = imprecise ? l_ : (int)altall.size() - (int)refall.size();
     idx = type + "_" + chrom + ":" + to_string(s) + "-" + to_string(e);
     idx += "_" + to_string(abs(l));
     gt = "./.";
 }
 
 void SV::genotype() {
-    // gt = './.';
+    if (imprecise) {
+        gt = "./." ;
+    } else {
+        float p = float(w) / float(cov) ;
+        if (p <= 0.1) {
+            gt = "0/0" ;
+        } else if (p > 0.1 && p < 0.9) {
+            gt = "0/1" ;
+        } else {
+            gt = "1/1" ;
+        }
+    }
 }
 
 ostream &operator<<(ostream &os, const SV &sv) {
@@ -40,7 +51,7 @@ ostream &operator<<(ostream &os, const SV &sv) {
        // INFO
        << "VARTYPE=SV;"
        << "SVTYPE=" << sv.type << ";"
-       << "SVLEN=" << sv.l << ";"
+       << "SVLEN=" << (sv.type == "DEL" ? -sv.l : sv.l) << ";"
        << "END=" << sv.e << ";"
        << "WEIGHT=" << sv.w << ";"
        << "COV=" << sv.cov << ";"
@@ -52,9 +63,4 @@ ostream &operator<<(ostream &os, const SV &sv) {
        << "\t"
        << sv.gt;
     return os;
-}
-
-void SVCluster::add_sv(SV sv, const int count) {
-    svs[sv] += count ;
-    s = min(s, int(sv.s)) ;
 }
