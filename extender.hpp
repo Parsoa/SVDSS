@@ -59,6 +59,7 @@ private:
 
     void cluster() ;
     void cluster_interval_tree() ;
+    void cluster_no_interval_tree() ;
 
     void call() ;
     std::vector<std::pair<uint, char>> parse_cigar(std::string) ;

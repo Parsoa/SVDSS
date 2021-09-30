@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
     }
     c->parse(argc - 1, argv + 1) ;
     create_workdir() ;
-    cerr << "Running on " << c->threads << " threads." << endl ;
+    //cerr << "Running on " << c->threads << " threads." << endl ;
     #ifdef LOCAL_BUILD
     if (strcmp(argv[1], "find") == 0) {
         auto finder = new Finder() ;

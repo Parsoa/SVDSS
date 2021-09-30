@@ -25,26 +25,26 @@ static const char RCN[128] = {
 };
 
 struct SFS {
-  uint s ;
-  uint l ;
-  uint c ;
-  bool isreversed;
+    uint s ;
+    uint l ;
+    uint c ;
+    bool isreversed;
 
-  SFS() {
-    s = 0 ;
-    l = 0 ;
-    c = 0 ;
-    isreversed = false;
-  }
+    SFS() {
+        s = 0 ;
+        l = 0 ;
+        c = 0 ;
+        isreversed = false;
+    }
 
-  SFS(uint s_, uint l_, uint c_, bool isreversed_) {
-    s = s_ ;
-    l = l_ ;
-    c = c_ ;
-    isreversed = isreversed_;
-  }
+    SFS(uint s_, uint l_, uint c_, bool isreversed_) {
+        s = s_ ;
+        l = l_ ;
+        c = c_ ;
+        isreversed = isreversed_;
+    }
 
-  void reverse(uint p) { s = p - s - l; }
+    void reverse(uint p) { s = p - s - l; }
 };
 
 bool operator<(const SFS &, const SFS &);
@@ -60,6 +60,18 @@ struct ExtSFS {
         qname = _qname ;
         s = _s ;
         e = _e ;
+    }
+
+    bool operator<(const ExtSFS& c) const {
+        if (chrom == c.chrom) {
+            return s < c.s ;
+        } else {
+            return chrom < c.chrom ;
+        }
+    }
+
+    bool operator==(const ExtSFS& c) const {
+        return chrom == c.chrom and s == c.s and e == c.e ;
     }
 };
 

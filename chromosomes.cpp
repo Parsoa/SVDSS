@@ -38,14 +38,14 @@ int get_reference_size(ifstream &fasta_file) {
 }
 
 void load_chromosomes(string path) {
-    lprint({"Loading reference genome from", path, ".."});
+    lprint({"Loading reference genome from", path + ".."});
     gzFile fp = gzopen(path.c_str(), "r");
     kseq_t *seq = kseq_init(fp);
     int l;
     while ((l = kseq_read(seq)) >= 0) {
         string name(seq->name.s) ;
         if (name.find('_') == -1) {
-            lprint({"Extracted", seq->name.s, "with", to_string(l), "bases"});
+            lprint({"Extracted", seq->name.s, "with", to_string(l), "bases."});
             for (uint i = 0; i < l; i++) {
                 seq->seq.s[i] = toupper(seq->seq.s[i]) ;
             }

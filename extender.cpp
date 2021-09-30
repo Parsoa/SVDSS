@@ -30,7 +30,7 @@ void Extender::run(int _threads) {
     }
     lprint({"Extension complete."}) ;
     // build a separate interval tree for each chromosome
-    cluster_interval_tree() ;
+    cluster_no_interval_tree() ;
     // put all clusters in a single vector
     lprint({"Flattening interval clusters.."}) ;
     map<pair<int, int>, ExtCluster> _ext_clusters ;
@@ -121,7 +121,7 @@ pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
 
 // Parallelize within each chromosome
 void Extender::extend_parallel() {
-    cout << "Extending superstrings on " << threads << " threads.." << endl ;
+    lprint({"Extending superstrings on.."}) ; 
     int p = 0 ;
     int b = 0 ;
     for (int i = 0; i < 2; i++) {
@@ -141,8 +141,9 @@ void Extender::extend_parallel() {
     bool loaded_last_batch = false ;
     uint64_t u = 0 ;
     int num_reads = 0 ;
+    bool printed = false ;
     while (true) {
-      lprint({"Beginning batch", to_string(b + 1)});
+        //lprint({"Beginning batch", to_string(b + 1)});
         for (int i = 0 ; i < threads ; i++) {
             u += bam_entries[p][i].size() ;
         }
@@ -153,9 +154,9 @@ void Extender::extend_parallel() {
                 if (should_load) {
                     loaded_last_batch = !load_batch_bam(threads, batch_size, (p + 1) % 2) ;
                     if (loaded_last_batch) {
-                        lprint({"Last input batch loaded."});
+                        //lprint({"Last input batch loaded."});
                     } else {
-                        lprint({"Loaded."});
+                        //lprint({"Loaded."});
                     }
                 }
             } else {
@@ -173,7 +174,11 @@ void Extender::extend_parallel() {
         if (s - t == 0) {
             s += 1 ;
         }
-        cerr << "[I] Processed batch " << std::left << std::setw(7) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+        cerr << "[I] Processed batch " << std::left << std::setw(7) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\r" ;
+        printed = true ;
+    }
+    if (printed) {
+        cerr << endl ;
     }
     // cleanup
     for (int i = 0; i < 2; i++) {
@@ -192,7 +197,6 @@ bool Extender::load_batch_bam(int threads, int batch_size, int p) {
     while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
         bam1_t* aln = bam_entries[p][n % threads][i] ;
         if (aln == nullptr) {
-            cout << "Last added: " << n % threads << " " << i << endl ;
             break ;
         }
         if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
@@ -223,7 +227,7 @@ bool Extender::load_batch_bam(int threads, int batch_size, int p) {
             }
         }
     }
-    lprint({"Loaded", to_string(n), "BAM reads.."});
+    //lprint({"Loaded", to_string(n), "BAM reads.."});
     return n != 0 ? true : false ;
 }
 
@@ -374,109 +378,105 @@ void Extender::extend_alignment(bam1_t* aln, int index) {
             _p_extended_sfs[index].push_back(ExtSFS(string(chrom), string(qname), prekmer.second, postkmer.second + kmer_size));
         }
         if (lclip.second > 0) {
-            _p_clips[index].push_back(Clip(qname, lclip.first, lclip.second, true)) ;
+            _p_clips[index].push_back(Clip(qname, chrom, lclip.first, lclip.second, true)) ;
         }
         if (rclip.second > 0) {
-            _p_clips[index].push_back(Clip(qname, rclip.first, rclip.second, false)) ;
+            _p_clips[index].push_back(Clip(qname, chrom, rclip.first, rclip.second, false)) ;
         }
     }
 }
 
-// TODO: this is our performance bottleneck because we can't use multiple threads per chromosome
-void Extender::cluster_interval_tree() {
-    lprint({"Clustering ", to_string(extended_sfs.size()), " extended SFS.."});
-    // have a tree per chromosome for each thread
-    _p_tree.resize(threads) ;
+bool overlap(int s1, int e1, const ExtSFS& sfs) {
+    int o = max(s1, sfs.s) - min(e1, sfs.e) ;
+    return o >= 0 ;
+}
+
+void Extender::cluster_no_interval_tree() {
+    lprint({"Sorting ", to_string(extended_sfs.size()), " extended SFS.."});
+    std::sort(extended_sfs.begin(), extended_sfs.end()) ;
+    lprint({"Done."}) ;
+    auto r = std::max_element(extended_sfs.begin(), extended_sfs.end(),
+        [] (const ExtSFS& lhs, const ExtSFS&  rhs) {
+                return lhs.e - lhs.s < rhs.e - rhs.s ;
+        }) ;
+    // TODO: is this good?
+    int dist = (r->e - r->s) * 1.1 ;
+    lprint({"Maximum extended-SFS length:", to_string(dist), "bp."}) ;
+    // find large gaps
+    int prev_i = 0 ;
+    int prev_e = extended_sfs[0].e ;
+    string prev_chrom = extended_sfs[0].chrom ;
+    vector<pair<int, int>> intervals ;
+    for (int i = 1 ; i < extended_sfs.size(); i++) {
+        const auto& sfs = extended_sfs[i] ;
+        // new chromosome
+        if (sfs.chrom != prev_chrom) {
+            prev_chrom = sfs.chrom ;
+            intervals.push_back(make_pair(prev_i, i - 1)) ;
+            prev_i = i ;
+            prev_e = sfs.e ; 
+            continue ;
+        } else {
+            if (sfs.s - prev_e > dist) {
+                intervals.push_back(make_pair(prev_i, i - 1)) ;
+                prev_e = sfs.e ;
+                prev_i = i ;
+            }
+        }
+    }
+    intervals.push_back(make_pair(prev_i, extended_sfs.size() - 1)) ;
+    // cluster each interval independently
     time_t f ;
     time(&f) ;
     time_t s ;
     time(&s) ;
     time_t u ;
     int print_width = 0 ;
-    int _w = extended_sfs.size() ;
+    int _w = intervals.size() ;
     while (_w > 0) {
         _w /= 10 ;
         print_width += 1 ;
     }
-    print_width += 1 ;
-    #pragma omp parallel for num_threads(threads) schedule(static,1)
-    for (int i = 0; i < extended_sfs.size(); i++) {
-        int t = omp_get_thread_num() ;
-        const ExtSFS& sfs = extended_sfs[i] ;
-        vector<pair<int, int>> overlaps ;
-        _p_tree[t][sfs.chrom].overlap_find_all({sfs.s, sfs.e}, [&overlaps](auto iter) {
-            overlaps.push_back(make_pair(iter->low(), iter->high()));
-            return true;
-        });
-        if (overlaps.empty()) {
-            _p_tree[t][sfs.chrom].insert({sfs.s, sfs.e});
-        } else {
-            int mins = sfs.s;
-            int maxe = sfs.e;
-            for (const pair<int, int> overlap : overlaps) {
-                mins = min(mins, overlap.first);
-                maxe = max(maxe, overlap.second);
-            }
-            _p_tree[t][sfs.chrom].insert({mins, maxe});
-        }
-        if (t == 0) {
-            time(&u) ;
-            if (u - s > 30) {
-                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " SFS so far. SFS per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
-                time(&s) ;
-            }
-        }
-    }
-    // deoverlap each tree
-    lprint({"Compressing interval trees.."}) ;
-    #pragma omp parallel for num_threads(threads) schedule(static,1)
-    for (int j = 0; j < threads; j++) {
-        for (int i = 0; i < chromosomes.size(); i++) {
-            const auto& chrom = chromosomes[i] ;
-            _p_tree[j][chrom].deoverlap();
-        }
-    }
-    lprint({"Merging interval trees.."}) ;
+    bool printed = false ;
+    lprint({"Retrieved", to_string(intervals.size()), " intervals."}) ;
     _p_sfs_clusters.resize(threads) ;
-    time(&f) ;
-    time(&s) ;
     #pragma omp parallel for num_threads(threads) schedule(static,1)
-    for (int i = 0; i < extended_sfs.size(); i++) {
-        const ExtSFS& sfs = extended_sfs[i] ;
-        const auto& chrom = sfs.chrom ; 
+    for (int i = 0; i < intervals.size(); i++) {
         int t = omp_get_thread_num() ;
-        // this finds the largest interval across all trees that contains this SFS. Any other SFS in any of those
-        // intervals should map to the exact same interval in the end
-        int low = sfs.s ;
-        int high = sfs.e ;
-        unordered_map<int, bool> checked ;
-        int size = checked.size() ;
-        // Parsoa: I might be overthinking this..
-        while (true) {
-            for (int j = 0; j < threads; j++) {
-                if (checked.find(j) == checked.end()) {
-                    auto overlap = _p_tree[j][chrom].overlap_find({low, high});
-                    if (overlap != _p_tree[j][chrom].end()) {
-                        low = min(low, overlap->low()) ;
-                        high = max(high, overlap->high()) ;
-                        checked[j] = true ;
-                    }
+        interval_tree_t<int> tree;
+        int j = intervals[i].first ;
+        int low = extended_sfs[j].s ;
+        int high = extended_sfs[j].e ;
+        int last_j = j ;
+        j++ ; 
+        for (; j <= intervals[i].second; j++) {
+            const ExtSFS& sfs = extended_sfs[j] ;
+            if (sfs.s <= high) {
+                low = min(low, sfs.s) ;
+                high = max(high, sfs.e) ;
+            } else {
+                for (int k = last_j; k < j; k++) {
+                    _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_sfs[k]);
                 }
+                low = sfs.s ;
+                high = sfs.e ;
+                last_j = j ;
             }
-            if (checked.size() == size) {
-                break ;
-            }
-            size = checked.size() ;
+        } 
+        for (int k = last_j; k < intervals[i].second; k++) {
+            _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_sfs[k]);
         }
-        // Same pair will be made by all other threads that have some SFS in this interval
-        _p_sfs_clusters[t][make_pair(low, high)].push_back(sfs);
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " SFS so far. SFS per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
+                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " intervals so far. Intervals per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\r" ;
                 time(&s) ;
+                printed = true ;
             }
         }
+    }
+    if (printed) {
+        cerr << endl ;
     }
 }
 
@@ -501,6 +501,13 @@ void Extender::cluster() {
     time_t s ;
     time(&s) ;
     time_t u ;
+    int print_width = 0 ;
+    int _w = ext_clusters.size() ;
+    while (_w > 0) {
+        _w /= 10 ;
+        print_width += 1 ;
+    }
+    bool printed = false ;
     #pragma omp parallel for num_threads(threads) schedule(static,1)
     for (int i = 0; i < ext_clusters.size(); i++) {
         int t = i % threads ;
@@ -598,21 +605,20 @@ void Extender::cluster() {
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << i << " clusters so far. Clusters per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\n" ;
+                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " clusters so far. Clusters per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\r" ;
                 time(&s) ;
+                printed = true ;
             }
         }
+    }
+    if (printed) {
+        cerr << endl ;
     }
     for (int i = 0; i < threads; i++) {
         free(seq[i]) ;
         bam_destroy1(_p_aln[i]) ;
         sam_close(_p_bam_file[i]) ;
     }
-    //cerr << "Dumped " << extcl << " clusters." << endl << endl;
-    //cerr << "Skipped due to unplaced alignment: " << skip_1 << endl;
-    //cerr << "Skipped due to unplaced extension: " << skip_2 << endl;
-    //cerr << "Skipped due to start/end inside extended cluster: " << skip_3 << endl;
-    //cerr << "Skipped extended clusters (due to support): " << small_extcl << endl;
 }
 
 vector<Cluster> Extender::cluster_by_length(const Cluster& cluster) {
@@ -649,6 +655,18 @@ vector<pair<uint, char>> Extender::parse_cigar(string cigar) {
 
 void Extender::call() {
     lprint({"Calling SVs from", to_string(clusters.size()), "clusters.."}) ;
+    time_t f ;
+    time(&f) ;
+    time_t s ;
+    time(&s) ;
+    time_t u ;
+    int print_width = 0 ;
+    int _w = clusters.size() ;
+    while (_w > 0) {
+        _w /= 10 ;
+        print_width += 1 ;
+    }
+    bool printed = false ;
     #pragma omp parallel for num_threads(threads) schedule(static,1)
     for (int _ = 0; _ < clusters.size(); _++) {
         int t = _ % threads ; 
@@ -758,7 +776,6 @@ void Extender::call() {
                 merged_svs.push_back(del) ;
             }
             // -- Combine svs with same length (maybe useless now - only if diploid mode)
-            // TODO: Parsoa, I think this is buggy. Will need multiple passes over data
             vector<SV> comb_svs;
             for (const SV &msv : merged_svs) {
                 bool newsv_flag = true ;
@@ -776,7 +793,16 @@ void Extender::call() {
                 _p_svs[t].push_back(sv);
             }
         }
+        if (t == 0) {
+            time(&u) ;
+            if (u - s > 30) {
+                cerr << "[I] Processed " << std::left << std::setw(print_width) << _ << " clusters so far. Cluster per second: " << std::setw(8) << _ / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\r" ;
+                time(&s) ;
+            }
+        }
+    }
+    if (printed) {
+        cerr << endl ;
     }
 }
-
 

@@ -2,68 +2,37 @@
 
 void Caller::run() {
     config = Configuration::getInstance();
-
-    load_chromosomes(config->reference);
-    cout << "Loaded all chromosomes" << endl ;
+    lprint({"PingPong SV Caller running on", to_string(config->threads), "threads.."}) ;
+    // load reference genome and SFS
+    load_chromosomes(config->reference) ;
+    lprint({"Loaded all chromosomes."}) ;
     load_input_sfs() ;
-
-    ovcf.open(config->workdir + "/svs_poa.vcf");
+    // call SVs from extended SFS
+    vector<SV> svs ;
+    Extender extender = Extender(&SFSs) ;
+    extender.run(config->threads) ;
+    svs.insert(svs.begin(), extender.svs.begin(), extender.svs.end()) ;
+    lprint({"Predicted", to_string(svs.size()), "SVs from extended SFS."}) ;
+    interval_tree_t<int> vartree ;
+    for (const auto& sv: svs) {
+        vartree.insert({sv.s - 1000, sv.e + 1000}) ;
+    }
+    // call SVS from clipped SFS
+    Clipper clipper(extender.clips);
+    clipper.call(config->threads, vartree) ;
+    int s = 0 ;
+    for (int i = 0; i < config->threads; i++) {
+        s += clipper._p_svs[i].size() ;
+        svs.insert(svs.begin(), clipper._p_svs[i].begin(), clipper._p_svs[i].end()) ;
+    }
+    lprint({"Predicted", to_string(s), "SVs from extended SFS."}) ;
+    std::sort(svs.begin(), svs.end()) ;
+    // output POA alignments SAM
     osam.open(config->workdir + "/poa.sam");
-    // --- SAM header
     osam << "@HD\tVN:1.4" << endl;
     for (int i = 0; i < chromosomes.size(); ++i) {
         osam << "@SQ\tSN:" << chromosomes[i] << "\t" << "LN:" << strlen(chromosome_seqs[chromosomes[i]]) << endl ;
     }
-    // --- VCF header
-    print_vcf_header() ;
-
-    //vector<vector<Consensus>> alignments(config->threads) ; // produce a SAM file of consensus alignments
-    //vector<vector<SV>> svs(config->threads) ; // produce a SAM file of consensus alignments
-    //#pragma omp parallel for num_threads(config->threads) schedule(static,1)
-    //for(int i = 0; i < chromosomes.size(); i++) {
-    //    string chrom = chromosomes[i] ;
-    //    int t = i % config->threads ;
-    //    cout << "Processing chromosome " << chrom << ".. " << endl ;
-
-    //    Extender extender = Extender(chrom, &SFSs) ;
-    //    extender.run(4) ;
-    //    alignments[t].insert(alignments[t].begin(), extender.alignments.begin(), extender.alignments.end()) ;
-    //    svs[t].insert(svs[t].begin(), extender.svs.begin(), extender.svs.end()) ;
-
-    //    cout << svs[t].size() << " SVs." << endl ;
-
-    //    //Clipper clipper(chrom, extender.clips);
-    //    //clipper.call(reference[chrom], sv_tree);
-    //    //svs[omp_get_thread_num()].insert(svs[omp_get_thread_num()].begin(), clipper.svs.begin(), clipper.svs.end()) ;
-    //}
-    //for (int i = 0; i < config->threads; i++) {
-    //    for (int j = 0; j < alignments[i].size(); j++) {
-    //        const auto& c = alignments[i][j] ;
-    //        osam << c.chrom << ":" << c.s + 1 << "-" << c.e + 1 << "\t"
-    //            << "0"
-    //            << "\t" << c.chrom << "\t" << c.s + 1 << "\t"
-    //            << "60"
-    //            << "\t" << c.cigar << "\t"
-    //            << "*"
-    //            << "\t"
-    //            << "0"
-    //            << "\t"
-    //            << "0"
-    //            << "\t" << c.seq << "\t"
-    //            << "*" << endl ;
-    //    }
-    //    for (const SV& sv: svs[i]) {
-    //        ovcf << sv << endl ;
-    //    }
-    //}
-
-
-    Extender extender = Extender(&SFSs) ;
-    extender.run(config->threads) ;
-    //Clipper clipper(chrom, extender.clips);
-    //clipper.call(reference[chrom], sv_tree);
-    //svs[omp_get_thread_num()].insert(svs[omp_get_thread_num()].begin(), clipper.svs.begin(), clipper.svs.end()) ;
-
     for (int j = 0; j < extender.alignments.size(); j++) {
         const auto& c = extender.alignments[j] ;
         osam << c.chrom << ":" << c.s + 1 << "-" << c.e + 1 << "\t"
@@ -79,13 +48,13 @@ void Caller::run() {
             << "\t" << c.seq << "\t"
             << "*" << endl ;
     }
-    
-    std::sort(extender.svs.begin(), extender.svs.end()) ;
+    osam.close() ;
+    // output SV calls 
+    ovcf.open(config->workdir + "/svs_poa.vcf");
+    print_vcf_header() ;
     for (const SV& sv: extender.svs) {
         ovcf << sv << endl ;
     }
-
-    osam.close() ;
     ovcf.close() ;
 }
 
@@ -94,12 +63,12 @@ void Caller::load_input_sfs() {
     int num_batches = config->aggregate_batches ;
     int num_threads = num_batches < threads ? num_batches : threads ;
     vector<unordered_map<string, vector<SFS>>> _SFSs(num_batches) ;
-    cout << "Loading assmbled SFS.." << endl ;
+    lprint({"Loading assmbled SFS.."}) ; 
     #pragma omp parallel for num_threads(num_threads)
     for (int j = 0; j < num_batches; j++) {
         string s_j = std::to_string(j) ;
         string inpath = config->workdir + "/solution_batch_" + s_j + ".assembled.sfs" ;
-        cout << "[I] Loading SFS from " << inpath << endl ;
+        //cout << "[I] Loading SFS from " << inpath << endl ;
         ifstream inf(inpath) ;
         string line ;
         if (inf.is_open()) {
@@ -122,7 +91,7 @@ void Caller::load_input_sfs() {
     int r = 0 ;
     int c = 0 ;
     for (int j = 0; j < num_batches; j++) {
-        lprint({"Batch", to_string(j), "with", to_string(_SFSs[j].size()), "strings."});
+        //lprint({"Batch", to_string(j), "with", to_string(_SFSs[j].size()), "strings."});
         r += _SFSs[j].size() ;
         SFSs.insert(_SFSs[j].begin(), _SFSs[j].end()) ;
         for (auto& read: _SFSs[j]) {

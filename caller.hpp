@@ -22,21 +22,12 @@ public:
 
 private:
     Configuration* config;
+    std::unordered_map<std::string, std::vector<SFS>> SFSs ;
 
     ofstream ovcf;
     ofstream osam;
-
-    samFile *sfs_bam;
-    bam_hdr_t *sfs_bamhdr;
-    hts_idx_t *sfs_bamindex;
-
-    samFile *read_bam;
-    bam_hdr_t *read_bamhdr;
-    hts_idx_t *read_bamindex;
-
-    std::unordered_map<std::string, std::vector<SFS>> SFSs ;
-    void print_vcf_header() ;
     void load_input_sfs() ;
+    void print_vcf_header() ;
 };
 
 #endif

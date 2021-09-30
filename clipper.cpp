@@ -3,59 +3,70 @@
 #include "clipper.hpp"
 
 using namespace std ;
+using namespace lib_interval_tree ;
 
-Clipper::Clipper(const string& _chrom, const vector<Clip>& _clips) {
-    chrom = _chrom ;
+Clipper::Clipper(const vector<Clip>& _clips) {
     clips = _clips ;
 }
 
 vector<Clip> Clipper::remove_duplicates(const vector<Clip> &clips) {
-    vector<Clip> unique_clips;
-    set<string> qnames;
-    for (const Clip &clip : clips) {
+    vector<Clip> unique_clips ;
+    unordered_map<string, int> qnames ;
+    for (const Clip& clip: clips) {
         if (qnames.find(clip.name) == qnames.end()) {
-            qnames.insert(clip.name);
-            unique_clips.push_back(clip);
+            qnames[clip.name] = 0 ;
+            unique_clips.push_back(clip) ;
         }
     }
     return unique_clips;
 }
 
 vector<Clip> Clipper::combine(const vector<Clip> &clips) {
-    vector<Clip> comb_clips;
-
+    int threads = 4 ;
+    vector<vector<Clip>> _p_combined_clips ;
+    _p_combined_clips.resize(threads) ;
     // we first cluster by breakpoints
-    map<uint, vector<Clip>> clips_dict;
-    for (const Clip &c : clips)
-        clips_dict[c.p].push_back(c);
-    // we then merge
-    for (map<uint, vector<Clip>>::const_iterator it = clips_dict.begin(); it != clips_dict.end(); ++it) {
-        uint max_l = 0;
-        for (const Clip &c : it->second) {
-            if (c.l > max_l) {
-                max_l = c.l;
-            }
-        }
-        comb_clips.push_back(Clip("", it->first, max_l, it->second.front().starting, it->second.size()));
+    unordered_map<string, unordered_map<uint, vector<Clip>>> clips_dict;
+    for (const Clip& c: clips) {
+        clips_dict[c.chrom][c.p].push_back(c);
     }
-    return comb_clips;
+    // we then merge
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for (int i = 0; i < chromosomes.size(); i++) {
+        int t = i % threads ;
+        const string& chrom = chromosomes[i] ;
+        for (auto it = clips_dict[chrom].begin(); it != clips_dict[chrom].end(); ++it) {
+            uint max_l = 0 ;
+            for (const Clip& c: it->second) {
+                if (c.l > max_l) {
+                    max_l = c.l ;
+                }
+            }
+            Clip clip = Clip("", chrom, it->first, max_l, it->second.front().starting, it->second.size()) ;
+            _p_combined_clips[t].push_back(clip);
+        }
+    }
+    vector<Clip> combined_clips ;
+    for (int i = 0; i < chromosomes.size(); i++) {
+        combined_clips.insert(combined_clips.begin(), _p_combined_clips[i].begin(), _p_combined_clips[i].end()) ;
+    }
+    return combined_clips ;
 }
 
 vector<Clip> Clipper::filter_lowcovered(const vector<Clip> &clips, const uint w) {
-    vector<Clip> filt_clips;
-    for (const Clip &c : clips) {
+    vector<Clip> filtered_clips;
+    for (const Clip &c: clips) {
         if (c.w >= w) {
-            filt_clips.push_back(c);
+            filtered_clips.push_back(c);
         }
     }
-
-    return filt_clips;
+    return filtered_clips;
 }
 
 // Cluster clips by proximity
+// TODO: this might be too slow
 vector<Clip> Clipper::cluster(const vector<Clip> &clips, uint r) {
     vector<Clip> clusters;
-
     map<uint, Clip> clusters_by_pos;
     for (const Clip &c : clips) {
         bool found = false;
@@ -66,7 +77,6 @@ vector<Clip> Clipper::cluster(const vector<Clip> &clips, uint r) {
                 it->second.w += c.w;
             }
         }
-
         if (!found) {
             clusters_by_pos[c.p] = c;
         }
@@ -78,86 +88,123 @@ vector<Clip> Clipper::cluster(const vector<Clip> &clips, uint r) {
     return clusters;
 }
 
-vector<Clip> Clipper::filter_tooclose_clips(const vector<Clip> &clips, interval_tree_t<int> &vartree) {
+vector<Clip> Clipper::filter_tooclose_clips(const vector<Clip> &clips, interval_tree_t<int>& vartree) {
     vector<Clip> fclips;
-
-    for (const Clip &c : clips) {
+    for (const Clip& c: clips) {
         if (vartree.overlap_find({c.p, c.p + 1}) == std::end(vartree)) {
             fclips.push_back(c);
         }
     }
-
     return fclips;
 }
 
+int binary_search_left(const vector<Clip>& clips, int begin, int end, const Clip& query) {
+    if (begin > end || begin >= clips.size()) {
+        return -1 ;
+    }
+    int m = (begin + end) / 2 ;
+    if (clips[m].p == query.p) {
+        if (m != 0) {
+            return m - 1 ;
+        } else {
+            return -1 ;
+        }
+    } else if (clips[m].p < query.p) {
+        return binary_search_left(clips, m, end, query) ;
+    } else {
+        return binary_search_left(clips, begin, m - 1, query) ;
+    }
+}
 
-void Clipper::call(const string &chrom_seq, interval_tree_t<int> &vartree) {
+int binary_search_right(const vector<Clip>& clips, int begin, int end, const Clip& query) {
+    if (begin > end || begin >= clips.size()) {
+        return -1 ;
+    }
+    int m = (begin + end) / 2 ;
+    if (clips[m].p == query.p) {
+        if (m != 0) {
+            return m + 1 ;
+        } else {
+            return -1 ;
+        }
+    } else if (clips[m].p > query.p) {
+        return binary_search_right(clips, begin, m, query) ;
+    } else {
+        return binary_search_right(clips, m + 1, end, query) ;
+    }
+}
+void Clipper::call(int threads, interval_tree_t<int>& vartree) {
+    lprint({"Predicting SVS from", to_string(clips.size()), "clipped SFS on", to_string(threads), "threads.."}) ;
     vector<Clip> rclips;
     vector<Clip> lclips;
-    for (const Clip &clip : clips) {
+    for (const Clip& clip: clips) {
         if (clip.starting) {
             lclips.push_back(clip);
         } else {
             rclips.push_back(clip);
         }
     }
-
-    rclips = remove_duplicates(rclips);
-    lclips = remove_duplicates(lclips);
-    lclips = combine(lclips);
-    rclips = combine(rclips);
-    lclips = filter_lowcovered(lclips, 2); // FIXME: hardcoded
-    rclips = filter_lowcovered(rclips, 2); // FIXME: hardcoded
-    lclips = filter_tooclose_clips(lclips, vartree);
-    rclips = filter_tooclose_clips(rclips, vartree);
-    lclips = cluster(lclips, 1000); // FIXME: hardcoded
-    rclips = cluster(rclips, 1000); // FIXME: hardcoded
-
-    if (lclips.empty() || rclips.empty()) {
-        return;
-    }
-
-    std::sort(lclips.begin(), lclips.end()) ;
-    std::sort(rclips.begin(), rclips.end());
-
-    for (const Clip &lc : lclips) {
-        // we get the closest right clip
-        // FIXME linear search is slow
-        Clip rc;
-        for (const Clip &rc_ : rclips) {
-            if (lc.p < rc_.p) {
-                rc = rc_;
-                break;
-            }
+    lprint({"Preprocessing clipped SFS.."}) ;
+    #pragma omp parallel for num_threads(2) schedule(static,1)
+    for (int i = 0; i < 2; i++) {
+        if (i == 0) {
+            rclips = remove_duplicates(rclips);
+            rclips = combine(rclips);
+            rclips = filter_lowcovered(rclips, 2); // FIXME: hardcoded
+            rclips = filter_tooclose_clips(rclips, vartree);
+            rclips = cluster(rclips, 1000); // FIXME: hardcoded
+            std::sort(rclips.begin(), rclips.end()) ;
+        } else {
+            lclips = remove_duplicates(lclips);
+            lclips = combine(lclips);
+            lclips = filter_lowcovered(lclips, 2); // FIXME: hardcoded
+            lclips = filter_tooclose_clips(lclips, vartree);
+            lclips = cluster(lclips, 1000); // FIXME: hardcoded
+            std::sort(lclips.begin(), lclips.end()) ;
         }
-
+    }
+    lprint({to_string(lclips.size()), "left clips."}) ;
+    lprint({to_string(rclips.size()), "right clips."}) ;
+    _p_svs.resize(threads) ;
+    if (lclips.empty() || rclips.empty()) {
+        return ;
+    }
+    lprint({"Predicting insertions.."}) ;
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for (int i = 0; i < lclips.size(); i++) {
+        const Clip& lc = lclips[i] ;
+        int t = omp_get_thread_num() ;
+        string chrom = lc.chrom ;
+        // we get the closest right clip
+        int r = binary_search_right(rclips, 0, rclips.size() - 1, lc) ;
+        if (r == -1) {
+            continue ;
+        }
+        auto rc = rclips[r] ; 
         if (rc.w == 0) {
-            continue;
+            continue ;
         }
 
         if (abs((int)rc.p - (int)lc.p) < 1000) {
-            // if a variation is in between the two clipped breakpoints
-            // if vartree.overlaps(lS.s, rS.e):
-            //     continue
             uint s = lc.w > rc.w ? lc.p : rc.p;
             uint l = max(lc.l, rc.l);
-            string refbase = chrom_seq.substr(s, 1);
+            string refbase(chromosome_seqs[chrom] + s, 1) ;
             uint w = max(lc.w, rc.w);
-
-            svs.push_back(SV("INS", chrom, s, refbase, "<INS>", w, 0, 0, 0, true, l));
+            _p_svs[t].push_back(SV("INS", chrom, s, refbase, "<INS>", w, 0, 0, 0, true, l));
         }
     }
-
-    for (const Clip &rc : rclips) {
+    lprint({"Predicting deletions.."}) ;
+    #pragma omp parallel for num_threads(threads) schedule(static,1)
+    for (int i = 0; i < rclips.size(); i++) {
+        const Clip& rc = rclips[i] ;
+        int t = omp_get_thread_num() ;
+        string chrom = rc.chrom ;
         // we get the closest right clip
-        Clip lc;
-        for (const Clip &lc_ : lclips) {
-            if (rc.p < lc_.p) {
-                lc = lc_;
-                break;
-            }
+        int l = binary_search_left(lclips, 0, lclips.size() - 1, rc) ;
+        if (l == -1) {
+            continue ;
         }
-
+        auto lc = lclips[l] ; 
         if (lc.w == 0) {
             continue ;
         }
@@ -165,10 +212,10 @@ void Clipper::call(const string &chrom_seq, interval_tree_t<int> &vartree) {
         if (lc.p - rc.p >= 2000 && lc.p - rc.p <= 50000) {
             uint s = rc.p;
             uint l = lc.p - rc.p + 1;
-            string refbase = chrom_seq.substr(s, 1);
+            string refbase(chromosome_seqs[chrom] + s, 1) ;
             uint w = max(lc.w, rc.w);
             if (w >= 5) {
-                svs.push_back(SV("DEL", chrom, s, refbase, "<DEL>", w, 0, 0, 0, true, l));
+                _p_svs[t].push_back(SV("DEL", chrom, s, refbase, "<DEL>", w, 0, 0, 0, true, l));
             }
         }
     }
