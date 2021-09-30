@@ -13,8 +13,6 @@
 #include "extender.hpp"
 #include "chromosomes.hpp"
 
-using namespace std;
-
 class Caller {
 
 public:

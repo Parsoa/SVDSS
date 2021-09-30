@@ -1,6 +1,12 @@
+#include <ctime>
+
 #include "caller.hpp"
 
+using namespace std ;
+
 void Caller::run() {
+    time_t t ;
+    time(&t) ;
     config = Configuration::getInstance();
     lprint({"PingPong SV Caller running on", to_string(config->threads), "threads.."}) ;
     // load reference genome and SFS
@@ -60,7 +66,9 @@ void Caller::run() {
         ovcf << sv << endl ;
     }
     ovcf.close() ;
-    lprint({"Complete. Exiting.."}) ;
+    time_t e ;
+    time(&e) ;
+    lprint({"Complete. Runtime:", to_string(e - t) + " seconds."}) ;
 }
 
 void Caller::load_input_sfs() {
@@ -103,7 +111,7 @@ void Caller::load_input_sfs() {
             c += read.second.size() ;
         }
     }
-    lprint({"Loaded", to_string(c), "SFS strings on", to_string(r), " reads."}) ;
+    lprint({"Loaded", to_string(c), "SFS strings on", to_string(r), "reads."}) ;
 }
 
 void Caller::print_vcf_header() {

@@ -21,7 +21,7 @@ vector<Clip> Clipper::remove_duplicates(const vector<Clip> &clips) {
     return unique_clips;
 }
 
-vector<Clip> Clipper::combine(const vector<Clip> &clips) {
+vector<Clip> Clipper::combine(const vector<Clip>& clips) {
     int threads = 4 ;
     vector<vector<Clip>> _p_combined_clips ;
     _p_combined_clips.resize(threads) ;
@@ -47,7 +47,7 @@ vector<Clip> Clipper::combine(const vector<Clip> &clips) {
         }
     }
     vector<Clip> combined_clips ;
-    for (int i = 0; i < chromosomes.size(); i++) {
+    for (int i = 0; i < threads; i++) {
         combined_clips.insert(combined_clips.begin(), _p_combined_clips[i].begin(), _p_combined_clips[i].end()) ;
     }
     return combined_clips ;

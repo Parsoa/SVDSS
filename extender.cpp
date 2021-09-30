@@ -121,7 +121,7 @@ pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
 
 // Parallelize within each chromosome
 void Extender::extend_parallel() {
-    lprint({"Extending superstrings on.."}) ; 
+    lprint({"Extending superstrings on", to_string(threads), "threads.."}) ; 
     int p = 0 ;
     int b = 0 ;
     for (int i = 0; i < 2; i++) {
@@ -174,7 +174,7 @@ void Extender::extend_parallel() {
         if (s - t == 0) {
             s += 1 ;
         }
-        cerr << "[I] Processed batch " << std::left << std::setw(7) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\r" ;
+        cerr << "[I] Processed batch " << std::left << std::setw(7) << b << ". Reads so far: " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\r" ;
         printed = true ;
     }
     if (printed) {
@@ -399,9 +399,8 @@ void Extender::cluster_no_interval_tree() {
         [] (const ExtSFS& lhs, const ExtSFS&  rhs) {
                 return lhs.e - lhs.s < rhs.e - rhs.s ;
         }) ;
-    // TODO: is this good?
     int dist = (r->e - r->s) * 1.1 ;
-    lprint({"Maximum extended-SFS length:", to_string(dist), "bp."}) ;
+    lprint({"Maximum extended-SFS length:", to_string(dist), "bp. Using separation distance", to_string(dist) + "."}) ;
     // find large gaps
     int prev_i = 0 ;
     int prev_e = extended_sfs[0].e ;
