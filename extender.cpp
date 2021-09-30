@@ -142,14 +142,19 @@ void Extender::extend_parallel() {
     uint64_t u = 0 ;
     int num_reads = 0 ;
     bool printed = false ;
-    while (true) {
+    #pragma omp parallel num_threads(config->threads + 1)
+    while (!loaded_last_batch) {
         //lprint({"Beginning batch", to_string(b + 1)});
-        for (int i = 0 ; i < threads ; i++) {
-            u += bam_entries[p][i].size() ;
+        #pragma omp single
+        {
+            for (int i = 0 ; i < threads ; i++) {
+                u += bam_entries[p][i].size() ;
+            }
         }
-        #pragma omp parallel for num_threads(threads + 1)
+        #pragma omp for
         for(int i = 0; i < threads + 1; i++) {
-            if (i == 0) {
+            int t = omp_get_thread_num() ;
+            if (t == 0) {
                 // load next batch of entries
                 if (should_load) {
                     loaded_last_batch = !load_batch_bam(threads, batch_size, (p + 1) % 2) ;
@@ -160,22 +165,25 @@ void Extender::extend_parallel() {
                     }
                 }
             } else {
-                process_batch(bam_entries[p][i - 1], i - 1) ;
+                process_batch(bam_entries[p][t - 1], t - 1) ;
             }
         }
-        if (loaded_last_batch) {
-            break ;
+        #pragma omp single
+        {
+            //if (loaded_last_batch) {
+            //    break ;
+            //}
+            p += 1 ;
+            p %= 2 ;
+            b += 1 ;
+            time_t s ;
+            time(&s) ;
+            if (s - t == 0) {
+                s += 1 ;
+            }
+            cerr << "[I] Processed batch " << std::left << std::setw(7) << b << ". Reads so far: " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\r" ;
+            printed = true ;
         }
-        p += 1 ;
-        p %= 2 ;
-        b += 1 ;
-        time_t s ;
-        time(&s) ;
-        if (s - t == 0) {
-            s += 1 ;
-        }
-        cerr << "[I] Processed batch " << std::left << std::setw(7) << b << ". Reads so far: " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\r" ;
-        printed = true ;
     }
     if (printed) {
         cerr << endl ;
@@ -400,7 +408,7 @@ void Extender::cluster_no_interval_tree() {
                 return lhs.e - lhs.s < rhs.e - rhs.s ;
         }) ;
     int dist = (r->e - r->s) * 1.1 ;
-    lprint({"Maximum extended-SFS length:", to_string(dist), "bp. Using separation distance", to_string(dist) + "."}) ;
+    lprint({"Maximum extended-SFS length:", to_string(r->e - r->s), "bp. Using separation distance", to_string(dist) + "."}) ;
     // find large gaps
     int prev_i = 0 ;
     int prev_e = extended_sfs[0].e ;

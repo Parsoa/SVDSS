@@ -78,30 +78,35 @@ public:
     int num_output_batches ;
 
 private:
+    
+    Configuration* config ;
 
-    int last_dumped_batch = 0 ;
+    int mode ;
     int current_batch = 0 ;
+    int last_dumped_batch = 0 ;
 
     gzFile fastq_file ;
     kseq_t* fastq_iterator ;
     samFile *bam_file ;
     bam_hdr_t *bam_header ;
+    
+    std::vector<std::vector<std::vector<int>>> read_seq_lengths ;
+    std::vector<std::vector<std::vector<uint8_t*>>> read_seqs ;
     std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
     std::vector<std::vector<std::vector<fastq_entry_t>>> fastq_entries ;
     bool load_batch_bam(int threads, int batch_size, int p) ;
     bool load_batch_fastq(int threads, int batch_size, int p) ;
-
-    //batch_type_t search_solutions ;
-    batch_type_t process_batch(rld_t* index, const std::vector<fastq_entry_t> &fastq_entries, const bool isreversed) ;
-    std::vector<std::vector<batch_type_t>> batches ;
+    batch_type_t process_batch(rld_t* index, int p, int i, const bool isreversed) ;
+    void ping_pong_search(rld_t *index, uint8_t* seq, int l, std::vector<sfs_type_t>& solutions, const bool isreversed) ;
     void output_batch(int) ;
+
+
+    std::vector<std::vector<batch_type_t>> batches ;
     
     bool check_solution(rld_t* index, std::string S) ;
     bool backward_search(rld_t *index, const uint8_t *P, int p2) ;
-    void ping_pong_search(rld_t *index, const fastq_entry_t &fqe, std::vector<sfs_type_t>&, const bool isreversed) ;
     fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l) ;
 
-    Configuration* config ;
 } ;
 
 #endif
