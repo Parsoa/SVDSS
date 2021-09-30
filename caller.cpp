@@ -28,7 +28,9 @@ void Caller::run() {
     lprint({"Predicted", to_string(s), "SVs from extended SFS."}) ;
     std::sort(svs.begin(), svs.end()) ;
     // output POA alignments SAM
-    osam.open(config->workdir + "/poa.sam");
+    string poa_path = config->workdir + "/poa.sam" ;
+    lprint({"Outputting POA alignments to", poa_path + ".."}) ;
+    osam.open(poa_path) ;
     osam << "@HD\tVN:1.4" << endl;
     for (int i = 0; i < chromosomes.size(); ++i) {
         osam << "@SQ\tSN:" << chromosomes[i] << "\t" << "LN:" << strlen(chromosome_seqs[chromosomes[i]]) << endl ;
@@ -50,12 +52,15 @@ void Caller::run() {
     }
     osam.close() ;
     // output SV calls 
-    ovcf.open(config->workdir + "/svs_poa.vcf");
+    string vcf_path = config->workdir + "/svs_poa.vcf" ;
+    lprint({"Exporting", to_string(svs.size()), "SV calls to", vcf_path + ".."}) ;
+    ovcf.open(vcf_path) ;
     print_vcf_header() ;
     for (const SV& sv: extender.svs) {
         ovcf << sv << endl ;
     }
     ovcf.close() ;
+    lprint({"Complete. Exiting.."}) ;
 }
 
 void Caller::load_input_sfs() {
