@@ -53,6 +53,7 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     return sai.x[2] != 0 ;
 }
 
+// I don't this can be further optimized
 void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, const bool isreversed) {
     //DEBUG(cerr << "Read Length: " << l << endl ;)
     rldintv_t sai ;
@@ -336,7 +337,7 @@ int PingPong::search() {
         }
         #pragma omp for
         for(int i = 0; i < config->threads + 2; i++) {
-            int t = omp_get_thread_num() - 2 ;
+            int t = omp_get_thread_num() ;
             if (t == 0) {
                 // load next batch of entries
                 if (should_load) {
@@ -369,7 +370,7 @@ int PingPong::search() {
                 }
             } else {
                 if (should_process) {
-                    batches[b][t] = process_batch(index, p, t, mode == 1) ;
+                    batches[b][t - 2] = process_batch(index, p, t - 2, mode == 1) ;
                 }
             }
         }
