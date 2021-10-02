@@ -272,7 +272,7 @@ int PingPong::search() {
         fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads)) ; // current and next output
     }
     int p = 0 ;
-    int batch_size = 10000 ;
+    int batch_size = (10000 / config->threads) * config->threads ;
     lprint({"Extracting SFS strings on", to_string(config->threads), "threads.."});
     lprint({"Loading first batch.."});
     if (mode == 0) {

@@ -7,6 +7,9 @@ venv3/
 venv3.6/
 binaries/
 src/
+builds/
+old/
+tmp/
 
 *.pyc
 

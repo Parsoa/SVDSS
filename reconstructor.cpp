@@ -259,7 +259,7 @@ void Reconstructor::run() {
     }
     int p = 0 ;
     int b = 0 ;
-    int batch_size = 10000 ;
+    int batch_size = (10000 / config->threads) * config->threads ;
     lprint({"Loading first batch.."});
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < config->threads; j++) {

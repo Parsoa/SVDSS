@@ -1,4 +1,5 @@
 #include <omp.h>
+#include <ctime>
 #include <string>
 #include <cstdlib>
 #include <cstdint>
@@ -75,6 +76,8 @@ void print_help() {
 }
 
 int main(int argc, char** argv) {
+    time_t t ;
+    time(&t) ;
     cerr << "Ping-pong, comparative genome analysis using sample-specific string detection in accurate long reads." << endl ;
     auto c = Configuration::getInstance() ;
     if (argc == 1) {
@@ -181,9 +184,11 @@ int main(int argc, char** argv) {
         create_workdir() ;
         auto aligner = new Aligner() ;
         aligner->run() ;
-    }
-    else {
+    } else {
         print_help() ;
     }
+    time_t s ;
+    time(&s) ;
+    lprint({"Completed. Runtime:", to_string(s - t), "seconds."}) ;
 }
 
