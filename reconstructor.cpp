@@ -304,7 +304,7 @@ void Reconstructor::run() {
     bool should_process = true ;
     bool should_terminate = false ;
     bool loaded_last_batch = false ;
-    lprint({"Starting main loop.."}) ;
+    //lprint({"Starting main loop.."}) ;
     while (should_process) {
         //lprint({"Beginning batch", to_string(b + 1)});
         if (!should_load) {
@@ -329,19 +329,19 @@ void Reconstructor::run() {
                     int ret = 0 ;
                     for (int k = 0; k < batch_size / config->threads; k++) {
                         for (int j = 0; j < config->threads; j++) {
-                            if (bam_entries[(p + 1) % modulo][j][k] != nullptr) {
-                                auto alignment = bam_entries[(p + 1) % modulo][j][k] ;
+                            if (bam_entries[(p + 2) % modulo][j][k] != nullptr) {
+                                auto alignment = bam_entries[(p + 2) % modulo][j][k] ;
                                 ret = sam_write1(out_bam_file, bam_header, bam_entries[(p + 2) % modulo][j][k]);
                                 if (ret < 0) {
                                     lprint({"Can't write corrected BAM record, aborting.."}, 2);
                                     should_terminate = true ;
+                                    break ;
                                 }
                             } else {
                                 break ;
                             }
                         }
                     }
-                    //cout << "Written.." << endl ;
                 }
             } else {
                 if (should_process) {
@@ -357,6 +357,7 @@ void Reconstructor::run() {
         //    lprint({"Processed last batch of inputs."});
         //}
         //if (!should_process) {
+        //    lprint({"Exiting accelerator loop."});
         //    break ;
         //}
         p += 1 ;
@@ -389,6 +390,7 @@ void Reconstructor::dump_reconstructed_read_ids() {
                 qname_file << qname << endl ;
             }
         }
+    } else {
         lprint({"Error openning reconstructed_reads.txt."}, 2) ;
     }
     qname_file.close() ;

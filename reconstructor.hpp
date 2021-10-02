@@ -57,7 +57,7 @@ public:
 
 private:
 
-    double global_num_bases ;
+    double global_num_bases = 1 ;
     double global_num_mismatch ;
     double global_num_indel ;
     double expected_mismatch_rate = 0.002 ;
