@@ -351,8 +351,8 @@ void Reconstructor::run() {
         if (s - t == 0) {
             s += 1 ;
         }
-        cerr << "[I] Processed batch " << std::left << b << ". Reads so far " << std::right << reads_processed << ". Reads per second: " <<  reads_processed / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
-        cerr << "[I] Processed bases: " << std::left << uint64_t(global_num_bases) << ", num mismatch: " << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", ignored reads: " << num_ignored_reads << "\n" ;
+        cerr << "[I] Processed batch " << b << ". Reads so far " << reads_processed << ". Reads per second: " << reads_processed / (s - t) << ". Time: " << s - t << "\n" ;
+        cerr << "[I] Processed bases: " << uint64_t(global_num_bases) << ", num mismatch: " << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", ignored reads: " << num_ignored_reads << "\n" ;
         expected_mismatch_rate = global_num_mismatch / global_num_bases ; 
         cerr << "\x1b[A" ;
         cerr << "\x1b[A" ;

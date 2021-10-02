@@ -181,7 +181,7 @@ void Extender::extend_parallel() {
             if (s - t == 0) {
                 s += 1 ;
             }
-            cerr << "[I] Processed batch " << std::left << b << ". Reads so far: " << std::right << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::fixed << s - t << "\r" ;
+            cerr << "[I] Processed batch " << std::left << b << ". Alignments so far: " << std::right << u << ". Alignments per second: " <<  u / (s - t) << ". Time: " << std::fixed << s - t << "\r" ;
             printed = true ;
         }
     }
@@ -437,12 +437,6 @@ void Extender::cluster_no_interval_tree() {
     time_t s ;
     time(&s) ;
     time_t u ;
-    int print_width = 0 ;
-    int _w = intervals.size() ;
-    while (_w > 0) {
-        _w /= 10 ;
-        print_width += 1 ;
-    }
     bool printed = false ;
     lprint({"Retrieved", to_string(intervals.size()), " intervals."}) ;
     _p_sfs_clusters.resize(threads) ;
@@ -475,7 +469,7 @@ void Extender::cluster_no_interval_tree() {
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " intervals so far. Intervals per second: " << i / (u - f) << ". Time: " << u - f << "\r" ;
+                cerr << "[I] Processed " << std::left << i << " intervals so far. Intervals per second: " << i / (u - f) << ". Time: " << u - f << "\r" ;
                 time(&s) ;
                 printed = true ;
             }
@@ -507,12 +501,6 @@ void Extender::cluster() {
     time_t s ;
     time(&s) ;
     time_t u ;
-    int print_width = 0 ;
-    int _w = ext_clusters.size() ;
-    while (_w > 0) {
-        _w /= 10 ;
-        print_width += 1 ;
-    }
     bool printed = false ;
     #pragma omp parallel for num_threads(threads) schedule(static,1)
     for (int i = 0; i < ext_clusters.size(); i++) {
@@ -611,7 +599,7 @@ void Extender::cluster() {
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " clusters so far. Clusters per second: " << i / (u - f) << ". Time: " << u - f << "\r" ;
+                cerr << "[I] Processed " << std::left << i << " clusters so far. Clusters per second: " << i / (u - f) << ". Time: " << u - f << "\r" ;
                 time(&s) ;
                 printed = true ;
             }
@@ -666,12 +654,6 @@ void Extender::call() {
     time_t s ;
     time(&s) ;
     time_t u ;
-    int print_width = 0 ;
-    int _w = clusters.size() ;
-    while (_w > 0) {
-        _w /= 10 ;
-        print_width += 1 ;
-    }
     bool printed = false ;
     #pragma omp parallel for num_threads(threads) schedule(static,1)
     for (int _ = 0; _ < clusters.size(); _++) {
@@ -802,7 +784,7 @@ void Extender::call() {
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << std::left << std::setw(print_width) << _ << " clusters so far. Cluster per second: " << std::setw(8) << _ / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\r" ;
+                cerr << "[I] Processed " << std::left << _ << " clusters so far. Cluster per second: " << _ / (u - f) << ". Time: " << u - f << "\r" ;
                 time(&s) ;
             }
         }

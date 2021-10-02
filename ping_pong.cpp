@@ -454,7 +454,7 @@ int PingPong::search() {
             if (s - f == 0) {
                 s += 1 ;
             }
-            cerr << "[I] Processed batch " << std::left << std::setw(6) << b << ". Reads so far " << std::right << std::setw(9) << reads_processed << ". Reads per second: " << std::setw(5) <<  reads_processed / (s - f) << ". SFS extracted so far: " << std::setw(12) << total_sfs << ". Batches exported: " << std::setw(4) << current_batch << ". Time: " << std::setw(8) << std::fixed << s - f << "\r" ;
+            cerr << "[I] Processed batch " << b << ". Reads so far " << reads_processed << ". Reads per second: " << reads_processed / (s - f) << ". SFS extracted so far: " << total_sfs << ". Batches exported: " << current_batch << ". Time: " << s - f << "\r" ;
         }
     }
     cerr << endl ;
