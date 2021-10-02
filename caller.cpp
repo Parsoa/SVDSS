@@ -5,8 +5,6 @@
 using namespace std ;
 
 void Caller::run() {
-    time_t t ;
-    time(&t) ;
     config = Configuration::getInstance();
     lprint({"PingPong SV Caller running on", to_string(config->threads), "threads.."}) ;
     // load reference genome and SFS
@@ -31,7 +29,7 @@ void Caller::run() {
         s += clipper._p_svs[i].size() ;
         svs.insert(svs.begin(), clipper._p_svs[i].begin(), clipper._p_svs[i].end()) ;
     }
-    lprint({"Predicted", to_string(s), "SVs from extended SFS."}) ;
+    lprint({"Predicted", to_string(s), "SVs from clipped SFS."}) ;
     std::sort(svs.begin(), svs.end()) ;
     // output POA alignments SAM
     string poa_path = config->workdir + "/poa.sam" ;
@@ -66,9 +64,6 @@ void Caller::run() {
         ovcf << sv << endl ;
     }
     ovcf.close() ;
-    time_t e ;
-    time(&e) ;
-    lprint({"Complete. Runtime:", to_string(e - t) + " seconds."}) ;
 }
 
 void Caller::load_input_sfs() {

@@ -181,7 +181,7 @@ void Extender::extend_parallel() {
             if (s - t == 0) {
                 s += 1 ;
             }
-            cerr << "[I] Processed batch " << std::left << std::setw(7) << b << ". Reads so far: " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\r" ;
+            cerr << "[I] Processed batch " << std::left << b << ". Reads so far: " << std::right << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::fixed << s - t << "\r" ;
             printed = true ;
         }
     }
@@ -475,7 +475,7 @@ void Extender::cluster_no_interval_tree() {
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " intervals so far. Intervals per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\r" ;
+                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " intervals so far. Intervals per second: " << i / (u - f) << ". Time: " << u - f << "\r" ;
                 time(&s) ;
                 printed = true ;
             }
@@ -611,7 +611,7 @@ void Extender::cluster() {
         if (t == 0) {
             time(&u) ;
             if (u - s > 30) {
-                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " clusters so far. Clusters per second: " << std::setw(8) << i / (u - f) << ". Time: " << std::setw(8) << std::fixed << u - f << "\r" ;
+                cerr << "[I] Processed " << std::left << std::setw(print_width) << i << " clusters so far. Clusters per second: " << i / (u - f) << ". Time: " << u - f << "\r" ;
                 time(&s) ;
                 printed = true ;
             }

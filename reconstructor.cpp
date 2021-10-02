@@ -116,23 +116,21 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
     int m_diff = 0 ;
     double num_match = 0 ;
     double num_mismatch = 0 ;
+    char* ref_seq = chromosome_seqs[chrom] ;
     while (true) {
         if (m == cigar_offsets.size()) {
             break ;
         }
         if (cigar_offsets[m].second == BAM_CMATCH || cigar_offsets[m].second == BAM_CEQUAL || cigar_offsets[m].second == BAM_CDIFF) {
-            memcpy(new_seq + n, chromosome_seqs[chrom] + ref_offset, cigar_offsets[m].first) ;
-            memcpy(new_qual + n, qual + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
+            memcpy(new_seq + n, ref_seq + ref_offset, cigar_offsets[m].first) ;
+            memcpy(new_qual + n, qual + match_offset + ins_offset + soft_clip_offset, cigar_offsets[m].first) ;
             n += cigar_offsets[m].first ;
-            //for (int j = 0; j < cigar_offsets[m].first; j++) {
-            //    new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
-            //    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
-            //    num_mismatch += 1 ? chromosome_seqs[chrom][ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
-            //    n++ ;
-            //}
+            for (int j = 0; j < cigar_offsets[m].first; j++) {
+                num_mismatch += 1 ? ref_seq[ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
+            }
+            num_match += cigar_offsets[m].first ;
             ref_offset += cigar_offsets[m].first ;
             match_offset += cigar_offsets[m].first ;
-            num_match += cigar_offsets[m].first ;
             if (new_cigar.size() >= 1 && new_cigar[new_cigar.size() - 1].second == BAM_CMATCH) {
                 new_cigar[new_cigar.size() - 1].first += cigar_offsets[m].first + m_diff ;
             } else {
@@ -148,25 +146,15 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
                 memcpy(new_seq + n, read_seq + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
                 memcpy(new_qual + n, qual + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
                 n += cigar_offsets[m].first ;
-                //for (int j = 0; j < cigar_offsets[m].first; j++) {
-                //    new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
-                //    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ; // bases are in read
-                //    n++ ;
-                //}
                 new_cigar.push_back(cigar_offsets[m]) ;
             }
             ins_offset += cigar_offsets[m].first ;
         } else if (cigar_offsets[m].second == BAM_CDEL) {
             if (cigar_offsets[m].first <= config->min_indel_length) {
                 // if a short DEL so let's just fix it
-                memcpy(new_seq + n, chromosome_seqs[chrom] + ref_offset, cigar_offsets[m].first) ;
+                memcpy(new_seq + n, ref_seq + ref_offset, cigar_offsets[m].first) ;
                 memcpy(new_qual + n, qual + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
                 n += cigar_offsets[m].first ;
-                //for (int j = 0; j < cigar_offsets[m].first; j++) {
-                //    new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
-                //    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset] ; // just use last observed quality
-                //    n++ ;
-                //}
                 m_diff += cigar_offsets[m].first ;
             } else {
                 // for long DEL, this is probably a SV so let it be what it was
@@ -180,11 +168,6 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             memcpy(new_seq + n, read_seq + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
             memcpy(new_qual + n, qual + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
             n += cigar_offsets[m].first ;
-            //for (int j = 0; j < cigar_offsets[m].first; j++) {
-            //    new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
-            //    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
-            //    n++ ;
-            //}
             soft_clip_offset += cigar_offsets[m].first ;
             new_cigar.push_back(cigar_offsets[m]) ;
         } else {
@@ -374,6 +357,8 @@ void Reconstructor::run() {
         cerr << "\x1b[A" ;
         cerr << "\x1b[A" ;
     }
+    cerr << endl ;
+    cerr << endl ;
     lprint({"Done."});
     sam_close(bam_file) ;
     sam_close(out_bam_file) ;
