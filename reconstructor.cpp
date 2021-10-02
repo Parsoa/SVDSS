@@ -27,7 +27,7 @@ using namespace std ;
 //} bam1_core_t;
 
 int do_realloc_bam_data(bam1_t *b, size_t desired) {
-    cout << "Extending BAM entry." << endl ;
+    //cout << "Extending BAM entry." << endl ;
     uint32_t new_m_data ;
     uint8_t *new_data ;
     new_m_data = desired ;
@@ -80,11 +80,23 @@ void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<
     free(aux) ;
 }
 
-void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string chrom) {
+void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string chrom, int _i, int _j, int _k) {
     auto cigar_offsets = decode_cigar(alignment) ;
     int l = 0 ;
-    for (auto p: cigar_offsets) {
-        l += p.first ;
+    // try and filter unintenresting reads early on
+    bool should_ignore = true ;
+    for (auto op: cigar_offsets) {
+        l += op.first ;
+    }
+    if (read_seq_max_lengths[_i][_j][_k] < l) {
+        free(read_seqs[_i][_j][_k]) ;
+        free(new_read_seqs[_i][_j][_k]) ;
+        free(new_read_quals[_i][_j][_k]) ;
+        //
+        read_seqs[_i][_j][_k] = (char*) malloc(sizeof(char) * (l + 1)) ;
+        new_read_seqs[_i][_j][_k] = (char*) malloc(sizeof(char) * (l + 1)) ;
+        new_read_quals[_i][_j][_k] = (uint8_t*) malloc(sizeof(char) * (l + 1)) ;
+        read_seq_max_lengths[_i][_j][_k] = l ;
     }
     //
     int n = 0 ;
@@ -94,9 +106,9 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
     int del_offset = 0 ;
     int match_offset = 0 ;
     int soft_clip_offset = 0 ;
-    char* new_seq = (char*) malloc(sizeof(char) * (l + 1)) ;
+    char* new_seq = new_read_seqs[_i][_j][_k] ; 
     uint8_t* qual = bam_get_qual(alignment) ;
-    uint8_t* new_qual = (uint8_t*) malloc(sizeof(char) * (l + 1)) ;
+    uint8_t* new_qual = new_read_quals[_i][_j][_k] ; 
     int pos = alignment->core.pos + 1 ; // this is 0-based, variant cpoordinates are 1-based
     // Modify current bam1_t* struct
     auto& core = alignment->core ;
@@ -109,12 +121,15 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             break ;
         }
         if (cigar_offsets[m].second == BAM_CMATCH || cigar_offsets[m].second == BAM_CEQUAL || cigar_offsets[m].second == BAM_CDIFF) {
-            for (int j = 0; j < cigar_offsets[m].first; j++) {
-                new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
-                new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
-                num_mismatch += 1 ? chromosome_seqs[chrom][ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
-                n++ ;
-            }
+            memcpy(new_seq + n, chromosome_seqs[chrom] + ref_offset, cigar_offsets[m].first) ;
+            memcpy(new_qual + n, qual + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
+            n += cigar_offsets[m].first ;
+            //for (int j = 0; j < cigar_offsets[m].first; j++) {
+            //    new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
+            //    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
+            //    num_mismatch += 1 ? chromosome_seqs[chrom][ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
+            //    n++ ;
+            //}
             ref_offset += cigar_offsets[m].first ;
             match_offset += cigar_offsets[m].first ;
             num_match += cigar_offsets[m].first ;
@@ -125,45 +140,55 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             }
             m_diff = 0 ;
         } else if (cigar_offsets[m].second == BAM_CINS) {
-            if (cigar_offsets[m].first <= 10) {
+            if (cigar_offsets[m].first <= config->min_indel_length) {
                 // if a short INDEL then just don't add it to read
             } else {
                 // for long INS, this is probably a SV so add it to the read
-                for (int j = 0; j < cigar_offsets[m].first; j++) {
-                    new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
-                    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ; // bases are in read
-                    n++ ;
-                }
+                should_ignore = false ;
+                memcpy(new_seq + n, read_seq + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
+                memcpy(new_qual + n, qual + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
+                n += cigar_offsets[m].first ;
+                //for (int j = 0; j < cigar_offsets[m].first; j++) {
+                //    new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
+                //    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ; // bases are in read
+                //    n++ ;
+                //}
                 new_cigar.push_back(cigar_offsets[m]) ;
             }
             ins_offset += cigar_offsets[m].first ;
         } else if (cigar_offsets[m].second == BAM_CDEL) {
-            if (cigar_offsets[m].first <= 10) {
+            if (cigar_offsets[m].first <= config->min_indel_length) {
                 // if a short DEL so let's just fix it
-                for (int j = 0; j < cigar_offsets[m].first; j++) {
-                    new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
-                    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset] ; // just use last observed quality
-                    n++ ;
-                }
+                memcpy(new_seq + n, chromosome_seqs[chrom] + ref_offset, cigar_offsets[m].first) ;
+                memcpy(new_qual + n, qual + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
+                n += cigar_offsets[m].first ;
+                //for (int j = 0; j < cigar_offsets[m].first; j++) {
+                //    new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
+                //    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset] ; // just use last observed quality
+                //    n++ ;
+                //}
                 m_diff += cigar_offsets[m].first ;
             } else {
                 // for long DEL, this is probably a SV so let it be what it was
+                should_ignore = false ;
                 new_cigar.push_back(cigar_offsets[m]) ;
             }
             del_offset += cigar_offsets[m].first ;
             ref_offset += cigar_offsets[m].first ;
         } else if (cigar_offsets[m].second == BAM_CSOFT_CLIP) {
-            for (int j = 0; j < cigar_offsets[m].first; j++) {
-                new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
-                new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
-                n++ ;
-            }
+            should_ignore = false ;
+            memcpy(new_seq + n, read_seq + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
+            memcpy(new_qual + n, qual + soft_clip_offset + match_offset + ins_offset, cigar_offsets[m].first) ;
+            n += cigar_offsets[m].first ;
+            //for (int j = 0; j < cigar_offsets[m].first; j++) {
+            //    new_seq[n] = read_seq[soft_clip_offset + match_offset + ins_offset + j] ;
+            //    new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
+            //    n++ ;
+            //}
             soft_clip_offset += cigar_offsets[m].first ;
             new_cigar.push_back(cigar_offsets[m]) ;
-        } else if (cigar_offsets[m].second == BAM_CREF_SKIP) {
-            // won't happen in DNA alignments
-        } else {//if (cigar_offsets[m].second == BAM_CPAD || cigar_offsets[m].second == BAM_CHARD_CLIP || cigar_offsets[m].second == BAM_CBACK) {
-            // pass
+        } else {
+            //if (cigar_offsets[m].second == BAM_CPAD || cigar_offsets[m].second == BAM_CHARD_CLIP || cigar_offsets[m].second == BAM_CBACK) {
         }
         m += 1 ;
     }
@@ -187,14 +212,17 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             return ;
         }
     }
+    char *qname = bam_get_qname(alignment) ;
+    if (should_ignore) {
+        // check mismatch rate
+        ignored_reads[omp_get_thread_num() - 2].push_back(qname) ;
+        return ;
+    }
+    reconstructed_reads[omp_get_thread_num() - 2].push_back(qname) ;
     rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar) ;
-    free(new_seq) ;
-    free(new_qual) ;
 }
 
-void Reconstructor::process_batch(vector<bam1_t*> bam_entries) {
-    char* seq = (char*) malloc(10000) ;
-    uint32_t len = 0 ;
+void Reconstructor::process_batch(vector<bam1_t*> bam_entries, int p, int i) {
     bam1_t* alignment ;
     for (int b = 0; b < bam_entries.size(); b++) {
         alignment = bam_entries[b] ;
@@ -215,24 +243,8 @@ void Reconstructor::process_batch(vector<bam1_t*> bam_entries) {
         if (chromosome_seqs.find(chrom) == chromosome_seqs.end()) {
             continue ;
         }
-        // recover sequence
-        uint32_t l = alignment->core.l_qseq ; //length of the read
-        if (l > len) {
-            if (len > 0) {
-                free(seq) ;
-            }
-            len = l ;
-            seq = (char*) malloc(l + 1) ;
-        }
-        uint8_t *q = bam_get_seq(alignment) ; //quality string
-        for (int i = 0; i < l; i++){
-            seq[i] = seq_nt16_str[bam_seqi(q, i)]; //gets nucleotide id and converts them into IUPAC id.
-        }
-        seq[l] = '\0' ; // null terminate
-        //cout << bam_get_qname(alignment) << " " << bam_header->target_name[alignment->core.tid] << " " << alignment->core.mpos << endl ;
-        reconstruct_read(alignment, seq, chrom) ;
+        reconstruct_read(alignment, read_seqs[p][i][b], chrom, p, i, b) ;
     }
-    free(seq) ;
 }
 
 // BAM writing based on https://www.biostars.org/p/181580/
@@ -240,45 +252,61 @@ void Reconstructor::run() {
     config = Configuration::getInstance() ;
     load_chromosomes(config->reference) ;
     // parse arguments
-    bam_file = sam_open(config->bam.c_str(), "r") ;
+    bam_file = hts_open(config->bam.c_str(), "r") ;
+    bam_index = sam_index_load(bam_file, config->bam.c_str()) ;
     bam_header = sam_hdr_read(bam_file) ; //read header
     bgzf_mt(bam_file->fp.bgzf, 8, 1) ;
     auto out_bam_path = config->workdir + (config->selective ? "/reconstructed.selective.bam" : "/reconstructed.bam") ;
-    out_bam_file = sam_open(out_bam_path.c_str(), "wb") ;
+    out_bam_file = hts_open(out_bam_path.c_str(), "wb") ;
+    bgzf_mt(out_bam_file->fp.bgzf, 8, 1) ;
     int r = sam_hdr_write(out_bam_file, bam_header) ;
     if (r < 0) {
         lprint({"Can't write corrected BAM header, aborting.."}, 2);
+        return ;
     }
-    // confidence scores 
-    for(int i = 0; i < 2; i++) {
-        bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
-    }
-    int p = 0 ;
-    int b = 0 ;
+    // allocate stuff
+    int modulo = 3 ;
     int batch_size = (10000 / config->threads) * config->threads ;
-    lprint({"Loading first batch.."});
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < modulo; i++) {
+        read_seqs.push_back(vector<vector<char*>>(config->threads)) ; // current and next output
+        new_read_seqs.push_back(vector<vector<char*>>(config->threads)) ; // current and next output
+        new_read_quals.push_back(vector<vector<uint8_t*>>(config->threads)) ; // current and next output
+        read_seq_lengths.push_back(vector<vector<int>>(config->threads)) ; // current and next output
+        read_seq_max_lengths.push_back(vector<vector<int>>(config->threads)) ; // current and next output
+        for (int j = 0; j < config->threads; j++) {
+            for (int k = 0; k < batch_size / config->threads; k++) {
+                read_seqs[i][j].push_back((char*) malloc(sizeof(char) * (30001))) ;
+                new_read_seqs[i][j].push_back((char*) malloc(sizeof(char) * (30001))) ;
+                new_read_quals[i][j].push_back((uint8_t*) malloc(sizeof(uint8_t) * (30001))) ;
+                //
+                read_seq_lengths[i][j].push_back(30000) ;
+                read_seq_max_lengths[i][j].push_back(30000) ;
+            }
+        }
+    }
+    for (int i = 0; i < modulo; i++) {
+        bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
         for (int j = 0; j < config->threads; j++) {
             for (int k = 0; k <= batch_size / config->threads; k++) {
                 bam_entries[i][j].push_back(bam_init1()) ;
             }
         }
     }
-    load_batch_bam(config->threads, batch_size, p) ;
-    // main loop
+    int b = 0 ;
+    lprint({"Loading first batch.."});
+    load_batch_bam(config->threads, batch_size, 1) ;
+    int p = 1 ;
+    ignored_reads.resize(config->threads) ;
+    reconstructed_reads.resize(config->threads) ;
     time_t t ;
     time(&t) ;
     bool should_load = true ;
     bool should_process = true ;
     bool should_terminate = false ;
     bool loaded_last_batch = false ;
-    uint64_t u = 0 ;
-    int num_reads = 0 ;
-    while (true) {
-      lprint({"Beginning batch", to_string(b + 1)});
-        for (int i = 0 ; i < config->threads ; i++) {
-            u += bam_entries[p][i].size() ;
-        }
+    lprint({"Starting main loop.."}) ;
+    while (should_process) {
+        //lprint({"Beginning batch", to_string(b + 1)});
         if (!should_load) {
             should_process = false ;
         }
@@ -288,16 +316,22 @@ void Reconstructor::run() {
         #pragma omp parallel for num_threads(config->threads + 2)
         for(int i = 0; i < config->threads + 2; i++) {
             if (i == 0) {
-                // write previous batch
+                if (should_load) {
+                    loaded_last_batch = !load_batch_bam(config->threads, batch_size, (p + 1) % modulo) ;
+                    //if (loaded_last_batch) {
+                    //    lprint({"Last input batch loaded."});
+                    //} else {
+                    //    lprint({"Loaded."});
+                    //}
+                }
+            } else if (i == 1) {
                 if (b >= 1) {
-                    // write BAM
                     int ret = 0 ;
                     for (int k = 0; k < batch_size / config->threads; k++) {
                         for (int j = 0; j < config->threads; j++) {
-                            if (bam_entries[(p + 1) % 2][j][k] != nullptr) {
-                                auto alignment = bam_entries[(p + 1) % 2][j][k] ;
-                                ret = sam_write1(out_bam_file, bam_header, bam_entries[(p + 1) % 2][j][k]);
-                                num_reads++ ;
+                            if (bam_entries[(p + 1) % modulo][j][k] != nullptr) {
+                                auto alignment = bam_entries[(p + 1) % modulo][j][k] ;
+                                ret = sam_write1(out_bam_file, bam_header, bam_entries[(p + 2) % modulo][j][k]);
                                 if (ret < 0) {
                                     lprint({"Can't write corrected BAM record, aborting.."}, 2);
                                     should_terminate = true ;
@@ -307,56 +341,98 @@ void Reconstructor::run() {
                             }
                         }
                     }
+                    //cout << "Written.." << endl ;
                 }
-                // load next batch of entries
-                if (should_load) {
-                    loaded_last_batch = !load_batch_bam(config->threads, batch_size, (p + 1) % 2) ;
-                    if (loaded_last_batch) {
-                        lprint({"Last input batch loaded."});
-                    } else {
-                        lprint({"Loaded."});
-                    }
-                }
-            } else if (i == 1) {
-                // merge output of previous batch
             } else {
-                // process current batch
                 if (should_process) {
-                    process_batch(bam_entries[p][i - 2]) ;
+                    process_batch(bam_entries[p][i - 2], p, i - 2) ;
                 }
             }
         }
         if (should_terminate) {
             lprint({"Something went wrong, aborting.."}, 2);
+            return ;
         }
-        if (!should_load) {
-            lprint({"Processed last batch of inputs."});
-        }
-        if (!should_process) {
-            break ;
-        }
+        //if (!should_load) {
+        //    lprint({"Processed last batch of inputs."});
+        //}
+        //if (!should_process) {
+        //    break ;
+        //}
         p += 1 ;
-        p %= 2 ;
+        p %= modulo ;
         b += 1 ;
         time_t s ;
         time(&s) ;
         if (s - t == 0) {
             s += 1 ;
         }
-        cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
-        cerr << "[I] Process bases: " << std::left << std::setw(16) << uint64_t(global_num_bases) << ", num mismatch: " << std::setw(16) << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", ignored reads: " << num_ignored_reads << endl ;
+        cerr << "[I] Processed batch " << std::left << b << ". Reads so far " << std::right << reads_processed << ". Reads per second: " <<  reads_processed / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
+        cerr << "[I] Processed bases: " << std::left << uint64_t(global_num_bases) << ", num mismatch: " << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", ignored reads: " << num_ignored_reads << "\n" ;
         expected_mismatch_rate = global_num_mismatch / global_num_bases ; 
+        cerr << "\x1b[A" ;
+        cerr << "\x1b[A" ;
     }
     lprint({"Done."});
     sam_close(bam_file) ;
     sam_close(out_bam_file) ;
-    lprint({"Wrote", to_string(num_reads), "reads."});
+    dump_reconstructed_read_ids() ;
+    lprint({"Wrote", to_string(reads_processed), "reads."});
+}
+
+void Reconstructor::dump_reconstructed_read_ids() {
+    lprint({"Dumping reconstructed read ids.."}) ;
+    ofstream qname_file(config->workdir + "/reconstructed_reads.txt") ;
+    if (qname_file.is_open()) {
+        for (int i = 0; i < config->threads; i++) {
+            for (const auto& qname: reconstructed_reads[i]) {
+                qname_file << qname << endl ;
+            }
+        }
+        lprint({"Error openning reconstructed_reads.txt."}, 2) ;
+    }
+    qname_file.close() ;
+    ofstream ignore_file(config->workdir + "/ignored_reads.txt") ;
+    if (ignore_file.is_open()) {
+        for (int i = 0; i < config->threads; i++) {
+            for (const auto& qname: ignored_reads[i]) {
+                ignore_file << qname << endl ;
+            }
+        }
+        ignore_file.close() ;
+    } else {
+        lprint({"Error openning ignored_read.txt."}, 2) ;
+    }
 }
 
 bool Reconstructor::load_batch_bam(int threads, int batch_size, int p) {
     int n = 0 ;
     int i = 0 ;
+    int m = 0 ;
     while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
+        auto alignment = bam_entries[p][n % threads][i] ;
+        if (alignment == nullptr) {
+            break ;
+        }
+        reads_processed += 1 ;
+        uint32_t l = alignment->core.l_qseq ; //length of the read
+        if (read_seq_max_lengths[p][n % threads][i] < l) {
+            free(read_seqs[p][n % threads][i]) ;
+            free(new_read_seqs[p][n % threads][i]) ;
+            free(new_read_quals[p][n % threads][i]) ;
+            //
+            read_seqs[p][n % threads][i] = (char*) malloc(sizeof(char) * (l + 1)) ;
+            new_read_seqs[p][n % threads][i] = (char*) malloc(sizeof(char) * (l + 1)) ;
+            new_read_quals[p][n % threads][i] = (uint8_t*) malloc(sizeof(char) * (l + 1)) ;
+            read_seq_max_lengths[p][n % threads][i] = l ;
+            m += 1 ;
+        }
+        read_seq_lengths[p][n % threads][i] = l ;
+        uint8_t *q = bam_get_seq(alignment) ;
+        for (int _ = 0; _ < l; _++){
+            read_seqs[p][n % threads][i][_] = seq_nt16_str[bam_seqi(q, _)] ;
+        }
+        read_seqs[p][n % threads][i][l] = '\0' ;
         n += 1 ;
         if (n % threads == 0) {
             i += 1 ;
@@ -365,14 +441,21 @@ bool Reconstructor::load_batch_bam(int threads, int batch_size, int p) {
             break ;
         }
     }
+    //cout << m << " reallocations.." << endl ;
     // last batch was incomplete
-    if (n != batch_size) {
-        for (int j = 0; j < threads; j++) {
-            bam_destroy1(bam_entries[p][j][i + 1]) ;
-            bam_entries[p][j][i + 1] = nullptr ;
+    if (n != 0 && n != batch_size) {
+        for (int j = n % threads; j < threads; j++) {
+            //cout << "Terminus at " << j << " " << i << endl ;
+            bam_entries[p][j][i] = nullptr ;
+        }
+        for (int j = 0; j < n % threads; j++) {
+            if (i + 1 < bam_entries[p][j].size()) {
+                //cout << "Terminus at " << j << " " << i + 1 << endl ;
+                bam_entries[p][j][i + 1] = nullptr ;
+            }
         }
     }
-    lprint({"Loaded", to_string(n), "BAM reads.."});
-    return n == batch_size ;
+    //lprint({"Loaded", to_string(n), "BAM reads.."});
+    return n != 0 ? true : false ;
 }
 

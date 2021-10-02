@@ -34,15 +34,24 @@ public:
     // Loading BAM file
     samFile *bam_file ;
     bam_hdr_t* bam_header ;
+    hts_idx_t* bam_index ;
     // output BAM file
     samFile* out_bam_file ;
     // <time < batch < reads > > >
+    std::vector<std::vector<std::string>> reconstructed_reads ;
+    std::vector<std::vector<std::string>> ignored_reads ;
     std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
 
+    std::vector<std::vector<std::vector<int>>> read_seq_lengths ;
+    std::vector<std::vector<std::vector<int>>> read_seq_max_lengths ;
+    std::vector<std::vector<std::vector<char*>>> read_seqs ;
+    std::vector<std::vector<std::vector<char*>>> new_read_seqs ;
+    std::vector<std::vector<std::vector<uint8_t*>>> new_read_quals ;
+    
     void run() ;
     bool load_batch_bam(int threads, int batch_size, int p) ;
-    void process_batch(std::vector<bam1_t*> bam_entries) ;
-    void reconstruct_read(bam1_t* alignment, char* read_seq, std::string chrom) ;
+    void process_batch(std::vector<bam1_t*> bam_entries, int , int) ;
+    void reconstruct_read(bam1_t* alignment, char* read_seq, std::string chrom, int, int, int) ;
 
     Configuration* config ;
 
@@ -53,6 +62,9 @@ private:
     double global_num_indel ;
     double expected_mismatch_rate = 0.002 ;
     int num_ignored_reads = 0 ;
+    int reads_processed = 0 ;
+
+    void dump_reconstructed_read_ids() ;
 };
 
 #endif

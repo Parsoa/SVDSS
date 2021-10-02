@@ -31,9 +31,11 @@ Configuration::Configuration() :
         ("aggregate", "", cxxopts::value<bool>())
         ("assemble", "", cxxopts::value<bool>())
         ("selective", "", cxxopts::value<bool>())
+        ("putative", "", cxxopts::value<bool>())
         ("batches", "", cxxopts::value<int>())
         ("overlap", "", cxxopts::value<int>())
         ("min-length", "", cxxopts::value<int>())
+        ("min-indel-length", "", cxxopts::value<int>())
     ;
 }
 
@@ -101,8 +103,12 @@ void Configuration::parse(int argc, char** argv) {
     if (results.count("min-length")) {
         min_string_length = results["min-length"].as<int>() ;
     }
+    if (results.count("min-indel-length")) {
+        min_indel_length = results["min-indel-length"].as<int>() ;
+    }
     binary = results["binary"].as<bool>() ;
     aggregate = results["aggregate"].as<bool>() ;
     assemble = results["assemble"].as<bool>() ;
     selective = results["selective"].as<bool>() ;
+    putative = results["putative"].as<bool>() ;
 }

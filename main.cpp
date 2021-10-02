@@ -121,7 +121,6 @@ int main(int argc, char** argv) {
         auto pingpong = new PingPong() ;
         pingpong->index() ;
     } else if (strcmp(argv[1], "query") == 0) {
-        //TODO
         auto pingpong = new PingPong() ;
         bool b = pingpong->query(string(argv[2])) ;
         cerr << (b ? "SFS" : "Not SFS") << endl ;

@@ -54,11 +54,74 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
 }
 
 // I don't this can be further optimized
-void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, const bool isreversed) {
+void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, bool isreconstructed, bam1_t* aln) {
+    //cout << bam_get_qname(aln) ;
     //DEBUG(cerr << "Read Length: " << l << endl ;)
+    vector<pair<int, int>> m_intervals ;
+    vector<pair<uint32_t, uint32_t>> cigar_offsets ;
+    int offset = 0 ;
+    if (config->putative) {
+        bool should_ignore = true ;
+        cigar_offsets = decode_cigar(aln) ;
+        for (const auto& op: cigar_offsets) {
+            if (op.second == BAM_CDEL || op.second == BAM_CINS) {
+                if (op.first >= config->min_indel_length) { //TODO: hardcoded
+                    should_ignore = false ;
+                }
+                if (op.second == BAM_CINS) {
+                    offset += op.first ;
+                }
+            }
+            if (op.second == BAM_CSOFT_CLIP) {
+                should_ignore = false ;
+                offset += op.first ;
+            }
+            if (op.second == BAM_CMATCH || op.second == BAM_CEQUAL || op.second == BAM_CDIFF) {
+                m_intervals.push_back(make_pair(offset, offset + int(op.first))) ;
+                //cout << "Adding: " << offset << ", " << offset + int(op.first) << endl ;
+                offset += op.first ;
+            }
+            if (op.second == BAM_CDIFF) {
+                return ;
+            }
+        }
+        if (should_ignore) {
+            return ;
+        }
+    }
+    // CIGAR_tracking
+    int current_interval = m_intervals.size() - 1 ;
+    //
     rldintv_t sai ;
     int begin = l - 1 ;
+    bool last_jump = false ;
+    //cout << "Begin: " << begin << endl ;
     while (begin >= 0) {
+        if (config->putative && isreconstructed && current_interval != -1 && !last_jump) {
+            // find current m-interval
+            while (begin >= m_intervals[current_interval].second) {
+                current_interval-- ;
+                if (current_interval == -1) {
+                    break ;
+                }
+            }
+            // are we starting in it?
+            if (current_interval != -1) {
+                //cout << "Current interval: " << m_intervals[current_interval].first << " - " << m_intervals[current_interval].second << endl ;
+                auto& interval = m_intervals[current_interval] ;
+                if (begin >= interval.first && begin < interval.second) {
+                    if (interval.second - interval.first > 40) {
+                        if (interval.first + 20 < begin) {
+                            begin = m_intervals[current_interval].first + 20 ;
+                            //cout << "Jump to: " << begin << endl ;
+                            if (current_interval == 0) {
+                                last_jump = true ;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         // Backward search. Find a mismatching sequence. Stop at first mismatch.
         int bmatches = 0 ;
         fm6_set_intv(index, P[begin], sai) ;
@@ -91,12 +154,11 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs
             //DEBUG(cerr << "- FE with " << int2char[P[end]] << " (" <<  end << "): " << interval2str(sai) << endl ;)
         }
         //DEBUG(cerr << "Mismatch " << int2char[P[end]] << " (" << end << "). fmatches: " << fmatches << endl ;)
-        // add solution
         //DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
         int sfs_len = end - begin + 1 ;
         int acc_len = end - begin + 1 ;
         //DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
-        solutions.push_back(SFS{begin, sfs_len, 1, isreversed}) ;
+        solutions.push_back(SFS{begin, sfs_len, 1, true}) ;
         //DEBUG(assert(begin + sfs_len <= l) ;)
         //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
         if (begin == 0) {
@@ -105,13 +167,7 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs
         if (config->overlap == 0) { // Relaxed
             begin -= 1 ;
         } else {
-            if (config->overlap > 0) {
-                int overlap = config->overlap >= acc_len ? acc_len - 1 : config->overlap ;
-                begin = begin + overlap ;
-                assert(begin <= end && overlap >= 0) ;
-            } else {
-                begin = end + config->overlap ; // overlap < 0
-            }
+            begin = end + config->overlap ; // overlap < 0
         }
     }
     //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
@@ -125,6 +181,7 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
         if (alignment == nullptr) {
             break ;
         }
+        reads_processed += 1 ;
         if (alignment->core.flag & BAM_FUNMAP || alignment->core.flag & BAM_FSUPPLEMENTARY || alignment->core.flag & BAM_FSECONDARY) {
             continue ;
         }
@@ -135,11 +192,12 @@ bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
             continue ;
         }
         uint32_t l = alignment->core.l_qseq ; //length of the read
-        if (read_seq_lengths[p][n % threads][i] < l) {
+        if (read_seq_max_lengths[p][n % threads][i] < l) {
             free(read_seqs[p][n % threads][i]) ;
             read_seqs[p][n % threads][i] = (uint8_t*) malloc(sizeof(char) * (l + 1)) ;
-            read_seq_lengths[p][n % threads][i] = l ;
+            read_seq_max_lengths[p][n % threads][i] = l ;
         }
+        read_seq_lengths[p][n % threads][i] = l ;
         uint8_t *q = bam_get_seq(alignment) ;
         for (int _ = 0; _ < l; _++){
             read_seqs[p][n % threads][i][_] = seq_nt16_str[bam_seqi(q, _)] ;
@@ -172,11 +230,12 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
             fastq_entries[p][n % threads].push_back(fastq_entry_t(fastq_iterator->name.s, fastq_iterator->seq.s, fastq_iterator->name.s)) ;
         }
         int l = fastq_entries[p][n % threads][i].seq.size() ;
-        if (read_seq_lengths[p][n % threads][i] < l) {
+        if (read_seq_max_lengths[p][n % threads][i] < l) {
             free(read_seqs[p][n % threads][i]) ;
             read_seqs[p][n % threads][i] = (uint8_t*) malloc(sizeof(char) * (l + 1)) ;
-            read_seq_lengths[p][n % threads][i] = l ;
+            read_seq_max_lengths[p][n % threads][i] = l ;
         }
+        read_seq_lengths[p][n % threads][i] = l ;
         for (int _ = 0; _ < l; _++){
             read_seqs[p][n % threads][i][_] = fastq_entries[p][n % threads][i].seq[_] ;
         }
@@ -194,17 +253,24 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
     return n != 0 ? true : false ;
 }
 
-batch_type_t PingPong::process_batch(rld_t* index, int p, int i, const bool isreversed) {
+batch_type_t PingPong::process_batch(rld_t* index, int p, int i) {
     batch_type_t solutions ;
     // store read id once for all strings to save space, is it worth it?
     if (mode == 0) {
         for (const auto &fastq_entry: fastq_entries[p][i]) {
-            ping_pong_search(index, (uint8_t*) fastq_entry.seq.c_str(), fastq_entry.seq.size(), solutions[fastq_entry.head], isreversed) ;
+            ping_pong_search(index, (uint8_t*) fastq_entry.seq.c_str(), fastq_entry.seq.size(), solutions[fastq_entry.head], false, nullptr) ;
         }
     } else {
         for (int j = 0; j < read_seqs[p][i].size(); j++) {
             char *qname = bam_get_qname(bam_entries[p][i][j]) ;
-            ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[qname], isreversed) ;
+            if (config->putative) {
+                if (ignored_reads.find(qname) != ignored_reads.end()) {
+                    continue ;
+                }
+            }
+            bool isreconstructed = reconstructed_reads.find(qname) != reconstructed_reads.end() ;
+            //cout << qname << " " << isreconstructed << endl ;
+            ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[qname], isreconstructed, bam_entries[p][i][j]) ;
         }
     }
     return solutions ;
@@ -258,7 +324,7 @@ int PingPong::search() {
         bam_header = sam_hdr_read(bam_file) ;
         bgzf_mt(bam_file->fp.bgzf, 8, 1) ;
         mode = 1 ;
-    } else if (config->bam != "") {
+    } else if (config->fastq != "") {
         lprint({"FASTQ input:", config->fastq});
         fastq_file = gzopen(config->fastq.c_str(), "r") ;
         fastq_iterator = kseq_init(fastq_file) ;
@@ -267,8 +333,10 @@ int PingPong::search() {
         lprint({"No input file provided, aborting.."}, 2);
         exit(1) ;
     }
-    //lprint({"Overlap =", to_string(config->overlap)});
-    //lprint({"Minimum length =", to_string(config->min_string_length)});
+    if (config->putative) {
+        lprint({"Putative SFS extraction enabled."}) ;
+        load_reconstructed_read_ids() ;
+    }
     // allocate all necessary stuff 
     int p = 0 ;
     int batch_size = (10000 / config->threads) * config->threads ;
@@ -280,10 +348,12 @@ int PingPong::search() {
     for (int i = 0; i < 2; i++) {
         read_seqs.push_back(vector<vector<uint8_t*>>(config->threads)) ; // current and next output
         read_seq_lengths.push_back(vector<vector<int>>(config->threads)) ; // current and next output
+        read_seq_max_lengths.push_back(vector<vector<int>>(config->threads)) ; // current and next output
         for (int j = 0; j < config->threads; j++) {
             for (int k = 0; k < batch_size / config->threads; k++) {
                 read_seqs[i][j].push_back((uint8_t*) malloc(sizeof(uint8_t) * (30001))) ;
                 read_seq_lengths[i][j].push_back(30000) ;
+                read_seq_max_lengths[i][j].push_back(30000) ;
             }
         }
     }
@@ -302,8 +372,8 @@ int PingPong::search() {
     }
     batches.push_back(vector<batch_type_t>(config->threads)) ; // previous and current output
     // main loop
-    time_t t ;
-    time(&t) ;
+    time_t f ;
+    time(&f) ;
     int b = 0 ;
     uint64_t u = 0 ;
 
@@ -316,18 +386,10 @@ int PingPong::search() {
     uint64_t total_sfs_output_batch = 0 ;
     lprint({"Extracting SFS strings on", to_string(config->threads), "threads.."});
 
-    #pragma omp parallel num_threads(config->threads + 2)
+    //#pragma omp parallel num_threads(config->threads + 2)
     while (should_process) {
-        //lprint({"Beginning batch", to_string(b + 1)});
-        #pragma omp single
+        //#pragma omp single
         {
-            for (int i = 0 ; i < config->threads ; i++) {
-                if (mode == 1) {
-                    u += bam_entries[p][i].size() ;
-                } else {
-                    u += fastq_entries[p][i].size() ;
-                }
-            }
             if (!should_load) {
                 should_process = false ;
             }
@@ -335,7 +397,8 @@ int PingPong::search() {
                 should_load = false ;
             }
         }
-        #pragma omp for
+        //#pragma omp for
+        #pragma omp parallel for num_threads(config->threads + 2) schedule(static, 1)
         for(int i = 0; i < config->threads + 2; i++) {
             int t = omp_get_thread_num() ;
             if (t == 0) {
@@ -350,7 +413,7 @@ int PingPong::search() {
                     batches.push_back(vector<batch_type_t>(config->threads)) ; // previous and current output
                 }
             } else if (t == 1) {
-               if (b >= 1) {
+                if (b >= 1) {
                     // just count how many strings we have
                     uint64_t c = 0 ;
                     for (const auto &batch: batches[b - 1]) {
@@ -370,11 +433,11 @@ int PingPong::search() {
                 }
             } else {
                 if (should_process) {
-                    batches[b][t - 2] = process_batch(index, p, t - 2, mode == 1) ;
+                    batches[b][t - 2] = process_batch(index, p, t - 2) ;
                 }
             }
         }
-        #pragma omp single
+        //#pragma omp single
         {
             if (!should_load) {
                 //lprint({"Processed last batch of inputs."});
@@ -388,18 +451,40 @@ int PingPong::search() {
             b += 1 ;
             time_t s ;
             time(&s) ;
-            if (s - t == 0) {
+            if (s - f == 0) {
                 s += 1 ;
             }
-            cerr << "[I] Processed batch " << std::left << std::setw(6) << b << ". Reads so far " << std::right << std::setw(9) << u << ". Reads per second: " << std::setw(5) <<  u / (s - t) << ". SFS extracted so far: " << std::setw(12) << total_sfs << ". Batches exoprted: " << std::setw(4) << current_batch << ". Time: " << std::setw(8) << std::fixed << s - t << "\r" ;
+            cerr << "[I] Processed batch " << std::left << std::setw(6) << b << ". Reads so far " << std::right << std::setw(9) << reads_processed << ". Reads per second: " << std::setw(5) <<  reads_processed / (s - f) << ". SFS extracted so far: " << std::setw(12) << total_sfs << ". Batches exported: " << std::setw(4) << current_batch << ". Time: " << std::setw(8) << std::fixed << s - f << "\r" ;
         }
     }
     cerr << endl ;
+    lprint({"Done."}) ;
     // cleanup
     kseq_destroy(fastq_iterator) ;
     gzclose(fastq_file) ;
     num_output_batches = current_batch ;
     return u ;
+}
+
+void PingPong::load_reconstructed_read_ids() {
+    lprint({"Loading reconstructed read ids.."}) ;
+    ifstream ignore_file(config->workdir + "/ignored_reads.txt") ;
+    if (ignore_file.is_open()) {
+        string read_name;
+        while (getline(ignore_file, read_name)) {
+            ignored_reads[read_name] = true ;
+        }
+        ignore_file.close() ;
+    }
+    ifstream in_file(config->workdir + "/reconstructed_reads.txt") ;
+    if (in_file.is_open()) {
+        string read_name;
+        while (getline(in_file, read_name)) {
+            reconstructed_reads[read_name] = true ;
+        }
+        in_file.close() ;
+    }
+    lprint({"Loaded", to_string(reconstructed_reads.size()), "reconstructed read ids."}) ;
 }
 
 // ============================================================================= \\
@@ -512,6 +597,10 @@ int PingPong::index() {
 
     return 0 ;
 }
+
+// ============================================================================= \\
+// ============================================================================= \\
+// ============================================================================= \\
 
 bool PingPong::query(string q) {
     config = Configuration::getInstance() ;

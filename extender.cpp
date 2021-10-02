@@ -222,7 +222,6 @@ bool Extender::load_batch_bam(int threads, int batch_size, int p) {
             return true ;
         }
     }
-    //TODO: we need this wherever BAM files are being processed
     if (n != 0 && n != batch_size) {
         for (int j = n % threads; j < threads; j++) {
             //cout << "Terminus at " << j << " " << i << endl ;

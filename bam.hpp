@@ -92,32 +92,23 @@ struct CIGAR {
         std::cout << std::endl ;
     }
 
-    void fixclips()
-    {
-        if (ops.front().second != 'M')
-        {
-            switch (ops.front().second)
-            {
-            case 'I':
+    void fixclips() {
+        if (ops.front().second != 'M') {
+            if (ops.front().second == 'I') {
                 ops.front().second = 'S';
-                break;
-            case 'D':
-                ops.erase(ops.begin()); // CHECKME: by doing this we may reduce the length of merged variations
-                --ngaps;
-                break;
+            }
+            if (ops.front().second == 'D') {
+                ops.erase(ops.begin()) ; // CHECKME: by doing this we may reduce the length of merged variations
+                --ngaps ;
             }
         }
-        else if (ops.back().second != 'M')
-        {
-            switch (ops.back().second)
-            {
-            case 'I':
+        else if (ops.back().second != 'M') {
+            if (ops.back().second == 'I') {
                 ops.back().second = 'S';
-                break;
-            case 'D':
+            }
+            if (ops.back().second == 'D') {
                 ops.pop_back(); // CHECKME: by doing this we may reduce the length of merged variations
-                --ngaps;
-                break;
+                --ngaps ;
             }
         }
     }

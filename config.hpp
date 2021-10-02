@@ -28,11 +28,13 @@ public:
     int batch_size = 1000 ;
     int aggregate_batches = 5 ;
     int min_string_length = 0 ; // not enforced by default
+    int min_indel_length = 20 ;
 
     bool binary ;
     bool assemble ;
     bool aggregate ;
     bool selective ;
+    bool putative = false ;
 
     std::string bed ;
     std::string bam ; // reads bam (reconstructed or not)
