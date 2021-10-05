@@ -10,6 +10,7 @@ binaries/
 src/
 poa/
 old/
+builds/
 
 *.pyc
 

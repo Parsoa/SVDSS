@@ -51,7 +51,7 @@ void create_workdir() {
       lprint({"Working directory does not exist. creating.."}, 0);
         int check = mkdir(c->workdir.c_str(), 0777) ;
         if (check != 0) {
-	  lprint({"Failed to create output directory, aborting.."}, 2);
+            lprint({"Failed to create output directory, aborting.."}, 2);
             exit(check) ;
         }
     }
