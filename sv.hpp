@@ -29,15 +29,18 @@ public:
     void genotype();
     
     bool operator<(const SV& c) const {
-        if (chrom == c.chrom) {
-            return s < c.s ;
+        if (chrom < c.chrom) {
+            return true ;
+        }
+        else if (chrom > c.chrom) {
+            return false ;
         } else {
-            return chrom < c.chrom ;
+            return s < c.s ;
         }
     }
 
     bool operator==(const SV& c) const {
-        return chrom == c.chrom and s == c.s and e == c.e and type == c.type;
+        return chrom == c.chrom and s == c.s and e == c.e and type == c.type ;
     }
 
     friend std::ostream &operator<<(std::ostream &os, const SV &sv) ;

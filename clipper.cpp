@@ -145,6 +145,8 @@ void Clipper::call(int threads, interval_tree_t<int>& vartree) {
         }
     }
     lprint({"Preprocessing clipped SFS.."}) ;
+    lprint({to_string(lclips.size()), "left clips."}) ;
+    lprint({to_string(rclips.size()), "right clips."}) ;
     #pragma omp parallel for num_threads(2) schedule(static,1)
     for (int i = 0; i < 2; i++) {
         if (i == 0) {

@@ -277,13 +277,11 @@ void Extender::extend_alignment(bam1_t* aln, int index) {
             int r = alpairs[i].second;
             if (q == -1 || r == -1) {
                 continue ;
-            }
-            else if (q < s) { // <= seems more correct to me but using < we are more flexible
+            } else if (q < s) { // <= seems more correct to me but using < we are more flexible
                 last_pos = i ;
                 refs = r ;
                 aln_start = i ;
-            }
-            else if (q > e) { // >= seems more correct but using > we are more flexible
+            } else if (q > e) { // >= seems more correct but using > we are more flexible
                 refe = r ;
                 aln_end = i ;
                 break ;

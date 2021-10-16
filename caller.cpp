@@ -60,7 +60,7 @@ void Caller::run() {
     lprint({"Exporting", to_string(svs.size()), "SV calls to", vcf_path + ".."}) ;
     ovcf.open(vcf_path) ;
     print_vcf_header() ;
-    for (const SV& sv: extender.svs) {
+    for (const SV& sv: svs) {
         ovcf << sv << endl ;
     }
     ovcf.close() ;
