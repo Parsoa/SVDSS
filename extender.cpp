@@ -36,11 +36,7 @@ void Extender::run(int _threads) {
     map<pair<int, int>, ExtCluster> _ext_clusters ;
     for(int i = 0; i < threads; i++) {
         for (const auto& cluster: _p_sfs_clusters[i]) {
-            if (_ext_clusters.find(cluster.first) == _ext_clusters.end()) {
-                _ext_clusters.insert(make_pair(cluster.first, ExtCluster(cluster.second))) ;
-            } else {
-                _ext_clusters[cluster.first].seqs.insert(_ext_clusters[cluster.first].seqs.begin(), cluster.second.begin(), cluster.second.end()) ;
-            }
+            _ext_clusters.insert(make_pair(cluster.first, ExtCluster(cluster.second))) ;
         }
     }
     for (const auto& cluster: _ext_clusters) {
@@ -48,7 +44,7 @@ void Extender::run(int _threads) {
     }
     // process each cluster separately 
     _p_clusters.resize(threads) ;
-    cluster() ;
+    extract_sfs_sequences() ;
     // flatten clusters into a single vector
     for (int i = 0; i < threads; i++) {
         clusters.insert(clusters.begin(), _p_clusters[i].begin(), _p_clusters[i].end()) ;
@@ -63,6 +59,7 @@ void Extender::run(int _threads) {
     }
     lprint({"Extracted", to_string(svs.size()), "SVs."});
     sam_close(bam_file) ;
+    filter_sv_chains() ;
 }
 
 pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs, const uint k, const bool from_end, string chrom) {
@@ -478,7 +475,7 @@ void Extender::cluster_no_interval_tree() {
     }
 }
 
-void Extender::cluster() {
+void Extender::extract_sfs_sequences() {
     lprint({"Analyzing", to_string(ext_clusters.size()), "clusters.."}) ;
     char* seq[threads] ; 
     uint32_t len[threads] ; 
@@ -618,7 +615,7 @@ vector<Cluster> Extender::cluster_by_length(const Cluster& cluster) {
     for (const string &seq: cluster.get_seqs()) {
         int i;
         for (i = 0; i < clusters_by_len.size(); i++) {
-            if (abs((int) clusters_by_len[i].get_len() - (int) seq.size()) <= mind) {
+            if (abs((int) clusters_by_len[i].get_len() - (int) seq.size()) <= min_d) {
                 break ;
             }
         }
@@ -658,7 +655,7 @@ void Extender::call() {
         int t = _ % threads ; 
         const Cluster &cluster = clusters[_] ;
         string chrom = cluster.chrom ;
-        if (cluster.size() < minw) {
+        if (cluster.size() < min_w) {
             continue ;
         }
         const auto& clusters_by_len = cluster_by_length(cluster) ;
@@ -686,7 +683,7 @@ void Extender::call() {
                 continue;
             }
             Cluster c = clusters_by_len[i];
-            if (c.size() < minw) {
+            if (c.size() < min_w) {
                 continue;
             }
             // --- Local realignment
@@ -732,50 +729,40 @@ void Extender::call() {
                 _svs[v].ngaps = nv ;
             }
             // --- combine SVs on same consensus ---
-            vector<SV> merged_svs ;
-            SV ins("", "", 0, "", "", 0, 0, 0, 0, false, 0)  ;
-            SV del("", "", 0, "", "", 0, 0, 0, 0, false, 0)  ;
-            for (const auto &sv : _svs) {
-                if (sv.type == "DEL") {
-                    if (del.type == "") {
-                        del = sv ;
-                        continue ;
-                    } else {
-                        del.l += sv.l ;
-                        del.refall += sv.refall ;
-                        del.e += sv.l ;
-                    }
-                } else {
-                    if (ins.type == "") {
-                        ins = sv ;
-                        continue ;
-                    } else {
-                        ins.l += sv.l ;
-                        ins.altall += sv.altall ;
-                    }
-                }
-            }
-            if (ins.type != "") {
-                merged_svs.push_back(ins) ;
-            }
-            if (del.type != "") {
-                merged_svs.push_back(del) ;
-            }
+            //vector<SV> merged_svs ;
+            //std::sort(_svs.begin(), _svs.end()) ;
+            //for (int i = 1; i < _svs.size(); i++) {
+            //    if (_svs[i].type == "DEL" == ) {
+            //        _dels.push_back(_svs[i]) ;
+            //    } else {
+            //        _ins.push_back(_svs[i]) ;
+            //    }
+            //}
+            // merge only overlapping SVs
+            //SV sv = _dels[0] ;
+            //for (int i = 1; i < _dels.size(); i++) {
+            //    auto& del = _dels[i] ;
+            //    if (del.s <= sv.e) {
+            //        sv.e = del.e ;
+            //        int overlap = sv.e - del.s + 1 ;
+            //        sv.refall = sv.altall + del..substr(overlap, del.l - overlap) ;
+            //    }
+            //}
             // -- Combine svs with same length (maybe useless now - only if diploid mode)
-            vector<SV> comb_svs;
-            for (const SV &msv : merged_svs) {
-                bool newsv_flag = true ;
-                for (SV &csv: comb_svs) {
-                    if (abs(csv.l - msv.l) <= 10) {
-                        csv.w += msv.w ;
-                        newsv_flag = false ;
-                    }
-                }
-                if (newsv_flag) {
-                    comb_svs.push_back(msv);
-                }
-            }
-            for (const SV &sv: comb_svs) {
+            //vector<SV> comb_svs;
+            //for (const SV &msv : merged_svs) {
+            //    bool newsv_flag = true ;
+            //    for (SV &csv: comb_svs) {
+            //        if (abs(csv.l - msv.l) <= 10) {
+            //            csv.w += msv.w ;
+            //            newsv_flag = false ;
+            //        }
+            //    }
+            //    if (newsv_flag) {
+            //        comb_svs.push_back(msv);
+            //    }
+            //}
+            for (const SV &sv: _svs) {
                 _p_svs[t].push_back(sv);
             }
         }
@@ -792,3 +779,51 @@ void Extender::call() {
     }
 }
 
+void Extender::filter_sv_chains() {
+    std::sort(svs.begin(), svs.end()) ;
+    lprint({to_string(svs.size()), "SVs before chain filtering."}) ;
+    vector<SV> _svs ;
+    auto& prev = svs[0] ;
+    bool reset = false ;
+    for (int i = 1; i < svs.size(); i++) {
+        if (reset) {
+            reset = false ;
+            prev = svs[i] ;
+            continue ;
+        }
+        auto& sv = svs[i] ;
+        if (sv.chrom == prev.chrom && sv.s - prev.e < 2 * sv.l && prev.type == sv.type) {
+            cout << sv.chrom << " " << sv.s << " " << sv.type << " ---- " << prev.s << endl ; 
+            // check for sequence similarity
+            double w_r = max((double)sv.w, (double)prev.w) / min((double)sv.w, (double)prev.w) ;
+            double l_r = min((double)sv.l, (double)prev.l) / max((double)sv.l, (double)prev.l) ;
+            if (w_r >= 2 && l_r >= 0.9) {
+                double d ;
+                if (sv.type == "DEL") {
+                    d = rapidfuzz::fuzz::ratio(sv.refall, prev.refall) ;
+                } else {
+                    d = rapidfuzz::fuzz::ratio(sv.altall, prev.altall) ;
+                }
+                cout << w_r << " " << l_r << " " << d << endl ;
+                if (d > 70) {
+                    if (sv.w > prev.w) {
+                        _svs.push_back(sv) ;
+                    } else {
+                        _svs.push_back(prev) ;
+                    }
+                    reset = true ;
+                    continue ;
+                }
+            }
+        }
+        if (prev.s == 205603627) {
+            break ;
+        }
+        _svs.push_back(prev) ;
+        prev = sv ;
+    } 
+    _svs.push_back(prev) ;
+    svs.clear() ;
+    svs.insert(svs.begin(), _svs.begin(), _svs.end()) ;
+    lprint({to_string(svs.size()), "SVs after chain filtering."}) ;
+}

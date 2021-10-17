@@ -12,6 +12,8 @@
 #include "htslib/sam.h"
 #include "htslib/hts.h"
 #include "interval_tree.hpp"
+#include "rapidfuzz/fuzz.hpp"
+#include "rapidfuzz/utils.hpp"
 #include "parasail/matrices/blosum62.h"
 
 #include "sv.hpp"
@@ -28,8 +30,8 @@ class Extender {
 
 private:
     
-    uint minw = 2 ;
-    uint mind = 15 ;
+    uint min_w = 2 ;
+    uint min_d = 15 ;
     uint skip_1 = 0 ;      // SFS skipped since no first/last base can be placed from read alignment (should be rare)
     uint skip_2 = 0 ;      // SFS skipped since it couldn't be extended
     uint skip_3 = 0 ;      // SFS skipped since reads starts/ends inside a cluster
@@ -57,11 +59,12 @@ private:
     bool load_batch_bam(int threads, int batch_size, int p) ;
     std::pair<int, int> get_unique_kmers(const std::vector<std::pair<int, int>> &alpairs, const uint k, const bool from_end, std::string chrom) ;
 
-    void cluster() ;
+    void extract_sfs_sequences() ;
     void cluster_interval_tree() ;
     void cluster_no_interval_tree() ;
 
     void call() ;
+    void filter_sv_chains() ;
     std::vector<std::pair<uint, char>> parse_cigar(std::string) ;
     std::vector<Cluster> cluster_by_length(const Cluster& cluster) ;
     

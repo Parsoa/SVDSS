@@ -31,8 +31,7 @@ public:
     bool operator<(const SV& c) const {
         if (chrom < c.chrom) {
             return true ;
-        }
-        else if (chrom > c.chrom) {
+        } else if (chrom > c.chrom) {
             return false ;
         } else {
             return s < c.s ;
