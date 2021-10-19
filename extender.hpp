@@ -29,8 +29,8 @@ using namespace lib_interval_tree;
 class Extender {
 
 private:
-    
-    uint min_w = 2 ;
+
+    uint min_w = 4 ;
     uint min_d = 15 ;
     uint skip_1 = 0 ;      // SFS skipped since no first/last base can be placed from read alignment (should be rare)
     uint skip_2 = 0 ;      // SFS skipped since it couldn't be extended

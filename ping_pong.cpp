@@ -53,75 +53,109 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     return sai.x[2] != 0 ;
 }
 
-// I don't this can be further optimized
+// This will be very fast for reconstructed reads
+// However non-reconstructed reads are going to produce loads of crappy SFS, unless we filter them
 void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, bool isreconstructed, bam1_t* aln) {
-    //cout << bam_get_qname(aln) ;
     //DEBUG(cerr << "Read Length: " << l << endl ;)
-    vector<pair<int, int>> m_intervals ;
-    vector<pair<uint32_t, uint32_t>> cigar_offsets ;
-    int offset = 0 ;
-    if (config->putative) {
-        bool should_ignore = true ;
-        cigar_offsets = decode_cigar(aln) ;
-        for (const auto& op: cigar_offsets) {
-            if (op.second == BAM_CDEL || op.second == BAM_CINS) {
-                if (op.first >= config->min_indel_length) { //TODO: hardcoded
-                    should_ignore = false ;
-                }
-                if (op.second == BAM_CINS) {
-                    offset += op.first ;
-                }
-            }
-            if (op.second == BAM_CSOFT_CLIP) {
-                should_ignore = false ;
-                offset += op.first ;
-            }
-            if (op.second == BAM_CMATCH || op.second == BAM_CEQUAL || op.second == BAM_CDIFF) {
-                m_intervals.push_back(make_pair(offset, offset + int(op.first))) ;
-                //cout << "Adding: " << offset << ", " << offset + int(op.first) << endl ;
-                offset += op.first ;
-            }
-            if (op.second == BAM_CDIFF) {
-                return ;
-            }
-        }
-        if (should_ignore) {
-            return ;
-        }
-    }
-    // CIGAR_tracking
-    int current_interval = m_intervals.size() - 1 ;
+    //if (isreconstructed) {
+    //    return ;
+    //}
+    //int current_interval = -1 ;
+    //vector<int> interval_types ;
+    //vector<pair<int, int>> intervals ;
+    //vector<pair<int, int>> m_intervals ;
+    //vector<pair<int, int>> s_intervals ;
+    //vector<pair<uint32_t, uint32_t>> cigar_offsets ;
+    //int offset = 0 ;
+    //if (config->putative) {
+    //    bool should_ignore = true ;
+    //    cigar_offsets = decode_cigar(aln) ;
+    //    for (const auto& op: cigar_offsets) {
+    //        if (op.second == BAM_CDEL || op.second == BAM_CINS) {
+    //            if (op.first >= config->min_indel_length) {
+    //                should_ignore = false ;
+    //            }
+    //            if (op.second == BAM_CINS) {
+    //                intervals.push_back(make_pair(offset, offset + int(op.first))) ;
+    //                interval_types.push_back(BAM_CINS) ;
+    //                offset += op.first ;
+    //            }
+    //        } else if (op.second == BAM_CSOFT_CLIP) {
+    //            should_ignore = false ;
+    //            intervals.push_back(make_pair(offset, offset + int(op.first))) ;
+    //            interval_types.push_back(BAM_CSOFT_CLIP) ;
+    //            offset += op.first ;
+    //        } else if (op.second == BAM_CMATCH || op.second == BAM_CEQUAL || op.second == BAM_CDIFF) {
+    //            intervals.push_back(make_pair(offset, offset + int(op.first))) ;
+    //            m_intervals.push_back(make_pair(offset, offset + int(op.first))) ;
+    //            interval_types.push_back(BAM_CMATCH) ;
+    //            //cout << "Adding: " << offset << ", " << offset + int(op.first) << endl ;
+    //            offset += op.first ;
+    //        } else {
+    //            return ;
+    //        }
+    //        if (op.second == BAM_CDIFF) {
+    //            return ;
+    //        }
+    //    }
+    //    if (should_ignore) {
+    //        return ;
+    //    }
+    //    current_interval = m_intervals.size() - 1 ;
+    //}
+    //cout << bam_get_qname(aln) << endl ;
+    //non_x_reads += 1 ;
     //
     rldintv_t sai ;
     int begin = l - 1 ;
     bool last_jump = false ;
-    //cout << "Begin: " << begin << endl ;
     while (begin >= 0) {
-        if (config->putative && isreconstructed && current_interval != -1 && !last_jump) {
-            // find current m-interval
-            while (begin >= m_intervals[current_interval].second) {
-                current_interval-- ;
-                if (current_interval == -1) {
-                    break ;
-                }
-            }
-            // are we starting in it?
-            if (current_interval != -1) {
-                //cout << "Current interval: " << m_intervals[current_interval].first << " - " << m_intervals[current_interval].second << endl ;
-                auto& interval = m_intervals[current_interval] ;
-                if (begin >= interval.first && begin < interval.second) {
-                    if (interval.second - interval.first > 40) {
-                        if (interval.first + 20 < begin) {
-                            begin = m_intervals[current_interval].first + 20 ;
-                            //cout << "Jump to: " << begin << endl ;
-                            if (current_interval == 0) {
-                                last_jump = true ;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        //cout << "Begin: " << begin << " " << current_interval << endl ;
+        //if (config->putative && isreconstructed && current_interval != -1 && !last_jump) {
+        //    if (begin < intervals[current_interval].first) {
+        //        while (begin < intervals[current_interval].first) {
+        //            current_interval-- ;
+        //        }
+        //    }
+        //    if (interval_types[current_interval] == BAM_CMATCH) {
+        //        //cout << "Current interval: " << intervals[current_interval].first << " - " << intervals[current_interval].second << endl ;
+        //        auto& interval = intervals[current_interval] ;
+        //        if (interval.second - interval.first > 40) {
+        //            if (interval.first + 20 < begin) {
+        //                begin = intervals[current_interval].first + 20 ;
+        //                //cout << "Jump to: " << begin << endl ;
+        //                if (current_interval == 0) {
+        //                    last_jump = true ;
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
+        //if (config->putative && isreconstructed && current_interval != -1 && !last_jump) {
+        //    // find current m-interval
+        //    while (begin >= m_intervals[current_interval].second) {
+        //        current_interval-- ;
+        //        if (current_interval == -1) {
+        //            break ;
+        //        }
+        //    }
+        //    // are we starting in it?
+        //    if (current_interval != -1) {
+        //        //cout << "Current interval: " << m_intervals[current_interval].first << " - " << m_intervals[current_interval].second << endl ;
+        //        auto& interval = m_intervals[current_interval] ;
+        //        if (begin >= interval.first && begin < interval.second) {
+        //            if (interval.second - interval.first > 40) {
+        //                if (interval.first + 20 < begin) {
+        //                    begin = m_intervals[current_interval].first + 20 ;
+        //                    //cout << "Jump to: " << begin << endl ;
+        //                    if (current_interval == 0) {
+        //                        last_jump = true ;
+        //                    }
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
         // Backward search. Find a mismatching sequence. Stop at first mismatch.
         int bmatches = 0 ;
         fm6_set_intv(index, P[begin], sai) ;
@@ -171,6 +205,7 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs
         }
     }
     //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
+    //std::this_thread::sleep_for(std::chrono::seconds(1)) ;
 }
 
 bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
@@ -452,13 +487,14 @@ int PingPong::search() {
             time_t s ;
             time(&s) ;
             if (s - f == 0) {
-                s += 1 ;
+                s = f + 1 ;
             }
             cerr << "[I] Processed batch " << b << ". Reads so far " << reads_processed << ". Reads per second: " << reads_processed / (s - f) << ". SFS extracted so far: " << total_sfs << ". Batches exported: " << current_batch << ". Time: " << s - f << "\r" ;
         }
     }
     cerr << endl ;
     lprint({"Done."}) ;
+    cout << non_x_reads << " processed." << endl ;
     // cleanup
     kseq_destroy(fastq_iterator) ;
     gzclose(fastq_file) ;
@@ -484,6 +520,7 @@ void PingPong::load_reconstructed_read_ids() {
         }
         in_file.close() ;
     }
+    lprint({"Loaded", to_string(ignored_reads.size()), "ignored read ids."}) ;
     lprint({"Loaded", to_string(reconstructed_reads.size()), "reconstructed read ids."}) ;
 }
 

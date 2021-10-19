@@ -86,6 +86,7 @@ private:
     int current_batch = 0 ;
     int last_dumped_batch = 0 ;
     int reads_processed = 0 ;
+    int non_x_reads = 0 ;
 
     gzFile fastq_file ;
     kseq_t* fastq_iterator ;
