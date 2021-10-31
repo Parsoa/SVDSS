@@ -57,14 +57,12 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
 // However non-reconstructed reads are going to produce loads of crappy SFS, unless we filter them
 void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, bool isreconstructed, bam1_t* aln) {
     //DEBUG(cerr << "Read Length: " << l << endl ;)
-    //if (isreconstructed) {
-    //    return ;
-    //}
+    if (!isreconstructed) {
+        return ;
+    }
+    // this is not needed anymore
     //int current_interval = -1 ;
-    //vector<int> interval_types ;
-    //vector<pair<int, int>> intervals ;
     //vector<pair<int, int>> m_intervals ;
-    //vector<pair<int, int>> s_intervals ;
     //vector<pair<uint32_t, uint32_t>> cigar_offsets ;
     //int offset = 0 ;
     //if (config->putative) {
@@ -76,19 +74,13 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs
     //                should_ignore = false ;
     //            }
     //            if (op.second == BAM_CINS) {
-    //                intervals.push_back(make_pair(offset, offset + int(op.first))) ;
-    //                interval_types.push_back(BAM_CINS) ;
     //                offset += op.first ;
     //            }
     //        } else if (op.second == BAM_CSOFT_CLIP) {
     //            should_ignore = false ;
-    //            intervals.push_back(make_pair(offset, offset + int(op.first))) ;
-    //            interval_types.push_back(BAM_CSOFT_CLIP) ;
     //            offset += op.first ;
     //        } else if (op.second == BAM_CMATCH || op.second == BAM_CEQUAL || op.second == BAM_CDIFF) {
-    //            intervals.push_back(make_pair(offset, offset + int(op.first))) ;
     //            m_intervals.push_back(make_pair(offset, offset + int(op.first))) ;
-    //            interval_types.push_back(BAM_CMATCH) ;
     //            //cout << "Adding: " << offset << ", " << offset + int(op.first) << endl ;
     //            offset += op.first ;
     //        } else {
@@ -104,33 +96,11 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs
     //    current_interval = m_intervals.size() - 1 ;
     //}
     //cout << bam_get_qname(aln) << endl ;
-    //non_x_reads += 1 ;
-    //
     rldintv_t sai ;
     int begin = l - 1 ;
     bool last_jump = false ;
     while (begin >= 0) {
-        //cout << "Begin: " << begin << " " << current_interval << endl ;
-        //if (config->putative && isreconstructed && current_interval != -1 && !last_jump) {
-        //    if (begin < intervals[current_interval].first) {
-        //        while (begin < intervals[current_interval].first) {
-        //            current_interval-- ;
-        //        }
-        //    }
-        //    if (interval_types[current_interval] == BAM_CMATCH) {
-        //        //cout << "Current interval: " << intervals[current_interval].first << " - " << intervals[current_interval].second << endl ;
-        //        auto& interval = intervals[current_interval] ;
-        //        if (interval.second - interval.first > 40) {
-        //            if (interval.first + 20 < begin) {
-        //                begin = intervals[current_interval].first + 20 ;
-        //                //cout << "Jump to: " << begin << endl ;
-        //                if (current_interval == 0) {
-        //                    last_jump = true ;
-        //                }
-        //            }
-        //        }
-        //    }
-        //}
+        // Old, buggy:
         //if (config->putative && isreconstructed && current_interval != -1 && !last_jump) {
         //    // find current m-interval
         //    while (begin >= m_intervals[current_interval].second) {
