@@ -171,12 +171,25 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             soft_clip_offset += cigar_offsets[m].first ;
             new_cigar.push_back(cigar_offsets[m]) ;
         } else {
+            cout << "Illegal Cigar OP" << endl ;
+            break ;            
             //if (cigar_offsets[m].second == BAM_CPAD || cigar_offsets[m].second == BAM_CHARD_CLIP || cigar_offsets[m].second == BAM_CBACK) {
         }
         m += 1 ;
     }
     new_seq[n] = '\0' ;
     new_qual[n] = '\0' ;
+    //int r = 0 ;
+    //for (auto op: new_cigar) {
+    //    if (op.second != BAM_CDEL) {
+    //        n -= op.first ;
+    //    }
+    //    r += op.first ;
+    //}
+    //assert(n == 0) ;
+    char *qname = bam_get_qname(alignment) ;
+    //cout << n << " " << strlen(new_seq) << " " << r << endl ;
+    //cout << bam_get_qname(alignment) << endl ;
     // only do this on first processing thread
     if (omp_get_thread_num() == 2) {
         global_num_bases += num_match ;
@@ -195,7 +208,6 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             return ;
         }
     }
-    char *qname = bam_get_qname(alignment) ;
     if (should_ignore) {
         // check mismatch rate
         ignored_reads[omp_get_thread_num() - 2].push_back(qname) ;
@@ -270,7 +282,7 @@ void Reconstructor::run() {
     for (int i = 0; i < modulo; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
         for (int j = 0; j < config->threads; j++) {
-            for (int k = 0; k <= batch_size / config->threads; k++) {
+            for (int k = 0; k < batch_size / config->threads; k++) {
                 bam_entries[i][j].push_back(bam_init1()) ;
             }
         }
@@ -287,6 +299,7 @@ void Reconstructor::run() {
     bool should_process = true ;
     bool should_terminate = false ;
     bool loaded_last_batch = false ;
+    int reads_written = 0 ;
     //lprint({"Starting main loop.."}) ;
     while (should_process) {
         //lprint({"Beginning batch", to_string(b + 1)});
@@ -310,11 +323,12 @@ void Reconstructor::run() {
             } else if (i == 1) {
                 if (b >= 1) {
                     int ret = 0 ;
-                    for (int k = 0; k < batch_size / config->threads; k++) {
-                        for (int j = 0; j < config->threads; j++) {
+                    for (int j = 0; j < config->threads; j++) {
+                        for (int k = 0; k < batch_size / config->threads; k++) {
                             if (bam_entries[(p + 2) % modulo][j][k] != nullptr) {
                                 auto alignment = bam_entries[(p + 2) % modulo][j][k] ;
-                                ret = sam_write1(out_bam_file, bam_header, bam_entries[(p + 2) % modulo][j][k]);
+                                ret = sam_write1(out_bam_file, bam_header, bam_entries[(p + 2) % modulo][j][k]) ;
+                                reads_written += 1 ;
                                 if (ret < 0) {
                                     lprint({"Can't write corrected BAM record, aborting.."}, 2);
                                     should_terminate = true ;
@@ -363,7 +377,8 @@ void Reconstructor::run() {
     sam_close(bam_file) ;
     sam_close(out_bam_file) ;
     dump_reconstructed_read_ids() ;
-    lprint({"Wrote", to_string(reads_processed), "reads."});
+    lprint({"Loaded", to_string(reads_processed), "reads."});
+    lprint({"Wrote", to_string(reads_written), "reads."});
 }
 
 void Reconstructor::dump_reconstructed_read_ids() {
@@ -430,7 +445,7 @@ bool Reconstructor::load_batch_bam(int threads, int batch_size, int p) {
     }
     //cout << m << " reallocations.." << endl ;
     // last batch was incomplete
-    if (n != 0 && n != batch_size) {
+    if (n != batch_size) {
         for (int j = n % threads; j < threads; j++) {
             //cout << "Terminus at " << j << " " << i << endl ;
             bam_entries[p][j][i] = nullptr ;
