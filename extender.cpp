@@ -207,6 +207,9 @@ bool Extender::load_batch_bam(int threads, int batch_size, int p) {
         if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
             continue ;
         }
+        if (aln->core.qual != 0) {
+            continue ;
+        }
         char *qname = bam_get_qname(aln);
         if (SFSs->find(qname) == SFSs->end()) {
             continue ;

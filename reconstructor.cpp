@@ -323,8 +323,8 @@ void Reconstructor::run() {
             } else if (i == 1) {
                 if (b >= 1) {
                     int ret = 0 ;
-                    for (int j = 0; j < config->threads; j++) {
-                        for (int k = 0; k < batch_size / config->threads; k++) {
+                    for (int k = 0; k < batch_size / config->threads; k++) {
+                        for (int j = 0; j < config->threads; j++) {
                             if (bam_entries[(p + 2) % modulo][j][k] != nullptr) {
                                 auto alignment = bam_entries[(p + 2) % modulo][j][k] ;
                                 ret = sam_write1(out_bam_file, bam_header, bam_entries[(p + 2) % modulo][j][k]) ;
@@ -448,12 +448,14 @@ bool Reconstructor::load_batch_bam(int threads, int batch_size, int p) {
     if (n != batch_size) {
         for (int j = n % threads; j < threads; j++) {
             //cout << "Terminus at " << j << " " << i << endl ;
-            bam_entries[p][j][i] = nullptr ;
+            for (int _ = i; _ < batch_size / threads; _++) {
+                bam_entries[p][j][_] = nullptr ;
+            }
         }
         for (int j = 0; j < n % threads; j++) {
-            if (i + 1 < bam_entries[p][j].size()) {
-                //cout << "Terminus at " << j << " " << i + 1 << endl ;
-                bam_entries[p][j][i + 1] = nullptr ;
+            //cout << "Terminus at " << j << " " << i + 1 << endl ;
+            for (int _ = i + 1; _ < batch_size / threads; _++) {
+                bam_entries[p][j][_] = nullptr ;
             }
         }
     }
