@@ -28,7 +28,7 @@ void Extender::run(int _threads) {
         }
         clips.insert(clips.begin(), _p_clips[i].begin(), _p_clips[i].end()) ;
     }
-    lprint({"Extension complete."}) ;
+    lprint({"Extension complete.", to_string(clips.size()), " clipped SFS."}) ;
     // build a separate interval tree for each chromosome
     cluster_no_interval_tree() ;
     // put all clusters in a single vector
@@ -60,6 +60,7 @@ void Extender::run(int _threads) {
     lprint({"Extracted", to_string(svs.size()), "SVs."});
     sam_close(bam_file) ;
     filter_sv_chains() ;
+    //lprint({"Error stats: ", to_string(skip_1), " can't be mapped, ", to_string(skip_2), " can't be extended ", to_string(skip_3), " anomalies.", to_string(skip_4), " clipped."}) ;
 }
 
 pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs, const uint k, const bool from_end, string chrom) {
@@ -207,9 +208,6 @@ bool Extender::load_batch_bam(int threads, int batch_size, int p) {
         if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY || aln->core.flag & BAM_FSECONDARY) {
             continue ;
         }
-        if (aln->core.qual != 0) {
-            continue ;
-        }
         char *qname = bam_get_qname(aln);
         if (SFSs->find(qname) == SFSs->end()) {
             continue ;
@@ -298,6 +296,7 @@ void Extender::extend_alignment(bam1_t* aln, int index) {
             uint l = bam_cigar_oplen(*(cigar + 0));
             if (op == BAM_CSOFT_CLIP) {
                 lclip = make_pair(aln->core.pos, l);
+                skip_4++ ;
             }
             // we skip this SFS
             continue ;
@@ -306,6 +305,7 @@ void Extender::extend_alignment(bam1_t* aln, int index) {
             uint l = bam_cigar_oplen(*(cigar + aln->core.n_cigar - 1));
             if (op == BAM_CSOFT_CLIP) {
                 rclip = make_pair(bam_endpos(aln), l);
+                skip_4++ ;
             }
             // we skip this SFS
             continue ;
@@ -382,12 +382,12 @@ void Extender::extend_alignment(bam1_t* aln, int index) {
         } else {
             _p_extended_sfs[index].push_back(ExtSFS(string(chrom), string(qname), prekmer.second, postkmer.second + kmer_size));
         }
-        if (lclip.second > 0) {
-            _p_clips[index].push_back(Clip(qname, chrom, lclip.first, lclip.second, true)) ;
-        }
-        if (rclip.second > 0) {
-            _p_clips[index].push_back(Clip(qname, chrom, rclip.first, rclip.second, false)) ;
-        }
+    }
+    if (lclip.second > 0) {
+        _p_clips[index].push_back(Clip(qname, chrom, lclip.first, lclip.second, true)) ;
+    }
+    if (rclip.second > 0) {
+        _p_clips[index].push_back(Clip(qname, chrom, rclip.first, rclip.second, false)) ;
     }
 }
 
@@ -607,7 +607,9 @@ void Extender::extract_sfs_sequences() {
         cerr << endl ;
     }
     for (int i = 0; i < threads; i++) {
-        free(seq[i]) ;
+        if (len[i] > 0) {
+            free(seq[i]) ;
+        }
         bam_destroy1(_p_aln[i]) ;
         sam_close(_p_bam_file[i]) ;
     }
@@ -784,6 +786,9 @@ void Extender::call() {
 
 void Extender::filter_sv_chains() {
     std::sort(svs.begin(), svs.end()) ;
+    if (svs.size() < 2) {
+        return ;
+    }
     lprint({to_string(svs.size()), "SVs before chain filtering."}) ;
     vector<SV> _svs ;
     auto& prev = svs[0] ;
@@ -796,7 +801,7 @@ void Extender::filter_sv_chains() {
         }
         auto& sv = svs[i] ;
         if (sv.chrom == prev.chrom && sv.s - prev.e < 2 * sv.l && prev.type == sv.type) {
-            cout << sv.chrom << " " << sv.s << " " << sv.type << " ---- " << prev.s << endl ; 
+            //cout << sv.chrom << " " << sv.s << " " << sv.type << " ---- " << prev.s << endl ; 
             // check for sequence similarity
             double w_r = max((double)sv.w, (double)prev.w) / min((double)sv.w, (double)prev.w) ;
             double l_r = min((double)sv.l, (double)prev.l) / max((double)sv.l, (double)prev.l) ;
@@ -807,7 +812,7 @@ void Extender::filter_sv_chains() {
                 } else {
                     d = rapidfuzz::fuzz::ratio(sv.altall, prev.altall) ;
                 }
-                cout << w_r << " " << l_r << " " << d << endl ;
+                //cout << w_r << " " << l_r << " " << d << endl ;
                 if (d > 70) {
                     if (sv.w > prev.w) {
                         _svs.push_back(sv) ;

@@ -98,41 +98,34 @@ vector<Clip> Clipper::filter_tooclose_clips(const vector<Clip> &clips, interval_
     return fclips;
 }
 
-int binary_search_left(const vector<Clip>& clips, int begin, int end, const Clip& query) {
+// find smallest right that is larger than query
+int binary_search(const vector<Clip>& clips, int begin, int end, const Clip& query) {
+    //for (int i = 0; i < clips.size(); i++) {
+    //    if (query.p < clips[i].p) {
+    //        return i ;
+    //    }
+    //}
+    //return -1 ;
     if (begin > end || begin >= clips.size()) {
         return -1 ;
     }
     int m = (begin + end) / 2 ;
     if (clips[m].p == query.p) {
-        if (m != 0) {
-            return m - 1 ;
+        if (m + 1 < clips.size()) {
+            return m + 1 ;
         } else {
-            return -1 ;
+            return m ;
         }
-    } else if (clips[m].p < query.p) {
-        return binary_search_left(clips, m, end, query) ;
+    } else if (clips[m].p > query.p) {
+        if (m > 0 && clips[m - 1].p < query.p) {
+            return m ;
+        }
+        return binary_search(clips, begin, m - 1, query) ;
     } else {
-        return binary_search_left(clips, begin, m - 1, query) ;
+        return binary_search(clips, m + 1, end, query) ;
     }
 }
 
-int binary_search_right(const vector<Clip>& clips, int begin, int end, const Clip& query) {
-    if (begin > end || begin >= clips.size()) {
-        return -1 ;
-    }
-    int m = (begin + end) / 2 ;
-    if (clips[m].p == query.p) {
-        if (m != 0) {
-            return m + 1 ;
-        } else {
-            return -1 ;
-        }
-    } else if (clips[m].p > query.p) {
-        return binary_search_right(clips, begin, m, query) ;
-    } else {
-        return binary_search_right(clips, m + 1, end, query) ;
-    }
-}
 void Clipper::call(int threads, interval_tree_t<int>& vartree) {
     lprint({"Predicting SVS from", to_string(clips.size()), "clipped SFS on", to_string(threads), "threads.."}) ;
     vector<Clip> rclips;
@@ -144,9 +137,9 @@ void Clipper::call(int threads, interval_tree_t<int>& vartree) {
             rclips.push_back(clip);
         }
     }
-    lprint({"Preprocessing clipped SFS.."}) ;
     lprint({to_string(lclips.size()), "left clips."}) ;
     lprint({to_string(rclips.size()), "right clips."}) ;
+    lprint({"Preprocessing clipped SFS.."}) ;
     #pragma omp parallel for num_threads(2) schedule(static,1)
     for (int i = 0; i < 2; i++) {
         if (i == 0) {
@@ -178,7 +171,7 @@ void Clipper::call(int threads, interval_tree_t<int>& vartree) {
         int t = omp_get_thread_num() ;
         string chrom = lc.chrom ;
         // we get the closest right clip
-        int r = binary_search_right(rclips, 0, rclips.size() - 1, lc) ;
+        int r = binary_search(rclips, 0, rclips.size() - 1, lc) ;
         if (r == -1) {
             continue ;
         }
@@ -202,7 +195,7 @@ void Clipper::call(int threads, interval_tree_t<int>& vartree) {
         int t = omp_get_thread_num() ;
         string chrom = rc.chrom ;
         // we get the closest right clip
-        int l = binary_search_left(lclips, 0, lclips.size() - 1, rc) ;
+        int l = binary_search(lclips, 0, lclips.size() - 1, rc) ;
         if (l == -1) {
             continue ;
         }

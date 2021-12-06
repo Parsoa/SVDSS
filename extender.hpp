@@ -35,6 +35,7 @@ private:
     uint skip_1 = 0 ;      // SFS skipped since no first/last base can be placed from read alignment (should be rare)
     uint skip_2 = 0 ;      // SFS skipped since it couldn't be extended
     uint skip_3 = 0 ;      // SFS skipped since reads starts/ends inside a cluster
+    uint skip_4 = 0 ;      // SFS skipped since reads starts/ends inside a cluster
     uint small_cl = 0 ;    // number of cluster (before clustering) with low support
     uint extcl = 0 ;       // number of extended clusters (after clustering)
     uint small_extcl = 0 ; // number of extended clusters (after clustering) with low support

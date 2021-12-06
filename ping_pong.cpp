@@ -57,9 +57,6 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
 // However non-reconstructed reads are going to produce loads of crappy SFS, unless we filter them
 void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, bool isreconstructed, bam1_t* aln) {
     //DEBUG(cerr << "Read Length: " << l << endl ;)
-    if (!isreconstructed) {
-        return ;
-    }
     // this is not needed anymore
     //int current_interval = -1 ;
     //vector<pair<int, int>> m_intervals ;
@@ -268,12 +265,16 @@ batch_type_t PingPong::process_batch(rld_t* index, int p, int i) {
     } else {
         for (int j = 0; j < read_seqs[p][i].size(); j++) {
             char *qname = bam_get_qname(bam_entries[p][i][j]) ;
+            bool isreconstructed = reconstructed_reads.find(qname) != reconstructed_reads.end() ;
             if (config->putative) {
                 if (ignored_reads.find(qname) != ignored_reads.end()) {
                     continue ;
                 }
+                // was not ignored, so either it's reconstructed or not:
+                if (!isreconstructed) {
+                    continue ;
+                }
             }
-            bool isreconstructed = reconstructed_reads.find(qname) != reconstructed_reads.end() ;
             //cout << qname << " " << isreconstructed << endl ;
             ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[qname], isreconstructed, bam_entries[p][i][j]) ;
         }

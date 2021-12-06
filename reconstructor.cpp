@@ -172,7 +172,7 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             new_cigar.push_back(cigar_offsets[m]) ;
         } else {
             cout << "Illegal Cigar OP" << endl ;
-            break ;            
+            break ;
             //if (cigar_offsets[m].second == BAM_CPAD || cigar_offsets[m].second == BAM_CHARD_CLIP || cigar_offsets[m].second == BAM_CBACK) {
         }
         m += 1 ;
