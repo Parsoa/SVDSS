@@ -22,14 +22,16 @@ void Caller::run() {
         vartree.insert({sv.s - 1000, sv.e + 1000}) ;
     }
     // call SVS from clipped SFS
-    Clipper clipper(extender.clips);
-    clipper.call(config->threads, vartree) ;
-    int s = 0 ;
-    for (int i = 0; i < config->threads; i++) {
-        s += clipper._p_svs[i].size() ;
-        svs.insert(svs.begin(), clipper._p_svs[i].begin(), clipper._p_svs[i].end()) ;
+    if (config->clipped) {
+        Clipper clipper(extender.clips);
+        clipper.call(config->threads, vartree) ;
+        int s = 0 ;
+        for (int i = 0; i < config->threads; i++) {
+            s += clipper._p_svs[i].size() ;
+            svs.insert(svs.begin(), clipper._p_svs[i].begin(), clipper._p_svs[i].end()) ;
+        }
+        lprint({"Predicted", to_string(s), "SVs from clipped SFS."}) ;
     }
-    lprint({"Predicted", to_string(s), "SVs from clipped SFS."}) ;
     std::sort(svs.begin(), svs.end()) ;
     // output POA alignments SAM
     string poa_path = config->workdir + "/poa.sam" ;

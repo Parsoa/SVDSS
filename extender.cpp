@@ -8,6 +8,7 @@ using namespace lib_interval_tree;
 Extender::Extender(unordered_map<string, vector<SFS>>* _SFSs) {
     SFSs = _SFSs ;
     config = Configuration::getInstance() ;
+    min_w = config->min_cluster_weight ;
 }
 
 void Extender::run(int _threads) {
@@ -514,7 +515,7 @@ void Extender::extract_sfs_sequences() {
             reads[esfs.qname] = true ;
         }
         uint cluster_size = reads.size();
-        if (cluster_size < minsupp) {
+        if (cluster_size < min_w) {
             ++small_cl ;
             continue ;
         }
@@ -587,7 +588,7 @@ void Extender::extract_sfs_sequences() {
                 global_cluster.add(_seq) ;
             }
         }
-        if (global_cluster.size() >= minsupp) {
+        if (global_cluster.size() >= min_w) {
             global_cluster.set_cov(cov) ;
             _p_clusters[t].push_back(global_cluster) ;
             ++extcl ;
