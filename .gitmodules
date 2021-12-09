@@ -18,4 +18,7 @@
 	url = https://github.com/5cript/interval-tree.git
 [submodule "libdeflate"]
 	path = libdeflate
-	url = git@github.com:ebiggers/libdeflate.git
+	url = https://github.com/ebiggers/libdeflate.git
+[submodule "parasail"]
+	path = parasail
+	url = https://github.com/jeffdaily/parasail.git
