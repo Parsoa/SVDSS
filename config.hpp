@@ -25,16 +25,21 @@ public:
     int threads = 4 ;
     int coverage = 50 ;
     int batch_size = 1000 ;
+    int min_indel_length = 20 ;
     int aggregate_batches = 5 ;
     int min_string_length = 0 ; // not enforced by default
+    int min_cluster_weight = 2 ;
 
     bool binary ;
-    bool assemble ;
+    bool clipped = false ;
+    bool assemble = false ;
     bool aggregate ;
     bool selective ;
+    bool putative = false ;
 
     std::string bed ;
-    std::string bam ;
+    std::string bam ; // reads bam (reconstructed or not)
+    std::string sfsbam ; // superstrings bam (from realignment)
     std::string vcf ;
     std::string type ;
     std::string workdir ;

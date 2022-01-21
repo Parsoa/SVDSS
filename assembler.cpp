@@ -8,13 +8,13 @@ void Assembler::run() {
     lprint({"Assembling high-abundance strings from", to_string(num_batches), "batches.."});
     #pragma omp parallel for num_threads(c->threads)
     for (int j = 0; j < num_batches; j++) {
-        lprint({"Loading batch ", to_string(j), ".."}) ;
+        lprint({"Loading batch", to_string(j) + ".."}) ;
         string s_j = std::to_string(j);
         string inpath = c->workdir + "/solution_batch_" + s_j + ".sfs";
         string outpath = c->workdir + "/solution_batch_" + s_j + ".assembled.sfs";
         ofstream outf(outpath);
         map<string, vector<SFS>> SFSs = parse_sfsfile(inpath, tau);
-        cout << SFSs.size() << "SFS in total." << endl ;
+        //cout << SFSs.size() << "SFS in total." << endl ;
         for (map<string, vector<SFS>>::iterator it = SFSs.begin(); it != SFSs.end(); ++it) {
             string ridx = it->first;
             vector<SFS> sfs = it->second;
@@ -38,7 +38,7 @@ vector<SFS> Assembler::assemble(vector<SFS> &sfs) {
         uint j;
         for (j = i + 1; j < sfs.size(); ++j) {
             if (sfs[j - 1].s + sfs[j - 1].l <= sfs[j].s) {
-            // non-overlapping
+                // non-overlapping
                 uint l = sfs[j - 1].s + sfs[j - 1].l - sfs[i].s;
                 assembled_sfs.push_back(SFS(sfs[i].s, l, 1, sfs[i].isreversed));
                 i = j;

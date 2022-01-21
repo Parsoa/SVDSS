@@ -25,10 +25,10 @@
 #include "htslib/hfile.h"
 #include "htslib/hts_endian.h"
 
+#include "sfs.hpp"
 #include "fastq.hpp"
 #include "lprint.hpp"
 #include "config.hpp"
-#include "sfsutils.hpp"
 
 using namespace std;
 

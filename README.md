@@ -19,16 +19,35 @@ C++11-compliant compiler (GCC 8.2 or newer), [ropebwt2](https://github.com/lh3/r
 
 ```
 git clone --recursive https://github.com/Parsoa/PingPong.git
-cd PingPong 
-cd ropebwt2 ; make ; cd ..
-cd htslib ; make ; cd ..
+cd PingPong
+git checkout poa-genotyper
+git submodule update --init --recursive
+
+cd parasail
+mkdir build ; cd build
+cmake ..
+make
+cd ../..
+
+cd abPOA
+make
+cd ..
+
+cd libdeflate
+make
+cd ..
+
+cd htslib
+make
+cd ..
+
 make
 ```
 
 You can now run PingPong by adding the clone directory to PATH. Because the package uses an internal clone of htslib, the shared objects will be in non-standard locations and have to be manually specified before running:
 
 ```
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/clone/dir/htslib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/cloned/repo/htslib:/path/to/cloned/repo/parasail/build
 ```
 
 ## Usage Guide

@@ -4,8 +4,8 @@
 #include <list>
 #include <fstream>
 
+#include "sfs.hpp"
 #include "config.hpp"
-#include "sfsutils.hpp"
 
 using namespace std;
 

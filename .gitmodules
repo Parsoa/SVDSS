@@ -4,3 +4,21 @@
 [submodule "htslib"]
 	path = htslib
 	url = https://github.com/samtools/htslib.git
+[submodule "rapidfuzz-cpp"]
+	path = rapidfuzz-cpp
+	url = https://github.com/maxbachmann/rapidfuzz-cpp.git
+[submodule "abPOA"]
+	path = abPOA
+	url = https://github.com/yangao07/abPOA.git
+[submodule "ksw2"]
+	path = ksw2
+	url = https://github.com/lh3/ksw2.git
+[submodule "interval-tree"]
+	path = interval-tree
+	url = https://github.com/5cript/interval-tree.git
+[submodule "libdeflate"]
+	path = libdeflate
+	url = https://github.com/ebiggers/libdeflate.git
+[submodule "parasail"]
+	path = parasail
+	url = https://github.com/jeffdaily/parasail.git

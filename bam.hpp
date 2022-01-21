@@ -4,7 +4,10 @@
 #include <mutex>
 #include <vector>
 #include <string>
+#include <ctype.h>
+#include <utility>
 #include <iterator>
+#include <iostream>
 #include <unordered_map>
 
 #include <htslib/hts.h>
@@ -16,46 +19,114 @@
 extern uint32_t cigar_len_mask ; 
 extern uint32_t cigar_type_mask ;
 
+// CHECKME: I changed this struct but I didn't check if I broke something in realignment
 struct CIGAR {
-    std::vector<int> ls;
-    std::vector<char> ops;
-    uint mismatches;
+    std::vector<std::pair<uint, char>> ops;
+    int mismatches;
+    uint ngaps ;
+    uint start ;
+    int score ;
 
     CIGAR() { 
-        mismatches = 0;
+        mismatches = 0 ;
+        ngaps = -1 ;
+        score = -1 ;
+    }
+
+    CIGAR(std::vector<std::pair<uint, char>> ops_, int score_, uint start_ = 0) {
+        mismatches = -1 ;
+        score = score_ ;
+        ops = ops_ ;
+        ngaps = 0 ;
+        start = start_ ;
+        for (uint i = 0; i < ops_.size(); ++i) {
+            ngaps += ((ops_[i].second == 'I' || ops_[i].second == 'D') ? 1 : 0) ;
+        }
+    }
+
+    void parse_cigar(char* cigar) {
+        int b = 0 ;
+        for (int i = 0; i < strlen(cigar); i++) {
+            if (isdigit(cigar[i])) {
+                continue ;
+            } else {
+                char type = cigar[i] ;
+                cigar[i] = '\0' ;
+                int l = std::stoi(std::string(cigar + b)) ;
+                ops.push_back(std::make_pair(l, type)) ;
+                cigar[i] = type ;
+                b = i + 1 ;
+            }
+        }
+    }
+    
+    CIGAR(char* cigar, int score_, int start_ = 0) {
+        mismatches = -1 ;
+        score = score_ ;
+        start = start_ ;
+        parse_cigar(cigar) ;
+        ngaps = 0 ;
+        for (uint i = 0; i < ops.size(); ++i) {
+            ngaps += ((ops[i].second == 'I' || ops[i].second == 'D') ? 1 : 0);
+        }
     }
 
     void add(int l, char op, int e) {
         mismatches += e;
-        if (ops.empty() || ops.back() != op) {
-            ls.push_back(l);
-            ops.push_back(op);
+        if (ops.empty() || ops.back().second != op) {
+            ops.push_back(std::make_pair(l, op));
         } else {
-            ls.back() += l;
+            ops.back().first += l;
         }
     }
 
     void add_front(int l) {
-        ls[0] += l;
-        ls.insert(ls.begin(), 1);
-        ops.insert(ops.begin(), 'M');
+        ops.front().first += l;
+        ops.insert(ops.begin(), std::make_pair(1, 'M'));
+    }
+
+    void print() {
+        for (uint i = 0; i < ops.size(); ++i) {
+            std::cout << ops[i].first << ops[i].second ;
+        }
+        std::cout << std::endl ;
     }
 
     void fixclips() {
-        if (ops.front() != 'M') {
-            ops.front() = 'S';
-        } 
-        if (ops.back() != 'M') {
-            ops.back() = 'S';
+        if (ops.front().second != 'M') {
+            if (ops.front().second == 'I') {
+                ops.front().second = 'S';
+            }
+            if (ops.front().second == 'D') {
+                ops.erase(ops.begin()) ; // CHECKME: by doing this we may reduce the length of merged variations
+                --ngaps ;
+            }
+        }
+        else if (ops.back().second != 'M') {
+            if (ops.back().second == 'I') {
+                ops.back().second = 'S';
+            }
+            if (ops.back().second == 'D') {
+                ops.pop_back(); // CHECKME: by doing this we may reduce the length of merged variations
+                --ngaps ;
+            }
         }
     }
 
-    std::string to_str() {
-        std::string cigarstring;
-        for (int i = 0; i < ls.size(); ++i) {
-            cigarstring += std::to_string(ls[i]) + ops[i];
+    const std::pair<uint, char> &operator[](std::size_t i) const {
+        return ops[i];
+    }
+
+    uint size() const {
+        return ops.size();
+    }
+
+    std::string to_str() const {
+        std::string cigar_str;
+        for (const auto &op : ops) {
+            cigar_str += std::to_string(op.first) + op.second;
         }
-        return cigarstring;
+        return cigar_str;
     }
 };
 
