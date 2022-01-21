@@ -2,16 +2,9 @@
 
 # SVDSS: Structural Variant Discovery from Sample-specific Strings
 
-SVDSS is a novel method for discovery of structural variants in accurate long reads (e.g PacBio HiFi) using sample-specific strings (SFS)
+SVDSS is a novel method for discovery of structural variants in accurate long reads (e.g PacBio HiFi) using sample-specific strings (SFS).
 
-Efficient computation of A-specific string w.;.t. a set {B,C,...,Z} of other long reads samples. A A-specific string is a string which occurs only in sample A and not in the others. 
-
-**Note:** if you are looking for the _biorxiv_ implementation, please refer to [this release](https://github.com/Parsoa/PingPong/releases/tag/v1.0.0-pingpong).
-
-##### Use-Cases
-
-* compute strings specific to child w.r.t. parents
-* compute strings specific to individual A from population P<sub>A</sub> w.r.t. individual B from population P<sub>B</sub>
+SFS are the shortest substrings that are unique to one genome, called target, w.r.t another genome, called reference. Here our method utilizes SFS for coarse-grained identification (anchoring) of potential SV sites and performs local partial-order-assembly (POA) of clusters of SFS from such sites to produce accurate SV predictions. We refer to [our manuscript on SFS](https://doi.org/10.1093/bioadv/vbab005) for more details regarding the concept of SFS.
 
 ## Dependencies
 
@@ -26,6 +19,8 @@ C++11-compliant compiler (GCC 8.2 or newer). The following libraries are need to
 * [interval-tree] (https://github.com/5cript/interval-tree) for variant overlap detection and clustering.
 
 All libraries are included as submodules in the repository. Note that SVDSS requires `htslib` built with `libdeflate` for performance reasons, so you still need to build the local version even if you have it installed globally. We refer to the Makefile for additional details about building dependencies.
+
+SVSS was developed from [PingPong](https://github.com/Parsoa/PingPong) and this repository includes complete commit history from PingPong. You can still access PingPong's original implementation in the state it was 
 
 ## Download and Installation
 
@@ -168,10 +163,8 @@ You can filter the reported SVs by passing the `--min-sv-length` and `--min-clus
 This commands output two files: `svs_poa.vcf` that includes the SV calls and `poa.sam` which includes alignments of POA contigs to the reference genome.
 
 ### Authors
+
+SVDSS was developed by Luca Denti, Parsoa Khorsand, Rayan Chikhi, Fereydoun Hormozdiair and Paola Bonizonni.
+
 For inquiries on this software please open an [issue](https://github.com/Parsoa/SVDSS/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
 
-### Citation
-
-Our manuscript describing the SFS idea and the PingPong algorithm titled "Comparative genome analysis using sample-specific string detection in accurate long reads" is now published in Bioinformatics Advances:
-
-https://doi.org/10.1093/bioadv/vbab005
