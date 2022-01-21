@@ -18,6 +18,9 @@ jobs:
     - name: libdeflate
       run: make
       working-directory: ./libdeflate
+    - name: parasail
+      run: mkdir build && cd build && cmake .. && make
+      working-directory: ./parasail
     - name: abPOA
       run: make
       working-directory: ./abPOA
