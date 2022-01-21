@@ -8,17 +8,17 @@ SFS are the shortest substrings that are unique to one genome, called target, w.
 
 ## Dependencies
 
-C++11-compliant compiler (GCC 8.2 or newer). The following libraries are need to build and run SVDSS, all are included as submodules:
+The following libraries are need to build and run SVDSS, all are included as submodules. A C++11-compliant compiler (GCC 8.2 or newer) is required for building the dependencies:
 
 * [htslib](https://github.com/samtools/htslib) built with [libdeflate](https://github.com/ebiggers/libdeflate) for BAM processing.
 * [ksw2](https://github.com/lh3/ksw2) for FASTA and FASTQ processing.
 * [ropebwt2](https://github.com/lh3/ropebwt2) for FMD index creation and querying.
 * [abPOA](https://github.com/yangao07/abPOA) for POA computation.
 * [parasail](https://github.com/jeffdaily/parasail) for local alignment of POA consensus.
-* [rapidfuzz] (https://github.com/maxbachmann/rapidfuzz-cpp) for string similarity computation.
-* [interval-tree] (https://github.com/5cript/interval-tree) for variant overlap detection and clustering.
+* [rapidfuzz](https://github.com/maxbachmann/rapidfuzz-cpp) for string similarity computation.
+* [interval-tree](https://github.com/5cript/interval-tree) for variant overlap detection and clustering.
 
-All libraries are included as submodules in the repository. Note that SVDSS requires `htslib` built with `libdeflate` for performance reasons, so you still need to build the local version even if you have it installed globally. We refer to the Makefile for additional details about building dependencies.
+All libraries are included as submodules in the repository. Note that SVDSS requires `htslib` built with `libdeflate` for performance reasons, so you still need to build the local version if your system-wide installation wasn't built with `libdeflate`. We refer to the Makefile for additional details about building dependencies.
 
 SVSS was developed from [PingPong](https://github.com/Parsoa/PingPong) and this repository includes complete commit history from PingPong. You can still access PingPong's original implementation in the state it was 
 
@@ -58,7 +58,7 @@ cd ..
 make
 ```
 
-You need add some of the paths to your envinronment for the libraries to link properly at runtime:
+You need to add some of the dependency build paths to your envinronment for the libraries to link properly at runtime:
 
 ```
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/cloned/repo/htslib:/path/to/cloned/repo/parasail/build:/path/to/cloned/repo/libdeflate
@@ -85,7 +85,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/cloned/repo/htslib:/path/to/clo
     Call SVs:
         SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
         Optional arguments: 
-            --clipped                calls SVs from clipped SFS only.
+            --clipped                calls SVs from clipped SFS.
             --min-cluster-weight                minimum number of supporting superstrings for a call to be reported.
             --min-sv-length                minimum length of reported SVs. Default is 25. Values < 25 are ignored.
     General options: 
@@ -161,6 +161,8 @@ SVDSS call --reference GRCh38.fasta --bam reconstructed.selective.bam --workdir 
 You can filter the reported SVs by passing the `--min-sv-length` and `--min-cluster-weight` options. These options control the minimum length and minimum number of supporting superstrings for the reported SVs. Higher values for `--min-cluster-weight` will increase precision at the cost of reducing recall. For a 30x coverage sample, `--min-cluster-weight 4` produced the best results in our experiments.
 
 This commands output two files: `svs_poa.vcf` that includes the SV calls and `poa.sam` which includes alignments of POA contigs to the reference genome.
+
+You can pass `--clipped` to call SVs from clipped superstrings as well. These will be output in a separate file `svs_clipped.vcf`. Clipped SV calling is experimental and may not be accurate. We recommend manual inspection of resulting calls.
 
 ### Authors
 

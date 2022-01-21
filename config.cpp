@@ -31,11 +31,12 @@ Configuration::Configuration() :
         ("t,threads", "", cxxopts::value<int>())
         ("min-sv-length", "", cxxopts::value<int>())
         ("min-cluster-weight", "", cxxopts::value<int>())
-        ("clipped", "", cxxopts::value<bool>())
-        ("assemble", "", cxxopts::value<bool>())
+        ("clipped", "", cxxopts::value<bool>()->default_value("false"))
+        ("assemble", "", cxxopts::value<bool>()->default_value("false"))
+        ("putative", "", cxxopts::value<bool>()->default_value("true"))
         ("b,binary", "", cxxopts::value<bool>()->default_value("false"))
-        ("aggregate", "", cxxopts::value<bool>())
-        ("selective", "", cxxopts::value<bool>())
+        ("aggregate", "", cxxopts::value<bool>()->default_value("false"))
+        ("selective", "", cxxopts::value<bool>()->default_value("true"))
     ;
 }
 

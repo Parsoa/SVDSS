@@ -77,7 +77,7 @@ void print_help() {
     cerr << "\tCall SVs:" << endl ;
     cerr << "\t\tSVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
-    cerr << "\t\t\t--clipped\t\t\t\tcalls SVs from clipped SFS only." << endl ;
+    cerr << "\t\t\t--clipped\t\t\t\tcalls SVs from clipped SFS." << endl ;
     cerr << "\t\t\t--min-cluster-weight\t\t\t\tminimum number of supporting superstrings for a call to be reported." << endl ;
     cerr << "\t\t\t--min-sv-length\t\t\t\tminimum length of reported SVs. Default is 25. Values < 25 are ignored." << endl ;
     cerr << "\tGeneral options: " << endl ;

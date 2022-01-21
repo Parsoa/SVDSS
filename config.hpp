@@ -30,12 +30,12 @@ public:
     int aggregate_batches = 5 ;
     int min_cluster_weight = 2 ;
 
-    bool binary ;
+    bool binary = false ;
     bool clipped = false ;
     bool putative = true ;
     bool assemble = false ;
-    bool aggregate ;
-    bool selective ;
+    bool aggregate = false ;
+    bool selective = true ;
 
     std::string bed ;
     std::string bam ; // reads bam (reconstructed or not)

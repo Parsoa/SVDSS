@@ -21,17 +21,6 @@ void Caller::run() {
     for (const auto& sv: svs) {
         vartree.insert({sv.s - 1000, sv.e + 1000}) ;
     }
-    // call SVS from clipped SFS
-    if (config->clipped) {
-        Clipper clipper(extender.clips);
-        clipper.call(config->threads, vartree) ;
-        int s = 0 ;
-        for (int i = 0; i < config->threads; i++) {
-            s += clipper._p_svs[i].size() ;
-            svs.insert(svs.begin(), clipper._p_svs[i].begin(), clipper._p_svs[i].end()) ;
-        }
-        lprint({"Predicted", to_string(s), "SVs from clipped SFS."}) ;
-    }
     std::sort(svs.begin(), svs.end()) ;
     // output POA alignments SAM
     string poa_path = config->workdir + "/poa.sam" ;
@@ -66,6 +55,26 @@ void Caller::run() {
         ovcf << sv << endl ;
     }
     ovcf.close() ;
+    //
+    if (config->clipped) {
+        vector<SV> clipped_svs ;
+        Clipper clipper(extender.clips);
+        clipper.call(config->threads, vartree) ;
+        int s = 0 ;
+        for (int i = 0; i < config->threads; i++) {
+            s += clipper._p_svs[i].size() ;
+            clipped_svs.insert(svs.begin(), clipper._p_svs[i].begin(), clipper._p_svs[i].end()) ;
+        }
+        lprint({"Predicted", to_string(s), "SVs from clipped SFS."}) ;
+        string vcf_path = config->workdir + "/svs_clipped.vcf" ;
+        lprint({"Exporting", to_string(clipped_svs.size()), "SV calls to", vcf_path + ".."}) ;
+        ovcf.open(vcf_path) ;
+        print_vcf_header() ;
+        for (const SV& sv: clipped_svs) {
+            ovcf << sv << endl ;
+        }
+        ovcf.close() ;
+    }
 }
 
 void Caller::load_input_sfs() {
