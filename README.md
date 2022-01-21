@@ -1,4 +1,4 @@
-![C/C++ CI](https://github.com/Parsoa/PingPong/workflows/C/C++%20CI/badge.svg)
+![C/C++ CI](https://github.com/Parsoa/SVDSS/workflows/C/C++%20CI/badge.svg)
 
 # SVDSS: Structural Variant Discovery from Sample-specific Strings
 
