@@ -1,6 +1,8 @@
 ![C/C++ CI](https://github.com/Parsoa/PingPong/workflows/C/C++%20CI/badge.svg)
 
-# Sample-specific string detection from accurate long reads
+# SVDSS: Structural Variant Discovery from Sample-specific Strings
+
+SVDSS is a novel method for discovery of structural variants in accurate long reads (e.g PacBio HiFi) using sample-specific strings (SFS)
 
 Efficient computation of A-specific string w.;.t. a set {B,C,...,Z} of other long reads samples. A A-specific string is a string which occurs only in sample A and not in the others. 
 
@@ -13,7 +15,13 @@ Efficient computation of A-specific string w.;.t. a set {B,C,...,Z} of other lon
 
 ## Dependencies
 
-C++11-compliant compiler (GCC 8.2 or newer), [ropebwt2](https://github.com/lh3/ropebwt2) and [htslib](https://github.com/samtools/htslib). For convenience, ropebwt2 and htslib are included in the repository.
+C++11-compliant compiler (GCC 8.2 or newer). The following libraries are need to build and run SVDSS, all are included as submodules:
+
+* [ropebwt2](https://github.com/lh3/ropebwt2)
+* [htslib](https://github.com/samtools/htslib)
+* 
+
+ For convenience, ropebwt2 and htslib are included in the repository.
 
 ## Download and Installation
 
