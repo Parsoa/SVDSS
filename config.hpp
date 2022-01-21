@@ -21,21 +21,21 @@ public:
     void parse(int argc, char* argv[]) ;
 
     int cutoff = 0 ;
-    int overlap = 0 ;
+    int overlap = -1 ;
     int threads = 4 ;
     int coverage = 50 ;
     int batch_size = 1000 ;
+    int min_sv_length = 25 ;
     int min_indel_length = 20 ;
     int aggregate_batches = 5 ;
-    int min_string_length = 0 ; // not enforced by default
     int min_cluster_weight = 2 ;
 
     bool binary ;
     bool clipped = false ;
+    bool putative = true ;
     bool assemble = false ;
     bool aggregate ;
     bool selective ;
-    bool putative = false ;
 
     std::string bed ;
     std::string bam ; // reads bam (reconstructed or not)

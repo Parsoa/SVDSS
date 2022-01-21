@@ -60,18 +60,28 @@ void create_workdir() {
 void print_help() {
     cerr << "Usage: " << endl;
     cerr << "\tTo index sample:" << endl ;
-    cerr << "\t\tPingPong index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file [--threads threads] --index /path/to/output/index/file" << endl ;
+    cerr << "\t\tSVDSS index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file --index /path/to/output/index/file" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
-    cerr << "\t\t\t-b, --binary          output index in binary format" << endl ;
-    cerr << "\t\t\t-a, --append          append to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly." << endl ;
-    cerr << "\t\t\t-t, --threads         number of threads (default is 1)" << endl ;
-    cerr << "\tTo search for specific strings:" << endl ;
-    cerr << "\t\tPingPong search [--index /path/to/index] [--fastq /path/to/fastq] [--threads threads] --workdir /output/directory" << endl ;
+    cerr << "\t\t\t-b, --binary\t\t\t\toutput index in binary format" << endl ;
+    cerr << "\t\t\t-a, --append\t\t\t\tappend to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly." << endl ;
+    cerr << "\tExtract SFS from BAM/FASTQ/FASTA files:" << endl ;
+    cerr << "\t\tSVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
-    cerr << "\t\t\t--aggregate         aggregate ouputs directly." << endl ;
-    cerr << "\t\t\t--cutof             sets cutoff for minimum string abundance (tau)" << endl ;
-    cerr << "\tTo aggregate specfic strings:" << endl ;
-    cerr << "\t\tPingPong aggregate --workdir /path/to/string/batches --threads <threads> --cutoff <minimum abundance for strings> --batches <number of output batches>" << endl ;
+    cerr << "\t\t\t--assemble\t\t\t\tautomatically runs SVDSS assemble on output" << endl ;
+    cerr << "\tAssmble SFS into superstrings" << endl ;
+    cerr << "\t\tSVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches" << endl ;
+    cerr << "\tReconstruct sample" << endl ;
+    cerr << "\t\tSVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
+    cerr << "\t\tOptional arguments: " << endl ;
+    cerr << "\t\t\t--selective\t\t\t\tignores reads with high mismatch rate" << endl ;
+    cerr << "\tCall SVs:" << endl ;
+    cerr << "\t\tSVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
+    cerr << "\t\tOptional arguments: " << endl ;
+    cerr << "\t\t\t--clipped\t\t\t\tcalls SVs from clipped SFS only." << endl ;
+    cerr << "\t\t\t--min-cluster-weight\t\t\t\tminimum number of supporting superstrings for a call to be reported." << endl ;
+    cerr << "\t\t\t--min-sv-length\t\t\t\tminimum length of reported SVs. Default is 25. Values < 25 are ignored." << endl ;
+    cerr << "\tGeneral options: " << endl ;
+    cerr << "\t\t--threads\t\t\t\tsets number of threads, default 4." << endl ;
 }
 
 int main(int argc, char** argv) {
@@ -85,39 +95,7 @@ int main(int argc, char** argv) {
     }
     c->parse(argc - 1, argv + 1) ;
     create_workdir() ;
-    //cerr << "Running on " << c->threads << " threads." << endl ;
-    #ifdef LOCAL_BUILD
-    if (strcmp(argv[1], "find") == 0) {
-        auto finder = new Finder() ;
-        finder->run() ;
-        exit(0) ;
-    }
-    if (strcmp(argv[1], "kmer") == 0) {
-        auto finder = new KmerFinder() ;
-        finder->run() ;
-        exit(0) ;
-    }
-    if (strcmp(argv[1], "extract") == 0) {
-        auto extractor = new Extractor() ;
-        extractor->run() ;
-        exit(0) ;
-    }
-    if (strcmp(argv[1], "shift-bed") == 0) {
-        auto shifter = new HaplotypeShifter() ;
-        shifter->shift_bed_file() ;
-        exit(0) ;
-    }
-    if (strcmp(argv[1], "haplotype-shifter") == 0) {
-        auto shifter = new HaplotypeShifter() ;
-        shifter->load_tracks() ;
-        exit(0) ;
-    }
-    #endif
-    if (strcmp(argv[1], "tau") == 0) {
-        auto tau = new Tau() ;
-        tau->run() ;
-        exit(0) ;
-    } else if (strcmp(argv[1], "call") == 0) {
+    if (strcmp(argv[1], "call") == 0) {
         auto caller = new Caller() ;
         caller->run() ;
     } else if (strcmp(argv[1], "index") == 0) {

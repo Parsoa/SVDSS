@@ -30,10 +30,9 @@ Configuration::Configuration() :
         ("coverage", "", cxxopts::value<int>())
         ("t,threads", "", cxxopts::value<int>())
         ("min-length", "", cxxopts::value<int>())
-        ("min-indel-length", "", cxxopts::value<int>())
+        ("min-sv-length", "", cxxopts::value<int>())
         ("min-cluster-weight", "", cxxopts::value<int>())
         ("clipped", "", cxxopts::value<bool>())
-        ("putative", "", cxxopts::value<bool>())
         ("assemble", "", cxxopts::value<bool>())
         ("b,binary", "", cxxopts::value<bool>()->default_value("false"))
         ("aggregate", "", cxxopts::value<bool>())
@@ -105,8 +104,8 @@ void Configuration::parse(int argc, char** argv) {
     if (results.count("min-length")) {
         min_string_length = results["min-length"].as<int>() ;
     }
-    if (results.count("min-indel-length")) {
-        min_indel_length = results["min-indel-length"].as<int>() ;
+    if (results.count("min-sv-length")) {
+        min_sv_length = max(25, results["min-sv-length"].as<int>()) ;
     }
     if (results.count("min-cluster-weight")) {
         min_cluster_weight = results["min-cluster-weight"].as<int>() ;
