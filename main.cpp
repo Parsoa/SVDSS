@@ -68,9 +68,9 @@ void print_help() {
     cerr << "\t\tSVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
     cerr << "\t\t\t--assemble\t\t\t\tautomatically runs SVDSS assemble on output" << endl ;
-    cerr << "\tAssmble SFS into superstrings" << endl ;
+    cerr << "\tAssmble SFS into superstrings:" << endl ;
     cerr << "\t\tSVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches" << endl ;
-    cerr << "\tReconstruct sample" << endl ;
+    cerr << "\tReconstruct sample:" << endl ;
     cerr << "\t\tSVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
     cerr << "\tCall SVs:" << endl ;
     cerr << "\t\tSVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;

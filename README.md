@@ -27,7 +27,7 @@ SVSS was developed from [PingPong](https://github.com/Parsoa/PingPong) and this 
 You need to clone the repostiory with `--recursive` for all the dependencies to be downloaded. Each dependency has to be built separately:
 
 ```
-git clone --recursive https://github.com/Parsoa/PingPong.git
+git clone --recursive https://github.com/Parsoa/SVDSS.git
 cd SVDSS 
 git submodule update --init --recursive
 
@@ -70,24 +70,29 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/cloned/repo/htslib:/path/to/clo
 Index genome:
     SVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file
     Optional arguments: 
-        -b, --binary                output index in binary format. Allows for other indices to be appended to this index (e.g merging index of father and mother).
-        -a, --append  /path/to/binary/index               append to existing index (must be stored in binary).
+        --binary                 output index in binary format. allows for other indices to be appended to this index later.
+        --append  /path/         append to existing binary index.
+
 Extract SFS from BAM/FASTQ/FASTA files:
     SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
     Optional arguments: 
-        --assemble                automatically runs SVDSS assemble on output
-Assmble SFS into superstrings
+        --assemble               automatically assembles output
+
+Assmble SFS into superstrings:
     SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
-Reconstruct sample
+
+Reconstruct sample:
     SVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+
 Call SVs:
     SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
     Optional arguments: 
         --clipped                calls SVs from clipped SFS.
-        --min-cluster-weight                minimum number of supporting superstrings for a call to be reported.
-        --min-sv-length                minimum length of reported SVs. Default is 25. Values < 25 are ignored.
+        --min-cluster-weight     minimum number of supporting superstrings for a call to be reported.
+        --min-sv-length          minimum length of reported SVs. Default is 25. Values < 25 are ignored.
+
 General options: 
-    --threads                sets number of threads, default 4.
+    --threads                    sets number of threads, default 4.
 ```
 
 ## Usage Guide
