@@ -102,13 +102,15 @@ SVDSS requires as input the BAM file of the sample to be genotyped, a reference 
 4. Assemble SFS into superstrings (`SVDSS assemble`)
 5. Genotype SVs from the assembled superstrings (`SVDSS call`)
 
+In the guide below we assume we are using the reference genome file `GRCh38.fa` and the input BAM file `sample.bam`. We assume both files are present in the working directory. All of SVDSS steps must be run in the same directory so we always pass `--workdir $PWD` for every command.
+
+Note that you can reuse the index from step 1 for any number of samples genotyped against the same reference genome.
+
 Figure below shows the full pipeline of commands that needs to be run:
 
 ![SVDSS's pipeline](docs/Pipeline.png)
 
-Note that you can reuse the index from step 1 for any number of samples genotyped against the same reference genome.
-
-In the guide below we assume we are using the reference genome file `GRCh38.fa` and the input BAM file `sample.bam`. We assume both files are present in the working directory. All of SVDSS steps must be run in the same directory so we always pass `--workdir $PWD` for every command.
+We will now explain each step in more detail:
 
 ### Index reference genome
 
@@ -148,7 +150,9 @@ To reduce redundancy, overlapping SFS on each reads are merged. Simply run:
 SVDSS assemble --workdir $PWD --batches N
 ```
 
-Here `N` is the number of files produces by the previous step. The output will be the same number of `solution_batch_<i>.assembled.sfs`.
+Here `N` is the number of files produces by the previous step. Each `.sfs` file will be processed independently and output as a `solution_batch_<i>.assembled.sfs` file.
+
+You can combine SFS extraction and assembly by passing `--assemble` to `SVDSS search`. This will automatically run the assembler.
 
 ### Call SVs
 
