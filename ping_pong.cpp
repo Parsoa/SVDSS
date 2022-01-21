@@ -44,11 +44,14 @@ fastq_entry_t PingPong::get_solution(fastq_entry_t fqe, int s, int l) {
 bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     rldintv_t sai ; // rldintv_t is the struct used to store a SA interval.
     fm6_set_intv(index, P[p2], sai) ;
-    while(sai.x[2] != 0 && p2 > 0) {
-        --p2;
+    while (sai.x[2] != 0) {
+        p2 -= 1 ;
         rldintv_t osai[6] ;
         rld_extend(index, &sai, osai, 1) ; //1: backward, 0: forward
         sai = osai[P[p2]] ;
+        if (p2 == 0) {
+            break ;
+        }
     }
     return sai.x[2] != 0 ;
 }
@@ -56,73 +59,11 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
 // This will be very fast for reconstructed reads
 // However non-reconstructed reads are going to produce loads of crappy SFS, unless we filter them
 void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, bool isreconstructed, bam1_t* aln) {
-    //DEBUG(cerr << "Read Length: " << l << endl ;)
-    // this is not needed anymore
-    //int current_interval = -1 ;
-    //vector<pair<int, int>> m_intervals ;
-    //vector<pair<uint32_t, uint32_t>> cigar_offsets ;
-    //int offset = 0 ;
-    //if (config->putative) {
-    //    bool should_ignore = true ;
-    //    cigar_offsets = decode_cigar(aln) ;
-    //    for (const auto& op: cigar_offsets) {
-    //        if (op.second == BAM_CDEL || op.second == BAM_CINS) {
-    //            if (op.first >= config->min_indel_length) {
-    //                should_ignore = false ;
-    //            }
-    //            if (op.second == BAM_CINS) {
-    //                offset += op.first ;
-    //            }
-    //        } else if (op.second == BAM_CSOFT_CLIP) {
-    //            should_ignore = false ;
-    //            offset += op.first ;
-    //        } else if (op.second == BAM_CMATCH || op.second == BAM_CEQUAL || op.second == BAM_CDIFF) {
-    //            m_intervals.push_back(make_pair(offset, offset + int(op.first))) ;
-    //            //cout << "Adding: " << offset << ", " << offset + int(op.first) << endl ;
-    //            offset += op.first ;
-    //        } else {
-    //            return ;
-    //        }
-    //        if (op.second == BAM_CDIFF) {
-    //            return ;
-    //        }
-    //    }
-    //    if (should_ignore) {
-    //        return ;
-    //    }
-    //    current_interval = m_intervals.size() - 1 ;
-    //}
     //cout << bam_get_qname(aln) << endl ;
     rldintv_t sai ;
     int begin = l - 1 ;
     bool last_jump = false ;
     while (begin >= 0) {
-        // Old, buggy:
-        //if (config->putative && isreconstructed && current_interval != -1 && !last_jump) {
-        //    // find current m-interval
-        //    while (begin >= m_intervals[current_interval].second) {
-        //        current_interval-- ;
-        //        if (current_interval == -1) {
-        //            break ;
-        //        }
-        //    }
-        //    // are we starting in it?
-        //    if (current_interval != -1) {
-        //        //cout << "Current interval: " << m_intervals[current_interval].first << " - " << m_intervals[current_interval].second << endl ;
-        //        auto& interval = m_intervals[current_interval] ;
-        //        if (begin >= interval.first && begin < interval.second) {
-        //            if (interval.second - interval.first > 40) {
-        //                if (interval.first + 20 < begin) {
-        //                    begin = m_intervals[current_interval].first + 20 ;
-        //                    //cout << "Jump to: " << begin << endl ;
-        //                    if (current_interval == 0) {
-        //                        last_jump = true ;
-        //                    }
-        //                }
-        //            }
-        //        }
-        //    }
-        //}
         // Backward search. Find a mismatching sequence. Stop at first mismatch.
         int bmatches = 0 ;
         fm6_set_intv(index, P[begin], sai) ;
@@ -158,10 +99,8 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs
         //DEBUG(cerr << "Adding [" << begin << ", " << end << "]." << endl ;)
         int sfs_len = end - begin + 1 ;
         int acc_len = end - begin + 1 ;
-        //DEBUG(cerr << "Adjusted length from " << acc_len << " to " << sfs_len << "." << endl ;)
-        solutions.push_back(SFS{begin, sfs_len, 1, true}) ;
-        //DEBUG(assert(begin + sfs_len <= l) ;)
-        //DEBUG(std::this_thread::sleep_for(std::chrono::seconds(1)) ;)
+        auto sfs = SFS{begin, sfs_len, 1, true} ;
+        solutions.push_back(sfs) ;
         if (begin == 0) {
             break ;
         }
@@ -612,9 +551,9 @@ int PingPong::index() {
 
 bool PingPong::query(string q) {
     config = Configuration::getInstance() ;
+    rld_t *index = rld_restore(config->index.c_str()) ;
     // parse arguments
     lprint({"Restoring index.."});
-    rld_t *index = rld_restore(config->index.c_str()) ;
     int l = q.length() ;
     uint8_t *p = (uint8_t*) q.c_str() ;
     seq_char2nt6(l, p);
