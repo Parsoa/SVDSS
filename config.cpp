@@ -29,7 +29,6 @@ Configuration::Configuration() :
         ("overlap", "", cxxopts::value<int>())
         ("coverage", "", cxxopts::value<int>())
         ("t,threads", "", cxxopts::value<int>())
-        ("min-length", "", cxxopts::value<int>())
         ("min-sv-length", "", cxxopts::value<int>())
         ("min-cluster-weight", "", cxxopts::value<int>())
         ("clipped", "", cxxopts::value<bool>())
@@ -100,9 +99,6 @@ void Configuration::parse(int argc, char** argv) {
     }
     if (results.count("batches")) {
         aggregate_batches = results["batches"].as<int>() ;
-    }
-    if (results.count("min-length")) {
-        min_string_length = results["min-length"].as<int>() ;
     }
     if (results.count("min-sv-length")) {
         min_sv_length = max(25, results["min-sv-length"].as<int>()) ;

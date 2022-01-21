@@ -723,7 +723,7 @@ void Extender::call() {
                     }
                     cpos += l;
                 } else if (op == 'D') {
-                    if (l > min_sv_length) {
+                    if (l > config->min_sv_length) {
                         SV sv = SV("DEL", c.chrom, rpos, string(chromosome_seqs[chrom] + rpos - 1, l), string(chromosome_seqs[chrom] + rpos - 1, 1), c.size(), c.cov, nv, score, false, l) ;
                         _svs.push_back(sv) ;
                         nv++ ;

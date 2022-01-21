@@ -1,4 +1,4 @@
-min_sv_length#include "ping_pong.hpp"
+#include "ping_pong.hpp"
 
 std::string interval2str(rldintv_t sai) {
     return "[" + std::to_string(sai.x[0]) + "," + std::to_string(sai.x[1]) + "," + std::to_string(sai.x[2]) + "]" ;

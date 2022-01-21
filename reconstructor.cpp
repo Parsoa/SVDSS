@@ -126,15 +126,7 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             memcpy(new_qual + n, qual + match_offset + ins_offset + soft_clip_offset, cigar_offsets[m].first) ;
             n += cigar_offsets[m].first ;
             for (int j = 0; j < cigar_offsets[m].first; j++) {
-<<<<<<< HEAD
-                new_seq[n] = chromosome_seqs[chrom][ref_offset + j] ;
-                new_qual[n] = qual[soft_clip_offset + match_offset + ins_offset + j] ;
-                num_match += 1 ? chromosome_seqs[chrom][ref_offset + j] == read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
-                num_mismatch += 1 ? chromosome_seqs[chrom][ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
-                n++ ;
-=======
                 num_mismatch += 1 ? ref_seq[ref_offset + j] != read_seq[match_offset + ins_offset + soft_clip_offset + j] : 0 ;
->>>>>>> poa-genotyper
             }
             num_match += cigar_offsets[m].first ;
             ref_offset += cigar_offsets[m].first ;
@@ -200,10 +192,8 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
     //cout << bam_get_qname(alignment) << endl ;
     // only do this on first processing thread
     if (omp_get_thread_num() == 2) {
-        global_num_bases += num_match + num_mismatch + ins_offset + del_offset ;
-        global_num_match += num_match ;
+        global_num_bases += num_match ;
         global_num_mismatch += num_mismatch ;
-        global_num_indel += ins_offset + del_offset ;
     }
     // how many errors and SNPs do we expect? 1/1000 each, so say if we see more than twice that then don't correct
     if (config->selective) {
@@ -214,12 +204,9 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
             return ;
         }
         // if we have so many deletions and insertions, then abort
-        //if ((ins_offset + del_offset) / (num_match + num_mismatch) > 3 * expected_indel_rate) {
-        //    if (omp_get_thread_num() == 3) {
-        //        num_ignored_reads += 1 ;
-        //    }
-        //    return ;
-        //}
+        if (ins_offset + del_offset > 0.7 * strlen(read_seq)) {
+            return ;
+        }
     }
     if (should_ignore) {
         // check mismatch rate
@@ -292,16 +279,8 @@ void Reconstructor::run() {
             }
         }
     }
-<<<<<<< HEAD
-    int p = 0 ;
-    int b = 0 ;
-    int batch_size = (10000 / config->threads) * config->threads ;
-    lprint({"Loading first batch.."});
-    for (int i = 0; i < 2; i++) {
-=======
     for (int i = 0; i < modulo; i++) {
         bam_entries.push_back(vector<vector<bam1_t*>>(config->threads)) ;
->>>>>>> poa-genotyper
         for (int j = 0; j < config->threads; j++) {
             for (int k = 0; k < batch_size / config->threads; k++) {
                 bam_entries[i][j].push_back(bam_init1()) ;
@@ -386,18 +365,11 @@ void Reconstructor::run() {
         if (s - t == 0) {
             s += 1 ;
         }
-<<<<<<< HEAD
-        cerr << "[I] Processed batch " << std::left << std::setw(10) << b << ". Reads so far " << std::right << std::setw(12) << u << ". Reads per second: " <<  u / (s - t) << ". Time: " << std::setw(8) << std::fixed << s - t << "\n" ;
-        cerr << "[I] Process bases: " << std::left << std::setw(16) << uint64_t(global_num_bases) << ", num mismatch: " << std::setw(16) << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", indel rate: " << global_num_indel / (global_num_match + global_num_mismatch) << ", ignored reads: " << num_ignored_reads << endl ;
-        expected_mismatch_rate = global_num_mismatch / global_num_bases ; 
-        expected_indel_rate = global_num_indel / global_num_bases ;
-=======
         cerr << "[I] Processed batch " << b << ". Reads so far " << reads_processed << ". Reads per second: " << reads_processed / (s - t) << ". Time: " << s - t << "\n" ;
         cerr << "[I] Processed bases: " << uint64_t(global_num_bases) << ", num mismatch: " << uint64_t(global_num_mismatch) << ", mismatch rate: " << global_num_mismatch / global_num_bases << ", ignored reads: " << num_ignored_reads << "\n" ;
         expected_mismatch_rate = global_num_mismatch / global_num_bases ; 
         cerr << "\x1b[A" ;
         cerr << "\x1b[A" ;
->>>>>>> poa-genotyper
     }
     cerr << endl ;
     cerr << endl ;
@@ -490,4 +462,3 @@ bool Reconstructor::load_batch_bam(int threads, int batch_size, int p) {
     //lprint({"Loaded", to_string(n), "BAM reads.."});
     return n != 0 ? true : false ;
 }
-
