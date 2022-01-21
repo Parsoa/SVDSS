@@ -22,10 +22,7 @@ jobs:
       run: make
       working-directory: ./abPOA
     - name: rapidfuzz
-      run: mkdir build
-      run: cd build
-      run: cmake .. -DCMAKE_BUILD_TYPE=Release
-      run: cmake --build .
+      run: mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build .
       working-directory: ./rapidfuzz-cpp
     - name: ropebwt
       run: make
