@@ -69,7 +69,33 @@ You need add some of the paths to your envinronment for the libraries to link pr
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/cloned/repo/htslib:/path/to/cloned/repo/parasail/build:/path/to/cloned/repo/libdeflate
 ```
 
-## G
+## General Usage
+
+```
+    Index genome:
+        SVDSS index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file --index /path/to/output/index/file
+        Optional arguments: 
+            -b, --binary                output index in binary format
+            -a, --append                append to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly.
+    Extract SFS from BAM/FASTQ/FASTA files:
+        SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
+        Optional arguments: 
+            --assemble                automatically runs SVDSS assemble on output
+    Assmble SFS into superstrings
+        SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
+    Reconstruct sample
+        SVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+        Optional arguments: 
+            --selective                ignores reads with high mismatch rate
+    Call SVs:
+        SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+        Optional arguments: 
+            --clipped                calls SVs from clipped SFS only.
+            --min-cluster-weight                minimum number of supporting superstrings for a call to be reported.
+            --min-sv-length                minimum length of reported SVs. Default is 25. Values < 25 are ignored.
+    General options: 
+        --threads                sets number of threads, default 4.
+```
 
 ## Usage Guide
 
