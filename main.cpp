@@ -60,10 +60,10 @@ void create_workdir() {
 void print_help() {
     cerr << "Usage: " << endl;
     cerr << "\tTo index sample:" << endl ;
-    cerr << "\t\tSVDSS index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file --index /path/to/output/index/file" << endl ;
+    cerr << "\t\tSVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
-    cerr << "\t\t\t-b, --binary\t\t\t\toutput index in binary format" << endl ;
-    cerr << "\t\t\t-a, --append\t\t\t\tappend to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly." << endl ;
+    cerr << "\t\t\t-b, --binary\t\t\t\toutput index in binary format. Allows for another index to be appended to this index later." << endl ;
+    cerr << "\t\t\t-a, --append /path/to/binary/index\t\t\t\tappend to existing binary index." << endl ;
     cerr << "\tExtract SFS from BAM/FASTQ/FASTA files:" << endl ;
     cerr << "\t\tSVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
@@ -72,8 +72,6 @@ void print_help() {
     cerr << "\t\tSVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches" << endl ;
     cerr << "\tReconstruct sample" << endl ;
     cerr << "\t\tSVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
-    cerr << "\t\tOptional arguments: " << endl ;
-    cerr << "\t\t\t--selective\t\t\t\tignores reads with high mismatch rate" << endl ;
     cerr << "\tCall SVs:" << endl ;
     cerr << "\t\tSVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;

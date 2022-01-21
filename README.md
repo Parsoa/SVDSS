@@ -67,29 +67,27 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/cloned/repo/htslib:/path/to/clo
 ## General Usage
 
 ```
-    Index genome:
-        SVDSS index [--binary] [--append /path/to/binary/index] --fastq /path/to/fastq/file --index /path/to/output/index/file
-        Optional arguments: 
-            -b, --binary                output index in binary format
-            -a, --append                append to existing index (must be stored in binary). DON'T pass this option for building an index you want to use directly.
-    Extract SFS from BAM/FASTQ/FASTA files:
-        SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
-        Optional arguments: 
-            --assemble                automatically runs SVDSS assemble on output
-    Assmble SFS into superstrings
-        SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
-    Reconstruct sample
-        SVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
-        Optional arguments: 
-            --selective                ignores reads with high mismatch rate
-    Call SVs:
-        SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
-        Optional arguments: 
-            --clipped                calls SVs from clipped SFS.
-            --min-cluster-weight                minimum number of supporting superstrings for a call to be reported.
-            --min-sv-length                minimum length of reported SVs. Default is 25. Values < 25 are ignored.
-    General options: 
-        --threads                sets number of threads, default 4.
+Index genome:
+    SVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file
+    Optional arguments: 
+        -b, --binary                output index in binary format. Allows for other indices to be appended to this index (e.g merging index of father and mother).
+        -a, --append  /path/to/binary/index               append to existing index (must be stored in binary).
+Extract SFS from BAM/FASTQ/FASTA files:
+    SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
+    Optional arguments: 
+        --assemble                automatically runs SVDSS assemble on output
+Assmble SFS into superstrings
+    SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
+Reconstruct sample
+    SVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+Call SVs:
+    SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+    Optional arguments: 
+        --clipped                calls SVs from clipped SFS.
+        --min-cluster-weight                minimum number of supporting superstrings for a call to be reported.
+        --min-sv-length                minimum length of reported SVs. Default is 25. Values < 25 are ignored.
+General options: 
+    --threads                sets number of threads, default 4.
 ```
 
 ## Usage Guide
