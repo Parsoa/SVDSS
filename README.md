@@ -171,6 +171,17 @@ For user convenience, we distribute a Snakefile to run the entire pipeline, from
 snakemake [-n] -j 4
 ```
 
+##### Example
+Download example data from [here](https://drive.google.com/file/d/1vjQUUayL5XPUPb6cuFRU2vBi2V3gUVf9/view?usp=sharing), then:
+```
+mkdir example
+cd example
+mv /path/to/SVDSS-example.tar.gz .
+tar xvfz SVDSS-example.tar.gz
+cd ..
+snakemake -p -j 2
+```
+
 ### Authors
 
 SVDSS was developed by Luca Denti, Parsoa Khorsand, Rayan Chikhi, Fereydoun Hormozdiair and Paola Bonizonni.

@@ -1,12 +1,5 @@
 fa: example/22.fa
-bam: example/22.all.bam
+bam: example/22.bam
 out: example/OUT
 bin: ./SVDSS
-threads: 4
-
-
-# fa: /path/to/reference/fasta
-# bam: /path/to/aligned/reads/bam
-# out: /path/to/output/directory
-# bin: /path/to/SVDSS/binary
-# threads: 4
+threads: 2
