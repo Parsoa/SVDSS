@@ -29,31 +29,23 @@ You need to clone the repostiory with `--recursive` for all the dependencies to 
 ```
 git clone --recursive https://github.com/Parsoa/SVDSS.git
 cd SVDSS 
-git submodule update --init --recursive
 
-cd parasail
-mkdir build ; cd build
-cmake ..
-make
+cd parasail ; mkdir build ; cd build
+cmake .. ; make
 cd ../..
 
-cd rapidfuzz-cpp
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build .
+cd rapidfuzz-cpp ; mkdir build ; cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release ; cmake --build .
+cd ../..
 
-cd abPOA
-make
-cd ..
+cd abPOA ; make ; cd ..
 
-cd libdeflate
-make
-cd ..
+cd libdeflate ; make ; cd ..
 
-cd htslib
-./configure --with-libdeflate
-make
-cd ..
+# (if needed) adjust search paths in CPPFLAGS and/or LDFLAGS to include libdeflate. Something like:
+# CPPFLAGS="-I/path/to/SVDSS/libdeflate"
+# LDFLAGS="-L/path/to/SVDSS/libdeflate -Wl,-R/path/to/SVDSS/libdeflate"
+cd htslib ; ./configure --with-libdeflate ; make ; cd ..
 
 make
 ```
