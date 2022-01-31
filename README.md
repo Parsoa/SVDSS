@@ -163,6 +163,14 @@ This commands output two files: `svs_poa.vcf` that includes the SV calls and `po
 
 You can pass `--clipped` to call SVs from clipped superstrings as well. These will be output in a separate file `svs_clipped.vcf`. Clipped SV calling is experimental and may not be accurate. We recommend manual inspection of resulting calls.
 
+### Snakemake workflow
+For user convenience, we distribute a Snakefile to run the entire pipeline, from reference + aligned reads to SVs:
+```
+# update config.yaml to suit your needs
+# run:
+snakemake [-n] -j 4
+```
+
 ### Authors
 
 SVDSS was developed by Luca Denti, Parsoa Khorsand, Rayan Chikhi, Fereydoun Hormozdiair and Paola Bonizonni.
