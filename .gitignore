@@ -39,6 +39,7 @@ main
 debug
 aggregate
 PingPong
+SVDSS
 
 *.ct
 *.out
