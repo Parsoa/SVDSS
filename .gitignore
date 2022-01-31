@@ -54,11 +54,8 @@ src/cpp/*.out
 experiments/simulation/
 
 !requirements.txt
-!example/mother.fq
-!example/father.fq
-!example/child.fq
-!example/child_specific.overlapping.fq
-!example/child_specific.non_overlapping.fq
 
 *~
 .snakemake
+
+example
