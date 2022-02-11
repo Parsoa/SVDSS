@@ -99,10 +99,6 @@ int main(int argc, char** argv) {
     } else if (strcmp(argv[1], "index") == 0) {
         auto pingpong = new PingPong() ;
         pingpong->index() ;
-    } else if (strcmp(argv[1], "query") == 0) {
-        auto pingpong = new PingPong() ;
-        bool b = pingpong->query(string(argv[2])) ;
-        cerr << (b ? "SFS" : "Not SFS") << endl ;
     } else if (strcmp(argv[1], "search") == 0) {
         auto pingpong = new PingPong() ;
         pingpong->search() ;
@@ -111,15 +107,9 @@ int main(int argc, char** argv) {
             c->aggregate_batches = pingpong->num_output_batches ;
             aggregator->run() ;
         }
-    } else if (strcmp(argv[1], "convert") == 0) {
-        auto converter = new Converter() ;
-        converter->run() ;
     } else if (strcmp(argv[1], "assemble") == 0) {
         auto assembler = new Assembler() ;
         assembler->run() ;
-    } else if (strcmp(argv[1], "aggregate") == 0) {
-        auto aggregator = new Aggregator() ;
-        aggregator->run() ;
     } else if (strcmp(argv[1], "reconstruct") == 0) {
         auto reconstructor = new Reconstructor() ;
         reconstructor->run() ;
