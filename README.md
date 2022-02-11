@@ -24,7 +24,7 @@ SVSS was developed from [PingPong](https://github.com/Parsoa/PingPong) and this 
 
 ## Download and Installation
 
-You need to clone the repostiory with `--recursive` for all the dependencies to be downloaded. Each dependency has to be built separately:
+You need to clone the repository with `--recursive` for all the dependencies to be downloaded. Each dependency has to be built separately:
 
 ```
 git clone --recursive https://github.com/Parsoa/SVDSS.git
@@ -50,7 +50,7 @@ cd htslib ; ./configure --with-libdeflate ; make ; cd ..
 make
 ```
 
-You need to add some of the dependency build paths to your envinronment for the libraries to link properly at runtime:
+You need to add some of the dependency build paths to your environment for the libraries to link properly at runtime:
 
 ```
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/cloned/repo/htslib:/path/to/cloned/repo/parasail/build:/path/to/cloned/repo/libdeflate
