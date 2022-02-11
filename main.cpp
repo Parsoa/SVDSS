@@ -99,11 +99,6 @@ int main(int argc, char** argv) {
     } else if (strcmp(argv[1], "search") == 0) {
         auto pingpong = new PingPong() ;
         pingpong->search() ;
-        if (c->aggregate) {
-            auto aggregator = new Aggregator() ;
-            c->aggregate_batches = pingpong->num_output_batches ;
-            aggregator->run() ;
-        }
     } else if (strcmp(argv[1], "assemble") == 0) {
         auto assembler = new Assembler() ;
         assembler->run() ;
