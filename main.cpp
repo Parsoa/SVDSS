@@ -20,11 +20,8 @@
 #include "ping_pong.hpp"
 #include "chromosomes.hpp"
 
-#include "tau.hpp"
 #include "caller.hpp"
 #include "assembler.hpp"
-#include "converter.hpp"
-#include "aggregator.hpp"
 #include "reconstructor.hpp"
 
 #ifdef LOCAL_BUILD
