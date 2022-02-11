@@ -79,7 +79,6 @@ Reconstruct sample:
 Call SVs:
     SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
     Optional arguments: 
-        --clipped                calls SVs from clipped SFS.
         --min-cluster-weight     minimum number of supporting superstrings for a call to be reported.
         --min-sv-length          minimum length of reported SVs. Default is 25. Values < 25 are ignored.
 
@@ -161,9 +160,8 @@ You can filter the reported SVs by passing the `--min-sv-length` and `--min-clus
 
 This commands output two files: `svs_poa.vcf` that includes the SV calls and `poa.sam` which includes alignments of POA contigs to the reference genome.
 
-You can pass `--clipped` to call SVs from clipped superstrings as well. These will be output in a separate file `svs_clipped.vcf`. Clipped SV calling is experimental and may not be accurate. We recommend manual inspection of resulting calls.
-
 ### Snakemake workflow
+
 For user convenience, we distribute a Snakefile to run the entire pipeline, from reference + aligned reads to SVs:
 ```
 # update config.yaml to suit your needs
@@ -172,6 +170,7 @@ snakemake [-n] -j 4
 ```
 
 ##### Example
+
 Download example data from [here](https://drive.google.com/file/d/1vjQUUayL5XPUPb6cuFRU2vBi2V3gUVf9/view?usp=sharing), then:
 ```
 mkdir example
@@ -184,7 +183,7 @@ snakemake -p -j 2
 
 ### Authors
 
-SVDSS was developed by Luca Denti, Parsoa Khorsand, Rayan Chikhi, Fereydoun Hormozdiair and Paola Bonizonni.
+SVDSS was developed by Luca Denti and Parsoa Khorsand.
 
 For inquiries on this software please open an [issue](https://github.com/Parsoa/SVDSS/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
 
