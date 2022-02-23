@@ -53,7 +53,7 @@ make
 You need to add some of the dependency build paths to your environment for the libraries to link properly at runtime:
 
 ```
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/cloned/repo/htslib:/path/to/cloned/repo/parasail/build:/path/to/cloned/repo/libdeflate
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/htslib/:$PWD/parasail/build:$PWD/libdeflate/
 ```
 
 ## General Usage
