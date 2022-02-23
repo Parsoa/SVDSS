@@ -56,9 +56,9 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
     return sai.x[2] != 0 ;
 }
 
-// This will be very fast for reconstructed reads
-// However non-reconstructed reads are going to produce loads of crappy SFS, unless we filter them
-void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, bool isreconstructed, bam1_t* aln) {
+// This will be very fast for smoothed reads
+// However non-smoothed reads are going to produce loads of crappy SFS, unless we filter them
+void PingPong::ping_pong_search(rld_t *index, uint8_t* P, int l, std::vector<sfs_type_t>& solutions, bool is_smoothed, bam1_t* aln) {
     //cout << bam_get_qname(aln) << endl ;
     rldintv_t sai ;
     int begin = l - 1 ;
@@ -204,18 +204,18 @@ batch_type_t PingPong::process_batch(rld_t* index, int p, int i) {
     } else {
         for (int j = 0; j < read_seqs[p][i].size(); j++) {
             char *qname = bam_get_qname(bam_entries[p][i][j]) ;
-            bool isreconstructed = reconstructed_reads.find(qname) != reconstructed_reads.end() ;
+            bool is_smoothed = smoothed_reads.find(qname) != smoothed_reads.end() ;
             if (config->putative) {
                 if (ignored_reads.find(qname) != ignored_reads.end()) {
                     continue ;
                 }
-                // was not ignored, so either it's reconstructed or not:
-                if (!isreconstructed) {
+                // was not ignored, so either it's smoothed or not:
+                if (!is_smoothed) {
                     continue ;
                 }
             }
-            //cout << qname << " " << isreconstructed << endl ;
-            ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[qname], isreconstructed, bam_entries[p][i][j]) ;
+            //cout << qname << " " << is_smoothed << endl ;
+            ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[qname], is_smoothed, bam_entries[p][i][j]) ;
         }
     }
     return solutions ;
@@ -280,7 +280,7 @@ int PingPong::search() {
     }
     if (config->putative) {
         lprint({"Putative SFS extraction enabled."}) ;
-        load_reconstructed_read_ids() ;
+        load_smoothed_read_ids() ;
     }
     // allocate all necessary stuff 
     int p = 0 ;
@@ -412,8 +412,8 @@ int PingPong::search() {
     return u ;
 }
 
-void PingPong::load_reconstructed_read_ids() {
-    lprint({"Loading reconstructed read ids.."}) ;
+void PingPong::load_smoothed_read_ids() {
+    lprint({"Loading smoothed read ids.."}) ;
     ifstream ignore_file(config->workdir + "/ignored_reads.txt") ;
     if (ignore_file.is_open()) {
         string read_name;
@@ -422,16 +422,16 @@ void PingPong::load_reconstructed_read_ids() {
         }
         ignore_file.close() ;
     }
-    ifstream in_file(config->workdir + "/reconstructed_reads.txt") ;
+    ifstream in_file(config->workdir + "/smoothed_reads.txt") ;
     if (in_file.is_open()) {
         string read_name;
         while (getline(in_file, read_name)) {
-            reconstructed_reads[read_name] = true ;
+            smoothed_reads[read_name] = true ;
         }
         in_file.close() ;
     }
     lprint({"Loaded", to_string(ignored_reads.size()), "ignored read ids."}) ;
-    lprint({"Loaded", to_string(reconstructed_reads.size()), "reconstructed read ids."}) ;
+    lprint({"Loaded", to_string(smoothed_reads.size()), "smoothed read ids."}) ;
 }
 
 // ============================================================================= \\

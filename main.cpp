@@ -22,7 +22,7 @@
 
 #include "caller.hpp"
 #include "assembler.hpp"
-#include "reconstructor.hpp"
+#include "smoother.hpp"
 
 #ifdef LOCAL_BUILD
 #include "finder.hpp"
@@ -68,7 +68,7 @@ void print_help() {
     cerr << "\tAssmble SFS into superstrings:" << endl ;
     cerr << "\t\tSVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches" << endl ;
     cerr << "\tReconstruct sample:" << endl ;
-    cerr << "\t\tSVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
+    cerr << "\t\tSVDSS smooth --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
     cerr << "\tCall SVs:" << endl ;
     cerr << "\t\tSVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
@@ -102,9 +102,9 @@ int main(int argc, char** argv) {
     } else if (strcmp(argv[1], "assemble") == 0) {
         auto assembler = new Assembler() ;
         assembler->run() ;
-    } else if (strcmp(argv[1], "reconstruct") == 0) {
-        auto reconstructor = new Reconstructor() ;
-        reconstructor->run() ;
+    } else if (strcmp(argv[1], "smooth") == 0) {
+        auto smoother = new Smoother() ;
+        smoother->run() ;
     } else {
         print_help() ;
     }

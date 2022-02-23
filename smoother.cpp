@@ -1,4 +1,4 @@
-#include "reconstructor.hpp"
+#include "smoother.hpp"
 
 using namespace std ;
 
@@ -80,7 +80,7 @@ void rebuild_bam_entry(bam1_t* alignment, char* seq, uint8_t* qual, vector<pair<
     free(aux) ;
 }
 
-void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string chrom, int _i, int _j, int _k) {
+void Smoother::smooth_read(bam1_t* alignment, char* read_seq, string chrom, int _i, int _j, int _k) {
     auto cigar_offsets = decode_cigar(alignment) ;
     int l = 0 ;
     // try and filter unintenresting reads early on
@@ -213,11 +213,11 @@ void Reconstructor::reconstruct_read(bam1_t* alignment, char* read_seq, string c
         ignored_reads[omp_get_thread_num() - 2].push_back(qname) ;
         return ;
     }
-    reconstructed_reads[omp_get_thread_num() - 2].push_back(qname) ;
+    smoothed_reads[omp_get_thread_num() - 2].push_back(qname) ;
     rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar) ;
 }
 
-void Reconstructor::process_batch(vector<bam1_t*> bam_entries, int p, int i) {
+void Smoother::process_batch(vector<bam1_t*> bam_entries, int p, int i) {
     bam1_t* alignment ;
     for (int b = 0; b < bam_entries.size(); b++) {
         alignment = bam_entries[b] ;
@@ -238,12 +238,12 @@ void Reconstructor::process_batch(vector<bam1_t*> bam_entries, int p, int i) {
         if (chromosome_seqs.find(chrom) == chromosome_seqs.end()) {
             continue ;
         }
-        reconstruct_read(alignment, read_seqs[p][i][b], chrom, p, i, b) ;
+        smooth_read(alignment, read_seqs[p][i][b], chrom, p, i, b) ;
     }
 }
 
 // BAM writing based on https://www.biostars.org/p/181580/
-void Reconstructor::run() {
+void Smoother::run() {
     config = Configuration::getInstance() ;
     load_chromosomes(config->reference) ;
     // parse arguments
@@ -251,7 +251,7 @@ void Reconstructor::run() {
     bam_index = sam_index_load(bam_file, config->bam.c_str()) ;
     bam_header = sam_hdr_read(bam_file) ; //read header
     bgzf_mt(bam_file->fp.bgzf, 8, 1) ;
-    auto out_bam_path = config->workdir + (config->selective ? "/reconstructed.selective.bam" : "/reconstructed.bam") ;
+    auto out_bam_path = config->workdir + (config->selective ? "/smoothed.selective.bam" : "/smoothed.bam") ;
     out_bam_file = hts_open(out_bam_path.c_str(), "wb") ;
     bgzf_mt(out_bam_file->fp.bgzf, 8, 1) ;
     int r = sam_hdr_write(out_bam_file, bam_header) ;
@@ -292,7 +292,7 @@ void Reconstructor::run() {
     load_batch_bam(config->threads, batch_size, 1) ;
     int p = 1 ;
     ignored_reads.resize(config->threads) ;
-    reconstructed_reads.resize(config->threads) ;
+    smoothed_reads.resize(config->threads) ;
     time_t t ;
     time(&t) ;
     bool should_load = true ;
@@ -376,22 +376,22 @@ void Reconstructor::run() {
     lprint({"Done."});
     sam_close(bam_file) ;
     sam_close(out_bam_file) ;
-    dump_reconstructed_read_ids() ;
+    dump_smoothed_read_ids() ;
     lprint({"Loaded", to_string(reads_processed), "reads."});
     lprint({"Wrote", to_string(reads_written), "reads."});
 }
 
-void Reconstructor::dump_reconstructed_read_ids() {
-    lprint({"Dumping reconstructed read ids.."}) ;
-    ofstream qname_file(config->workdir + "/reconstructed_reads.txt") ;
+void Smoother::dump_smoothed_read_ids() {
+    lprint({"Dumping smoothed read ids.."}) ;
+    ofstream qname_file(config->workdir + "/smoothed_reads.txt") ;
     if (qname_file.is_open()) {
         for (int i = 0; i < config->threads; i++) {
-            for (const auto& qname: reconstructed_reads[i]) {
+            for (const auto& qname: smoothed_reads[i]) {
                 qname_file << qname << endl ;
             }
         }
     } else {
-        lprint({"Error openning reconstructed_reads.txt."}, 2) ;
+        lprint({"Error openning smoothed_reads.txt."}, 2) ;
     }
     qname_file.close() ;
     ofstream ignore_file(config->workdir + "/ignored_reads.txt") ;
@@ -407,7 +407,7 @@ void Reconstructor::dump_reconstructed_read_ids() {
     }
 }
 
-bool Reconstructor::load_batch_bam(int threads, int batch_size, int p) {
+bool Smoother::load_batch_bam(int threads, int batch_size, int p) {
     int n = 0 ;
     int i = 0 ;
     int m = 0 ;

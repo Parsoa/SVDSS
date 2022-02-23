@@ -93,9 +93,9 @@ private:
     samFile *bam_file ;
     bam_hdr_t *bam_header ;
 
-    unordered_map<string, bool> reconstructed_reads ;
+    unordered_map<string, bool> smoothed_reads ;
     unordered_map<string, bool> ignored_reads ;
-    void load_reconstructed_read_ids() ;
+    void load_smoothed_read_ids() ;
     
     std::vector<std::vector<std::vector<int>>> read_seq_lengths ;
     std::vector<std::vector<std::vector<int>>> read_seq_max_lengths ;
@@ -105,7 +105,7 @@ private:
     bool load_batch_bam(int threads, int batch_size, int p) ;
     bool load_batch_fastq(int threads, int batch_size, int p) ;
     batch_type_t process_batch(rld_t* index, int p, int i) ;
-    void ping_pong_search(rld_t *index, uint8_t* seq, int l, std::vector<sfs_type_t>& solutions, bool isreconstructed, bam1_t*) ;
+    void ping_pong_search(rld_t *index, uint8_t* seq, int l, std::vector<sfs_type_t>& solutions, bool is_smoothed, bam1_t*) ;
     void output_batch(int) ;
 
     std::vector<std::vector<batch_type_t>> batches ;

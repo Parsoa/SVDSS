@@ -27,7 +27,7 @@ using namespace std ;
 
 #define bam_set_seqi(s,i,b) ((s)[(i)>>1] = ((s)[(i)>>1] & (0xf0 >> ((~(i)&1)<<2))) | ((b)<<((~(i)&1)<<2)))
 
-class Reconstructor {
+class Smoother {
 
 public:
 
@@ -38,7 +38,7 @@ public:
     // output BAM file
     samFile* out_bam_file ;
     // <time < batch < reads > > >
-    std::vector<std::vector<std::string>> reconstructed_reads ;
+    std::vector<std::vector<std::string>> smoothed_reads ;
     std::vector<std::vector<std::string>> ignored_reads ;
     std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
 
@@ -51,7 +51,7 @@ public:
     void run() ;
     bool load_batch_bam(int threads, int batch_size, int p) ;
     void process_batch(std::vector<bam1_t*> bam_entries, int , int) ;
-    void reconstruct_read(bam1_t* alignment, char* read_seq, std::string chrom, int, int, int) ;
+    void smooth_read(bam1_t* alignment, char* read_seq, std::string chrom, int, int, int) ;
 
     Configuration* config ;
 
@@ -64,7 +64,7 @@ private:
     int num_ignored_reads = 0 ;
     int reads_processed = 0 ;
 
-    void dump_reconstructed_read_ids() ;
+    void dump_smoothed_read_ids() ;
 };
 
 #endif
