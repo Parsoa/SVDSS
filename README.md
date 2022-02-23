@@ -73,8 +73,8 @@ Extract SFS from BAM/FASTQ/FASTA files:
 Assmble SFS into superstrings:
     SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
 
-Reconstruct sample:
-    SVDSS reconstruct --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+Smooth reads:
+    SVDSS smooth --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
 
 Call SVs:
     SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
@@ -91,8 +91,8 @@ General options:
 SVDSS requires as input the BAM file of the sample to be genotyped, a reference genome in FASTA format. To genotype a sample we need to perform the following steps:
 
 1. Build FMD index of reference genome (`SVDSS index`)
-2. Reconstruct the input BAM file (`SVDSS reconstruct`)
-3. Extract SFS from reconstructed BAM file (`SVDSS search`)
+2. Smooth the input BAM file (`SVDSS smooth`)
+3. Extract SFS from smoothed BAM file (`SVDSS search`)
 4. Assemble SFS into superstrings (`SVDSS assemble`)
 5. Genotype SVs from the assembled superstrings (`SVDSS call`)
 
@@ -116,22 +116,22 @@ SVDSS index --fastq GRCh38.fa --index GRCh38.bwt
 
 The `--index` option specifies the output file name.
 
-### Reconstruct target sample
+### Smoothing the target sample
 
-Reconstruction removes  nearly all SNPs, small indels and sequencing errors from reads. This results in smaller number of SFS being extracted and increases the relevance of extracted SFS to SV discovery significantly. To reconstruct the sample run: 
+Smoothing removes  nearly all SNPs, small indels and sequencing errors from reads. This results in smaller number of SFS being extracted and increases the relevance of extracted SFS to SV discovery significantly. To smooth the sample run: 
 
 ```
-SVDSS reconstruct --bam sample.bam --workdir $PWD --reference GRCh38.fa --threads 16
+SVDSS smooth --bam sample.bam --workdir $PWD --reference GRCh38.fa --threads 16
 ```
 
-This produces a file named `reconstructed.selective.bam`. This file is sorted in the same order as the input file, however it needs to be indexed again with `samtools index`. The command also produces two files `recontructed_reads.txt` and `ignored_reads.txt` in `workdir` that contains the ids of reads that were reconstructed and ids of reads that didn't have any large (> 20bp) indels in their alignemnts. This information is used by the next step.
+This produces a file named `smoothed.selective.bam`. This file is sorted in the same order as the input file, however it needs to be indexed again with `samtools index`. The command also produces two files `smoothed_reads.txt` and `ignored_reads.txt` in `workdir` that contains the ids of reads that were smoothed and ids of reads that didn't have any large (> 20bp) indels in their alignemnts. This information is used by the next step.
 
 ### Extract SFS from target sample
 
 To extract SFS run:
 
 ```
-SVDSS search --index GRCh38.bwt --bam reconstructed.selective.bam --workdir $PWD
+SVDSS search --index GRCh38.bwt --bam smoothed.selective.bam --workdir $PWD
 ```
 
 This step produces a number of `solution_batch_<i>.sfs` files. These files include the coordinates of SFS relative to the reads they were extracted from.
@@ -153,7 +153,7 @@ You can combine SFS extraction and assembly by passing `--assemble` to `SVDSS se
 We are now ready to call SVs. Run:
 
 ```
-SVDSS call --reference GRCh38.fasta --bam reconstructed.selective.bam --workdir $PWD --batches N
+SVDSS call --reference GRCh38.fasta --bam smoothed.selective.bam --workdir $PWD --batches N
 ```
 
 You can filter the reported SVs by passing the `--min-sv-length` and `--min-cluster-weight` options. These options control the minimum length and minimum number of supporting superstrings for the reported SVs. Higher values for `--min-cluster-weight` will increase precision at the cost of reducing recall. For a 30x coverage sample, `--min-cluster-weight 4` produced the best results in our experiments.
