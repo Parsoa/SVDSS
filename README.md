@@ -43,9 +43,9 @@ cd abPOA ; make ; cd ..
 cd libdeflate ; make ; cd ..
 
 # (if needed) adjust search paths in CPPFLAGS and/or LDFLAGS to include libdeflate. Something like:
-# CPPFLAGS="-I/path/to/SVDSS/libdeflate"
-# LDFLAGS="-L/path/to/SVDSS/libdeflate -Wl,-R/path/to/SVDSS/libdeflate"
-cd htslib ; ./configure --with-libdeflate ; make ; cd ..
+# export CPPFLAGS="-I$PWD/libdeflate"
+# export LDFLAGS="-L$PWD/libdeflate -Wl,-R$PWD/libdeflate"
+cd htslib ; autohead ; autoreconf ; ./configure --with-libdeflate ; make ; cd ..
 
 make
 ```
@@ -171,13 +171,19 @@ snakemake [-n] -j 4
 
 ##### Example
 
-Download example data from [here](https://drive.google.com/file/d/1vjQUUayL5XPUPb6cuFRU2vBi2V3gUVf9/view?usp=sharing), then:
+Download example data from [here](https://drive.google.com/file/d/1GD7NKz7kUhK_o2IystdCwKEBzz9r9JsB/view). The archive contains the input files required to run the SVDSS pipeline (i.e., reference and alignments), as well as the expected output (i.e., VCF file with SVs calls).
+
+Setup data to match the provided `config.yaml`:
 ```
+cd /path/to/SVDSS-local-repo
 mkdir example
 cd example
 mv /path/to/SVDSS-example.tar.gz .
 tar xvfz SVDSS-example.tar.gz
 cd ..
+```
+Then run (it should take less than 5 minutes):
+```
 snakemake -p -j 2
 ```
 
@@ -190,3 +196,6 @@ For inquiries on this software please open an [issue](https://github.com/Parsoa/
 ### Citation
 
 SVDSS is currently pending peer review. A pre-print is available on [BioRxiv](https://www.biorxiv.org/content/10.1101/2022.02.12.480198v1).
+
+##### Experiments
+Instructions on how to reproduce the experiments described in the manuscript can be found [here](https://github.com/ldenti/SVDSS-experiments).
