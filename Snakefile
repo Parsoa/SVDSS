@@ -31,20 +31,20 @@ rule pp_reconstruct:
         fa = REF,
         bam = BAM
     output:
-        bam = pjoin(ODIR, "reconstructed.selective.bam")
+        bam = pjoin(ODIR, "smoothed.selective.bam")
     params:
         wd = pjoin(ODIR)
     threads: THREADS
     shell:
         """
-        {SVDSS_BIN} reconstruct --reference {input.fa} --bam {input.bam} --workdir {params.wd} --threads {threads}
+        {SVDSS_BIN} smooth --reference {input.fa} --bam {input.bam} --workdir {params.wd} --threads {threads}
         """
 
 rule pp_sortreconstruct:
     input:
-        bam = pjoin(ODIR, "reconstructed.selective.bam")
+        bam = pjoin(ODIR, "smoothed.selective.bam")
     output:
-        bam = pjoin(ODIR, "reconstructed.selective.sorted.bam")
+        bam = pjoin(ODIR, "smoothed.selective.sorted.bam")
     params:
         sam = pjoin(ODIR, "reconstructed.sam"),
         tmpd = pjoin(ODIR)
@@ -58,7 +58,7 @@ rule pp_sortreconstruct:
 rule pp_search:
     input:
         fmd = REF + ".fmd",
-        bam = pjoin(ODIR, "reconstructed.selective.sorted.bam")
+        bam = pjoin(ODIR, "smoothed.selective.sorted.bam")
     output:
         sfs = pjoin(ODIR, "solution_batch_0.assembled.sfs")
     params:
@@ -72,7 +72,7 @@ rule pp_search:
 rule pp_call:
     input:
         fa = REF,
-        bam = pjoin(ODIR, "reconstructed.selective.sorted.bam"),
+        bam = pjoin(ODIR, "smoothed.selective.sorted.bam"),
         sfs = pjoin(ODIR, "solution_batch_0.assembled.sfs")
     output:
         vcf = pjoin(ODIR, "svdss.vcf")
