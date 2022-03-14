@@ -45,7 +45,7 @@ cd libdeflate ; make ; cd ..
 # (if needed) adjust search paths in CPPFLAGS and/or LDFLAGS to include libdeflate. Something like:
 # export CPPFLAGS="-I$PWD/libdeflate"
 # export LDFLAGS="-L$PWD/libdeflate -Wl,-R$PWD/libdeflate"
-cd htslib ; autohead ; autoreconf ; ./configure --with-libdeflate ; make ; cd ..
+cd htslib ; autoheader ; autoreconf ; ./configure --with-libdeflate ; make ; cd ..
 
 make
 ```
