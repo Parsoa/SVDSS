@@ -7,11 +7,6 @@ include(ExternalProject)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-#set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-#set(BUILD_SHARED_LIBS OFF)
-#set(MALLOC_STATIC_BUILD_FLAG "--enable-static")
-#link_libraries("-static")
-
 set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -Wall -Wno-comment -Wno-unused-function -Wno-narrowing -Wno-sign-compare -Wno-unused-variable ${CMAKE_CXX_FLAGS}")
 
 project(TEST VERSION 1.0)
@@ -175,45 +170,6 @@ target_include_directories(SVDSS
   PRIVATE ${ROPEBWT_INCLUDE_DIR}
   PRIVATE ${PROJECT_SOURCE_DIR}
 )
-
-#find_library(LZ libz.a REQUIRED)
-#if (NOT LZ)
-#  message(FATAL_ERROR "libz required")
-#else ()
-#  message(STATUS "libz found ${LZ}")
-#  #add_library(Z STATIC IMPORTED)
-#  #set_target_properties(Z PROPERTIES IMPORTED_LOCATION ${LZ})
-#endif ()
-
-#find_library(LLZMA liblzma.a REQUIRED)
-#if (NOT LLZMA)
-#  message(FATAL_ERROR "liblzma required")
-#else ()
-#  message(STATUS "liblzma found ${LLZMA}")
-#endif ()
-
-#find_library(LBZ2 libbz2.a REQUIRED)
-#if (NOT LBZ2)
-#  message(FATAL_ERROR "libbz2 required")
-#else ()
-#  message(STATUS "libbz2 found ${LBZ2}")
-#endif ()
-
-#find_library(LPT libpthread.a REQUIRED)
-#if (NOT LPT)
-#  message(FATAL_ERROR "pthread required")
-#else ()
-#  message(STATUS "pthread found ${LPT}")
-#endif ()
-
-#find_library(LOMP libgomp.a)
-#if (NOT LOMP)
-#  message(FATAL_ERROR "OpenMP required")
-#else ()
-#  message(STATUS "OpenMP found ${LOMP}")
-#endif ()
-
-#target_link_options(SVDSS PRIVATE -static-libgcc -static-libstdc++)
 
 target_link_libraries(SVDSS
   PUBLIC HTSLIB
