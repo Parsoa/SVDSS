@@ -6,7 +6,7 @@ INTTREE_PREFIX=./interval-tree
 PARASAIL_PREFIX=./parasail
 LIBDEFLATE_PREFIX=./libdeflate
 CXX=g++
-CXXFLAGS=-std=c++14 -Wall -Wno-comment -Wno-unused-function -Wno-narrowing -g -O0 -I$(ROPE_PREFIX) -I$(RF_PREFIX) -I$(HTS_PREFIX) -I$(ABPOA_PREFIX)/include -I$(PARASAIL_PREFIX) -I$(INTTREE_PREFIX) -fopenmp -Wno-sign-compare -Wno-unused-variable
+CXXFLAGS=-std=c++14 -Wall -Wno-comment -Wno-unused-function -Wno-narrowing -g -O3 -I$(ROPE_PREFIX) -I$(RF_PREFIX) -I$(HTS_PREFIX) -I$(ABPOA_PREFIX)/include -I$(PARASAIL_PREFIX) -I$(INTTREE_PREFIX) -fopenmp -Wno-sign-compare -Wno-unused-variable
 LIBS=-L$(HTS_PREFIX) -L$(ABPOA_PREFIX)/lib -L$(LIBDEFLATE_PREFIX) -L$(LIBDEFLATE_PREFIX)/lib -ldeflate -L$(PARASAIL_PREFIX)/build -lparasail -lm -lpthread -lz -lhts -labpoa
 BIN=$(ROPE_PREFIX)/mrope.o $(ROPE_PREFIX)/rope.o $(ROPE_PREFIX)/rld0.o $(ROPE_PREFIX)/rle.o
 
