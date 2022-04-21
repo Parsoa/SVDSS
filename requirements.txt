@@ -1,9 +1,0 @@
-argparse==1.4.0
-colorama
-plotly
-pysam
-numpy
-biopython
-pandas
-seaborn
-matplotlib
