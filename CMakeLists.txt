@@ -159,9 +159,10 @@ ExternalProject_Add(ropebwt
 ExternalProject_Get_Property(ropebwt SOURCE_DIR)
 SET(ROPEBWT_SOURCE_DIR ${SOURCE_DIR})
 SET(ROPEBWT_INCLUDE_DIR ${ROPEBWT_SOURCE_DIR})
-set(ropebwt ${ROPEBWT_SOURCE_DIR}/mrope.c ${ROPEBWT_SOURCE_DIR}/rope.c ${ROPEBWT_SOURCE_DIR}/rld0.c ${ROPEBWT_SOURCE_DIR}/rle.c)
-set_source_files_properties(ropebwt PROPERTIES GENERATED TRUE)
-add_library(ROPEBWT OBJECT ${ropebwt})
+set(ropebwt-src ${ROPEBWT_SOURCE_DIR}/mrope.c ${ROPEBWT_SOURCE_DIR}/rope.c ${ROPEBWT_SOURCE_DIR}/rld0.c ${ROPEBWT_SOURCE_DIR}/rle.c)
+set_source_files_properties(${ropebwt-src} PROPERTIES GENERATED TRUE)
+add_library(ROPEBWT OBJECT ${ropebwt-src})
+add_dependencies(ROPEBWT ropebwt)
 
 add_dependencies(SVDSS deflate htslib abpoa parasail rapidfuzz intervaltree ropebwt)
 
