@@ -6,10 +6,25 @@ SVDSS is a novel method for discovery of structural variants in accurate long re
 
 SFS are the shortest substrings that are unique to one genome, called target, w.r.t another genome, called reference. Here our method utilizes SFS for coarse-grained identification (anchoring) of potential SV sites and performs local partial-order-assembly (POA) of clusters of SFS from such sites to produce accurate SV predictions. We refer to [our manuscript on SFS](https://doi.org/10.1093/bioadv/vbab005) for more details regarding the concept of SFS.
 
-## Dependencies
+## Download and Installation
 
-The following libraries are need to build and run SVDSS, all are included as submodules. A C++11-compliant compiler (GCC 8.2 or newer) is required for building the dependencies:
+To compile and use SVDSS, you need:
+* a C++14-compliant compiler (GCC 8.2 or newer)
+* make, automake, autoconf
+* cmake (>=3.14)
+* git
+* some other development libraries: zlib, bz2, lzma
+* samtools and bcftools
 
+To install these dependencies:
+```
+# On a deb-based system:
+sudo apt install build-essential autoconf cmake git zlib1g-dev libbz2-dev liblzma-dev samtools bcftools
+# On a rpm-based system:
+sudo dnf install gcc gcc-c++ make automake autoconf cmake git zlib-devel bzip2-devel xz-devel samtools bcftools
+```
+
+The following libraries are needed to build and run SVDSS but they are automatically downloaded and compiled while compiling SVDSS:
 * [htslib](https://github.com/samtools/htslib) built with [libdeflate](https://github.com/ebiggers/libdeflate) for BAM processing.
 * [ksw2](https://github.com/lh3/ksw2) for FASTA and FASTQ processing.
 * [ropebwt2](https://github.com/lh3/ropebwt2) for FMD index creation and querying.
@@ -18,46 +33,17 @@ The following libraries are need to build and run SVDSS, all are included as sub
 * [rapidfuzz](https://github.com/maxbachmann/rapidfuzz-cpp) for string similarity computation.
 * [interval-tree](https://github.com/5cript/interval-tree) for variant overlap detection and clustering.
 
-All libraries are included as submodules in the repository. Note that SVDSS requires `htslib` built with `libdeflate` for performance reasons, so you still need to build the local version if your system-wide installation wasn't built with `libdeflate`. We refer to the Makefile for additional details about building dependencies.
-
-SVSS was developed from [PingPong](https://github.com/Parsoa/PingPong) and this repository includes complete commit history from PingPong. You can still access PingPong's original implementation in the state it was 
-
-## Download and Installation
-
-You need to clone the repository with `--recursive` for all the dependencies to be downloaded. Each dependency has to be built separately. The entire build will take about 30 minutes:
-
+To download and install SVDSS (should take ~10 minutes):
 ```
-git clone --recursive https://github.com/Parsoa/SVDSS.git
+git clone https://github.com/Parsoa/SVDSS.git
 cd SVDSS 
-
-cd parasail ; mkdir build ; cd build
-cmake .. ; make
-cd ../..
-
-cd rapidfuzz-cpp ; mkdir build ; cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release ; cmake --build .
-cd ../..
-
-cd abPOA ; make ; cd ..
-
-cd libdeflate ; make ; cd ..
-
-# (if needed) adjust search paths in CPPFLAGS and/or LDFLAGS to include libdeflate. Something like:
-# export CPPFLAGS="-I$PWD/libdeflate"
-# export LDFLAGS="-L$PWD/libdeflate -Wl,-R$PWD/libdeflate"
-cd htslib ; autoheader ; autoreconf ; ./configure --with-libdeflate ; make ; cd ..
-
+mkdir build ; cd build
+cmake ..
 make
 ```
-
-You need to add some of the dependency build paths to your environment for the libraries to link properly at runtime. Run the below command from inside the cloned respoitory:
-
-```
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/htslib/:$PWD/parasail/build:$PWD/libdeflate/
-```
+This will create the SVDSS binary in the root of the repo.
 
 ## General Usage
-
 ```
 Index genome:
     SVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file
@@ -87,7 +73,6 @@ General options:
 ```
 
 ## Usage Guide
-
 SVDSS requires as input the BAM file of the sample to be genotyped, a reference genome in FASTA format. To genotype a sample we need to perform the following steps:
 
 1. Build FMD index of reference genome (`SVDSS index`)
