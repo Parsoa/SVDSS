@@ -1,4 +1,4 @@
-set(CMAKE_VERBOSE_MAKEFILE on)
+# set(CMAKE_VERBOSE_MAKEFILE on)
 
 cmake_minimum_required(VERSION 3.14)
 
@@ -7,21 +7,31 @@ include(ExternalProject)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+option(HOLYBUILD "Static compilation with holy-build-box" OFF)
+
 set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -Wall -Wno-comment -Wno-unused-function -Wno-narrowing -Wno-sign-compare -Wno-unused-variable ${CMAKE_CXX_FLAGS}")
 
-project(TEST VERSION 1.0)
+project(SVDSS VERSION 1.0)
 
 add_executable(SVDSS assembler.cpp bam.cpp bed_utils.cpp caller.cpp chromosomes.cpp clipper.cpp cluster.cpp config.cpp extender.cpp lprint.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp vcf.cpp main.cpp)
 set_target_properties(SVDSS PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
-# pthread and OpenMP
-find_package(Threads REQUIRED)
-find_package(OpenMP REQUIRED)
+# pthread, OpenMP and others libs
+if (NOT HOLYBUILD)
+  find_package(Threads REQUIRED)
+  find_package(OpenMP REQUIRED)
+else ()
+  # ugly workaround
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+  # libbz2 and liblzma are statically compiled for the portable binary
+  set(BZIP_LIB_DIR ${CMAKE_SOURCE_DIR}/bzip2-1.0.6)
+  find_library(LBZ2 libbz2.a HINTS ${BZIP_LIB_DIR} REQUIRED)
+  set(LZMA_LIB_DIR ${CMAKE_SOURCE_DIR}/xz-5.2.2/src/liblzma/.libs/)
+  find_library(LLZMA liblzma.a HINTS ${LZMA_LIB_DIR} REQUIRED)
+endif ()
 
 # LIBDEFLATE
 #############
-#find_library(DEFLATE libdeflate.a)
-#if (NOT DEFLATE)
 message(STATUS "libdeflate will be built form source")
 ExternalProject_Add(deflate
   GIT_REPOSITORY https://github.com/ebiggers/libdeflate.git
@@ -38,24 +48,21 @@ SET(DEFLATE_SOURCE_DIR ${SOURCE_DIR})
 add_library(DEFLATE STATIC IMPORTED)
 set_target_properties(DEFLATE PROPERTIES IMPORTED_LOCATION ${DEFLATE_SOURCE_DIR}/libdeflate.a)
 add_dependencies(DEFLATE deflate)
-#else ()
-#  message(STATUS "libdeflate found ${DEFLATE}")
-#endif ()
 
 # HTSLIB
 #########
-#find_library(HTSLIB libhts.a)
-#if (NOT HTSLIB)
+SET(CONF_CMD autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR}")
+if (HOLYBUILD)
+  # we have to include local libraries (libbz2 and liblzma)
+  SET(CONF_CMD autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR} -I${BZIP_LIB_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR} -L${BZIP_LIB_DIR} -L${LZMA_LIB_DIR}")
+endif ()
 message(STATUS "htslib will be built form source")
 ExternalProject_Add(htslib
   GIT_REPOSITORY https://github.com/samtools/htslib.git
   GIT_TAG 2cd99cf333938a9eb70393bc59379e1d6ea66b37
   UPDATE_COMMAND ""
   BUILD_IN_SOURCE 1
-  CONFIGURE_COMMAND autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate
-  "CC=${CMAKE_C_COMPILER}"
-  "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR}"
-  "LDFLAGS=-L${DEFLATE_SOURCE_DIR}"
+  CONFIGURE_COMMAND ${CONF_CMD}
   BUILD_COMMAND make libhts.a
   INSTALL_COMMAND "")
 ExternalProject_Get_Property(htslib SOURCE_DIR)
@@ -65,14 +72,9 @@ add_library(HTSLIB STATIC IMPORTED)
 set_target_properties(HTSLIB PROPERTIES IMPORTED_LOCATION ${HTS_SOURCE_DIR}/libhts.a)
 add_dependencies(HTSLIB htslib)
 add_dependencies(htslib DEFLATE)
-#else ()
-#    message(STATUS "htslib found ${HTSLIB}")
-#endif ()
 
 # abPOA
 ########
-#find_library(ABPOA libabpoa.a)
-#if (NOT ABPOA)
 message(STATUS "abPOA will be built form source")
 ExternalProject_Add(abpoa
   GIT_REPOSITORY https://github.com/yangao07/abPOA.git
@@ -87,14 +89,9 @@ SET(ABPOA_SOURCE_DIR ${SOURCE_DIR})
 SET(ABPOA_INCLUDE_DIR ${ABPOA_SOURCE_DIR}/include)
 add_library(ABPOA STATIC IMPORTED)
 set_target_properties(ABPOA PROPERTIES IMPORTED_LOCATION ${ABPOA_SOURCE_DIR}/lib/libabpoa.a)
-#else ()
-#    message(STATUS "abPOA found ${ABPOA}")
-#endif ()
 
 # parasail
 ###########
-#find_library(PARASAIL libparasail.a)
-#if (NOT PARASAIL)
 message(STATUS "parasail will be built form source")
 ExternalProject_Add(parasail
   GIT_REPOSITORY https://github.com/jeffdaily/parasail.git
@@ -109,9 +106,6 @@ SET(PARASAIL_SOURCE_DIR ${SOURCE_DIR})
 SET(PARASAIL_INCLUDE_DIR ${PARASAIL_SOURCE_DIR})
 add_library(PARASAIL STATIC IMPORTED)
 set_target_properties(PARASAIL PROPERTIES IMPORTED_LOCATION ${PARASAIL_SOURCE_DIR}/libparasail.a)
-#else ()
-#    message(STATUS "parasail found ${PARASAIL}")
-#endif ()
 
 # rapidfuzz-cpp
 ################
@@ -171,15 +165,29 @@ target_include_directories(SVDSS
   PRIVATE ${PROJECT_SOURCE_DIR}
 )
 
+target_link_options(SVDSS PRIVATE -static-libgcc -static-libstdc++)
+
 target_link_libraries(SVDSS
   PUBLIC HTSLIB
   PUBLIC DEFLATE
   PUBLIC ABPOA
   PUBLIC PARASAIL
   PUBLIC ROPEBWT
-  PUBLIC pthread
   PUBLIC z
-  PUBLIC lzma
-  PUBLIC bz2
-  PUBLIC OpenMP::OpenMP_CXX
 )
+
+if (NOT HOLYBUILD)
+  # link to system
+  target_link_libraries(SVDSS
+    PUBLIC lzma
+    PUBLIC bz2
+    PUBLIC pthread
+    PUBLIC OpenMP::OpenMP_CXX
+  )
+else ()
+  # link to local. no openmp since we manually added -fopenmp
+  target_link_libraries(SVDSS
+    PUBLIC ${LLZMA}
+    PUBLIC ${LBZ2}
+  )
+endif ()
