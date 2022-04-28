@@ -20,3 +20,6 @@
 	path = parasail
 	url = https://github.com/jeffdaily/parasail.git
 	ignore = dirty
+[submodule "SVDSS-experiments"]
+	path = SVDSS-experiments
+	url = https://github.com/ldenti/SVDSS-experiments.git
