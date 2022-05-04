@@ -198,4 +198,4 @@ For inquiries on this software please open an [issue](https://github.com/Parsoa/
 SVDSS is currently pending peer review. A pre-print is available on [BioRxiv](https://www.biorxiv.org/content/10.1101/2022.02.12.480198v1).
 
 ##### Experiments
-Instructions on how to reproduce the experiments described in the manuscript can be found [here](https://github.com/ldenti/SVDSS-experiments).
+Instructions on how to reproduce the experiments described in the manuscript can be found [here](https://github.com/ldenti/SVDSS-experiments) (also provided as submodule of this repository).
