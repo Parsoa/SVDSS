@@ -17,7 +17,7 @@ To compile and use SVDSS, you need:
 * samtools and bcftools
 
 To install these dependencies:
-```
+```bash
 # On a deb-based system (tested on ubuntu 20.04 and debian 11):
 sudo apt install build-essential autoconf cmake git zlib1g-dev libbz2-dev liblzma-dev samtools bcftools
 # On a rpm-based system (tested on fedora 35):
@@ -34,7 +34,7 @@ The following libraries are needed to build and run SVDSS but they are automatic
 * [interval-tree](https://github.com/5cript/interval-tree) for variant overlap detection and clustering.
 
 To download and install SVDSS (should take ~10 minutes):
-```
+```bash
 git clone https://github.com/Parsoa/SVDSS.git
 cd SVDSS 
 mkdir build ; cd build
@@ -42,6 +42,9 @@ cmake ..
 make
 ```
 This will create the SVDSS binary in the root of the repo.
+
+#### Note
+For user convenience, we also provide a static binary for x86_64 linux systems (see [Releases](https://github.com/Parsoa/SVDSS/releases/latest)) - use at your own risk. If it does not work, please let us know or build it yourself :)
 
 ## General Usage
 ```
@@ -159,7 +162,7 @@ snakemake [-n] -j 4
 Download example data from [here](https://drive.google.com/file/d/1GD7NKz7kUhK_o2IystdCwKEBzz9r9JsB/view). The archive contains the input files required to run the SVDSS pipeline (i.e., reference and alignments), as well as the expected output (i.e., VCF file with SVs calls).
 
 Setup data to match the provided `config.yaml`:
-```
+```bash
 cd /path/to/SVDSS-local-repo
 mkdir example
 cd example
@@ -168,7 +171,7 @@ tar xvfz SVDSS-example.tar.gz
 cd ..
 ```
 Then run (it should take less than 5 minutes):
-```
+```bash
 snakemake -p -j 2
 ```
 
