@@ -20,6 +20,7 @@ SV::SV(const string type_, const string &chrom_, uint s_, const string &refall_,
     idx = type + "_" + chrom + ":" + to_string(s) + "-" + to_string(e);
     idx += "_" + to_string(abs(l));
     gt = "./.";
+    genotype();
 }
 
 void SV::genotype() {
@@ -27,13 +28,12 @@ void SV::genotype() {
         gt = "./." ;
     } else {
         float p = float(w) / float(cov) ;
-        if (p <= 0.1) {
-            gt = "0/0" ;
-        } else if (p > 0.1 && p < 0.9) {
-            gt = "0/1" ;
-        } else {
-            gt = "1/1" ;
-        }
+        if (p>=0.9)
+            gt = "1/1";
+        else
+            gt = "0/1";
+        // if (p <= 0.1)
+        //     gt = "0/0";
     }
 }
 
