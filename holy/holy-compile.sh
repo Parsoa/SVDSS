@@ -35,13 +35,13 @@ cd ..
 rm -rf holy-build
 mkdir -p holy-build
 cd holy-build
-cmake -DHOLYBUILD=ON ..
-make # VERBOSE=1
+cmake -DCMAKE_BUILD_TYPE=Release -DHOLYBUILD=ON ..
+make
 
 # Check and copy result to host
 # hardening-check -b ../SVDSS
 libcheck ../SVDSS
-mv ../SVDSS /io/holy
+mv ../SVDSS /io/holy/SVDSS
 
 # clean
 rm -rf /io/bzip2* /io/xz*

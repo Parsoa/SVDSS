@@ -1,5 +1,3 @@
-# set(CMAKE_VERBOSE_MAKEFILE on)
-
 cmake_minimum_required(VERSION 3.14)
 
 include(ExternalProject)
@@ -9,14 +7,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 option(HOLYBUILD "Static compilation with holy-build-box" OFF)
 
-set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -Wall -Wno-comment -Wno-unused-function -Wno-narrowing -Wno-sign-compare -Wno-unused-variable ${CMAKE_CXX_FLAGS}")
+set(CONDA_INCLUDE "")
+if(DEFINED CONDAPREFIX)
+  set(CONDA_INCLUDE "-I${CONDAPREFIX}/include")
+  # include_target_directories("${CONDAPREFIX}/include")
+  message(STATUS "Using conda: ${CONDA_INCLUDE}")
+endif()
 
-project(SVDSS VERSION 1.0)
-
+project(SVDSS VERSION 1.0.2)
 add_executable(SVDSS assembler.cpp bam.cpp bed_utils.cpp caller.cpp chromosomes.cpp clipper.cpp cluster.cpp config.cpp extender.cpp lprint.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp vcf.cpp main.cpp)
 set_target_properties(SVDSS PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+##########################
+### setup dependencies ###
+##########################
+
 # pthread, OpenMP and others libs
+##################################
 if (NOT HOLYBUILD)
   find_package(Threads REQUIRED)
   find_package(OpenMP REQUIRED)
@@ -30,69 +37,73 @@ else ()
   find_library(LLZMA liblzma.a HINTS ${LZMA_LIB_DIR} REQUIRED)
 endif ()
 
-# LIBDEFLATE
-#############
-message(STATUS "libdeflate will be built form source")
-ExternalProject_Add(deflate
-  GIT_REPOSITORY https://github.com/ebiggers/libdeflate.git
-  GIT_TAG 047aa84e01b38d82f3612810e357bd40f14a3d39
-  BUILD_IN_SOURCE 1
-  UPDATE_COMMAND ""
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND make PREFIX="."
-  "CC=${CMAKE_C_COMPILER}"
-  "CFLAGS=-fPIC -O3" libdeflate.a
-  INSTALL_COMMAND "")
-ExternalProject_Get_Property(deflate SOURCE_DIR)
-SET(DEFLATE_SOURCE_DIR ${SOURCE_DIR})
-add_library(DEFLATE STATIC IMPORTED)
-set_target_properties(DEFLATE PROPERTIES IMPORTED_LOCATION ${DEFLATE_SOURCE_DIR}/libdeflate.a)
-add_dependencies(DEFLATE deflate)
+if(NOT DEFINED CONDAPREFIX)
+  # LIBDEFLATE
+  #############
+  message(STATUS "libdeflate will be built from source")
+  ExternalProject_Add(deflate
+    GIT_REPOSITORY https://github.com/ebiggers/libdeflate.git
+    GIT_TAG 047aa84e01b38d82f3612810e357bd40f14a3d39
+    BUILD_IN_SOURCE 1
+    UPDATE_COMMAND ""
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND make PREFIX="."
+      "CC=${CMAKE_C_COMPILER}"
+      "CFLAGS=-fPIC -O3" libdeflate.a
+    INSTALL_COMMAND "")
+  ExternalProject_Get_Property(deflate SOURCE_DIR)
+  SET(DEFLATE_SOURCE_DIR ${SOURCE_DIR})
+  add_library(DEFLATE STATIC IMPORTED)
+  set_target_properties(DEFLATE PROPERTIES IMPORTED_LOCATION ${DEFLATE_SOURCE_DIR}/libdeflate.a)
+  add_dependencies(DEFLATE deflate)
 
-# HTSLIB
-#########
-SET(CONF_CMD autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR}")
-if (HOLYBUILD)
-  # we have to include local libraries (libbz2 and liblzma)
-  SET(CONF_CMD autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR} -I${BZIP_LIB_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR} -L${BZIP_LIB_DIR} -L${LZMA_LIB_DIR}")
-endif ()
-message(STATUS "htslib will be built form source")
-ExternalProject_Add(htslib
-  GIT_REPOSITORY https://github.com/samtools/htslib.git
-  GIT_TAG 2cd99cf333938a9eb70393bc59379e1d6ea66b37
-  UPDATE_COMMAND ""
-  BUILD_IN_SOURCE 1
-  CONFIGURE_COMMAND ${CONF_CMD}
-  BUILD_COMMAND make libhts.a
-  INSTALL_COMMAND "")
-ExternalProject_Get_Property(htslib SOURCE_DIR)
-SET(HTS_SOURCE_DIR ${SOURCE_DIR})
-SET(HTS_INCLUDE_DIR ${HTS_SOURCE_DIR})
-add_library(HTSLIB STATIC IMPORTED)
-set_target_properties(HTSLIB PROPERTIES IMPORTED_LOCATION ${HTS_SOURCE_DIR}/libhts.a)
-add_dependencies(HTSLIB htslib)
-add_dependencies(htslib DEFLATE)
+  # HTSLIB
+  #########
+  SET(CONF_CMD autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR}")
+  if (HOLYBUILD)
+    # we have to include local libraries (libbz2 and liblzma)
+    SET(CONF_CMD autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR} -I${BZIP_LIB_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR} -L${BZIP_LIB_DIR} -L${LZMA_LIB_DIR}")
+  endif ()
+  message(STATUS "htslib will be built from source")
+  ExternalProject_Add(htslib
+    GIT_REPOSITORY https://github.com/samtools/htslib.git
+    GIT_TAG 2cd99cf333938a9eb70393bc59379e1d6ea66b37
+    UPDATE_COMMAND ""
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ${CONF_CMD}
+    BUILD_COMMAND make
+    "CC=${CMAKE_C_COMPILER}" libhts.a
+    INSTALL_COMMAND "")
+  ExternalProject_Get_Property(htslib SOURCE_DIR)
+  SET(HTS_SOURCE_DIR ${SOURCE_DIR})
+  SET(HTS_INCLUDE_DIR ${HTS_SOURCE_DIR})
+  add_library(HTSLIB STATIC IMPORTED)
+  set_target_properties(HTSLIB PROPERTIES IMPORTED_LOCATION ${HTS_SOURCE_DIR}/libhts.a)
+  add_dependencies(HTSLIB htslib)
+  add_dependencies(htslib DEFLATE)
+else()
+  message(STATUS "libdeflate from conda")
+  message(STATUS "htslib from conda")
+endif()
 
 # abPOA
 ########
-message(STATUS "abPOA will be built form source")
+message(STATUS "abPOA will be built from source")
 ExternalProject_Add(abpoa
   GIT_REPOSITORY https://github.com/yangao07/abPOA.git
   GIT_TAG 42a09de0d2ef076c4b173ff4bd8a9812ded26707
-  UPDATE_COMMAND ""
-  BUILD_IN_SOURCE 1
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND make
-  INSTALL_COMMAND "")
-ExternalProject_Get_Property(abpoa SOURCE_DIR)
+  INSTALL_COMMAND ""
+)
+ExternalProject_Get_Property(abpoa SOURCE_DIR BINARY_DIR)
 SET(ABPOA_SOURCE_DIR ${SOURCE_DIR})
 SET(ABPOA_INCLUDE_DIR ${ABPOA_SOURCE_DIR}/include)
-add_library(ABPOA STATIC IMPORTED)
-set_target_properties(ABPOA PROPERTIES IMPORTED_LOCATION ${ABPOA_SOURCE_DIR}/lib/libabpoa.a)
+# NOTE: abpoa library will be set manually
+# add_library(ABPOA STATIC IMPORTED)
+# set_target_properties(ABPOA PROPERTIES IMPORTED_LOCATION ${ABPOA_SOURCE_DIR}/lib/libabpoa.a)
 
 # parasail
 ###########
-message(STATUS "parasail will be built form source")
+message(STATUS "parasail will be built from source")
 ExternalProject_Add(parasail
   GIT_REPOSITORY https://github.com/jeffdaily/parasail.git
   GIT_TAG e236a6feec7bc84fb81923d783acb345e538a281
@@ -142,7 +153,9 @@ ExternalProject_Add(ropebwt
     UPDATE_COMMAND ""
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND "make"
+    BUILD_COMMAND make
+      "CC=${CMAKE_C_COMPILER}"
+      "CFLAGS=-g -Wall -O2 ${CONDA_INCLUDE}"
     INSTALL_COMMAND ""
 )
 ExternalProject_Get_Property(ropebwt SOURCE_DIR)
@@ -153,7 +166,15 @@ set_source_files_properties(${ropebwt-src} PROPERTIES GENERATED TRUE)
 add_library(ROPEBWT OBJECT ${ropebwt-src})
 add_dependencies(ROPEBWT ropebwt)
 
-add_dependencies(SVDSS deflate htslib abpoa parasail rapidfuzz intervaltree ropebwt)
+############################################
+### final setup (includes and libraries) ###
+############################################
+
+add_dependencies(SVDSS abpoa parasail rapidfuzz intervaltree ropebwt)
+if(NOT DEFINED CONDAPREFIX)
+  # we need to build them
+  add_dependencies(SVDSS deflate htslib)
+endif()
 
 target_include_directories(SVDSS
   PRIVATE ${HTS_INCLUDE_DIR}
@@ -167,10 +188,24 @@ target_include_directories(SVDSS
 
 target_link_options(SVDSS PRIVATE -static-libgcc -static-libstdc++)
 
+if(DEFINED CONDAPREFIX)
+  # link to conda
+  find_library(HTSLIB libhts.so REQUIRED)
+  find_library(DEFLATE libdeflate.so REQUIRED)
+  target_link_libraries(SVDSS
+    PUBLIC hts
+    PUBLIC deflate
+  )
+else()
+  # link to local
+  target_link_libraries(SVDSS
+    PUBLIC HTSLIB
+    PUBLIC DEFLATE
+  )
+endif()
+
 target_link_libraries(SVDSS
-  PUBLIC HTSLIB
-  PUBLIC DEFLATE
-  PUBLIC ABPOA
+  PUBLIC ${BINARY_DIR}/lib/libabpoa.a
   PUBLIC PARASAIL
   PUBLIC ROPEBWT
   PUBLIC z
