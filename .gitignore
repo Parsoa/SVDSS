@@ -1,6 +1,7 @@
 .DS_Store
 
 build/
+holy/SVDSS_linux_x86-64
 holy-build/
 tmp/
 lib/

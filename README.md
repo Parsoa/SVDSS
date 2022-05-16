@@ -21,7 +21,7 @@ To install these dependencies:
 # On a deb-based system (tested on ubuntu 20.04 and debian 11):
 sudo apt install build-essential autoconf cmake git zlib1g-dev libbz2-dev liblzma-dev samtools bcftools
 # On a rpm-based system (tested on fedora 35):
-sudo dnf install gcc gcc-c++ make automake autoconf cmake git zlib-devel bzip2-devel xz-devel samtools bcftools
+sudo dnf install gcc gcc-c++ make automake autoconf cmake git libstdc++-static zlib-devel bzip2-devel xz-devel samtools bcftools
 ```
 
 The following libraries are needed to build and run SVDSS but they are automatically downloaded and compiled while compiling SVDSS:
