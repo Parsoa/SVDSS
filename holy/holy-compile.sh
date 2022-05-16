@@ -41,7 +41,7 @@ make
 # Check and copy result to host
 # hardening-check -b ../SVDSS
 libcheck ../SVDSS
-mv ../SVDSS /io/holy/SVDSS
+mv ../SVDSS /io/holy/SVDSS_linux_x86-64
 
 # clean
 rm -rf /io/bzip2* /io/xz*
