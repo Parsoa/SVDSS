@@ -16,4 +16,4 @@ jobs:
       with:
         submodules: true
     - name: cmake
-      run: mkdir build ; cd build ; cmake .. ; make ; cd ..
+      run: mkdir build ; cd build ; cmake -DCMAKE_BUILD_TYPE=Release .. ; make ; cd ..

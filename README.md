@@ -38,7 +38,7 @@ To download and install SVDSS (should take ~10 minutes):
 git clone https://github.com/Parsoa/SVDSS.git
 cd SVDSS 
 mkdir build ; cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make
 ```
 This will create the SVDSS binary in the root of the repo.
