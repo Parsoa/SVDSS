@@ -56,7 +56,7 @@ void create_workdir() {
 
 void print_help() {
     cerr << "Usage: " << endl;
-    cerr << "\tTo index sample:" << endl ;
+    cerr << "\tIndex reference/sample:" << endl ;
     cerr << "\t\tSVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
     cerr << "\t\t\t-b, --binary\t\t\t\toutput index in binary format. Allows for another index to be appended to this index later." << endl ;
@@ -65,7 +65,7 @@ void print_help() {
     cerr << "\t\tSVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory" << endl ;
     cerr << "\t\tOptional arguments: " << endl ;
     cerr << "\t\t\t--assemble\t\t\t\tautomatically runs SVDSS assemble on output" << endl ;
-    cerr << "\tAssmble SFS into superstrings:" << endl ;
+    cerr << "\tAssemble SFS into superstrings:" << endl ;
     cerr << "\t\tSVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches" << endl ;
     cerr << "\tReconstruct sample:" << endl ;
     cerr << "\t\tSVDSS smooth --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta" << endl ;

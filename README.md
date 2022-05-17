@@ -54,6 +54,38 @@ For user convenience, we also provide a static binary for x86_64 linux systems (
 ## Usage Guide for the Impatient
 Please refer to or use [Snakefile](Snakefile)/[run-svdss.sh](tests/run-svdss.sh).
 
+```
+Index reference/sample:
+    SVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file
+
+    Optional arguments:
+        -b, --binary                            output index in binary format. Allows for another index to be appended to this index later.
+        -a, --append /path/to/binary/index      append to existing binary index.
+
+Extract SFS from BAM/FASTQ/FASTA files:
+    SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
+
+    Optional arguments:
+            --assemble                          automatically runs SVDSS assemble on output
+
+Assemble SFS into superstrings:
+    SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
+
+Reconstruct sample:
+    SVDSS smooth --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+
+Call SVs:
+    SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+
+    Optional arguments:
+        --clipped                               calls SVs from clipped SFS.
+        --min-cluster-weight                    minimum number of supporting superstrings for a call to be reported.
+        --min-sv-length                         minimum length of reported SVs. Default is 25. Values < 25 are ignored.
+
+General options:
+    --threads                                   sets number of threads, default 4.
+```
+
 ## Detailed Usage Guide
 SVDSS requires as input the BAM file of the sample to be genotyped, a reference genome in FASTA format. To genotype a sample we need to perform the following steps:
 
