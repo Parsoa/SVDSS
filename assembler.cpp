@@ -3,7 +3,7 @@
 void Assembler::run() {
     auto c = Configuration::getInstance();
     int num_batches = c->aggregate_batches;
-    int tau = c->cutoff;
+    int tau = -1; // c->cutoff;
 
     lprint({"Assembling high-abundance strings from", to_string(num_batches), "batches.."});
     #pragma omp parallel for num_threads(c->threads)

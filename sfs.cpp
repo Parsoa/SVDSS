@@ -9,7 +9,7 @@ map<string, vector<SFS>> parse_sfsfile(const string &sfs_path, int tau) {
     string line;
     ifstream inf(sfs_path);
     if (inf.is_open()) {
-        string info[4];
+        string info[5];
         string read_name;
         while (getline(inf, line)) {
             stringstream ssin(line);
