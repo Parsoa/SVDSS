@@ -88,10 +88,18 @@ endif()
 
 # abPOA
 ########
-message(STATUS "abPOA will be built from source")
+SET(PATCH_CMD "")
+if(DEFINED CONDAPREFIX OR HOLYBUILD)
+  # we have to remove the -native flag
+  message(STATUS "abpoa will be build from source (no -native)")
+  SET(PATCH_CMD sed -i "/native/d" CMakeLists.txt)
+else ()
+  message(STATUS "abpoa will be build from source (with -native)")
+endif ()
 ExternalProject_Add(abpoa
   GIT_REPOSITORY https://github.com/yangao07/abPOA.git
   GIT_TAG 42a09de0d2ef076c4b173ff4bd8a9812ded26707
+  PATCH_COMMAND ${PATCH_CMD}
   INSTALL_COMMAND ""
 )
 ExternalProject_Get_Property(abpoa SOURCE_DIR BINARY_DIR)
