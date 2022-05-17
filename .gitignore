@@ -3,6 +3,9 @@
 build/
 holy/SVDSS_linux_x86-64
 holy-build/
+tests/input
+tests/SVDSS_linux_x86-64
+tests/SVDSS
 tmp/
 lib/
 venv/
