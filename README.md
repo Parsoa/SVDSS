@@ -8,6 +8,11 @@ SFS are the shortest substrings that are unique to one genome, called target, w.
 
 ## Download and Installation
 
+You can "install" SVDSS in two different ways:
+* [compiling it](#compilation-from-source) (**preferred way**)
+* [downloading a static binary](#static-binary)
+
+#### Compilation from Source
 To compile and use SVDSS, you need:
 * a C++14-compliant compiler (GCC 8.2 or newer)
 * make, automake, autoconf
@@ -41,41 +46,15 @@ mkdir build ; cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
 make
 ```
-This will create the SVDSS binary in the root of the repo.
+This will create the `SVDSS` binary in the root of the repo.
 
-#### Note
+#### Static Binary
 For user convenience, we also provide a static binary for x86_64 linux systems (see [Releases](https://github.com/Parsoa/SVDSS/releases/latest)) - use at your own risk. If it does not work, please let us know or build it yourself :)
 
-## General Usage
-```
-Index genome:
-    SVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file
-    Optional arguments: 
-        --binary                 output index in binary format. allows for other indices to be appended to this index later.
-        --append  /path/         append to existing binary index.
+## Usage Guide for the Impatient
+Please refer to or use [Snakefile](Snakefile)/[run-svdss.sh](tests/run-svdss.sh).
 
-Extract SFS from BAM/FASTQ/FASTA files:
-    SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
-    Optional arguments: 
-        --assemble               automatically assembles output
-
-Assmble SFS into superstrings:
-    SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
-
-Smooth reads:
-    SVDSS smooth --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
-
-Call SVs:
-    SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
-    Optional arguments: 
-        --min-cluster-weight     minimum number of supporting superstrings for a call to be reported.
-        --min-sv-length          minimum length of reported SVs. Default is 25. Values < 25 are ignored.
-
-General options: 
-    --threads                    sets number of threads, default 4.
-```
-
-## Usage Guide
+## Detailed Usage Guide
 SVDSS requires as input the BAM file of the sample to be genotyped, a reference genome in FASTA format. To genotype a sample we need to perform the following steps:
 
 1. Build FMD index of reference genome (`SVDSS index`)
