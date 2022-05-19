@@ -9,7 +9,7 @@ SFS are the shortest substrings that are unique to one genome, called target, w.
 ## Download and Installation
 
 You can "install" SVDSS in two different ways:
-* [compiling it](#compilation-from-source) (**preferred way**)
+* [compiling it](#compilation-from-source) (**use this method if you want SVDSS to be fully optimized**)
 * [downloading a static binary](#static-binary)
 
 #### Compilation from Source
