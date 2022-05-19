@@ -19,7 +19,7 @@ To compile and use SVDSS, you need:
 * cmake (>=3.14)
 * git
 * some other development libraries: zlib, bz2, lzma
-* samtools and bcftools
+* samtools and bcftools (>=1.9)
 
 To install these dependencies:
 ```bash
@@ -149,7 +149,7 @@ You can combine SFS extraction and assembly by passing `--assemble` to `SVDSS se
 
 ### Call SVs
 
-We are now ready to call SVs. Run:
+We are now ready to call SVs. Run (note that the input `.bam` must be indexed using `samtools index` before running this):
 
 ```
 SVDSS call --reference GRCh38.fasta --bam smoothed.selective.bam --workdir $PWD --batches N
