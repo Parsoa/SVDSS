@@ -1,5 +1,5 @@
-fa: example/22.fa
-bam: example/22.bam
-out: example/OUT
-bin: ./SVDSS
+fa: input/22.fa
+bam: input/22.bam
+out: svdss-output-snakemake
+bin: ./SVDSS_linux_x86-64
 threads: 2

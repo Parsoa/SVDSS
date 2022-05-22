@@ -170,20 +170,25 @@ snakemake [-n] -j 4
 
 ##### Example
 
-Download example data from [here](https://drive.google.com/file/d/1GD7NKz7kUhK_o2IystdCwKEBzz9r9JsB/view). The archive contains the input files required to run the SVDSS pipeline (i.e., reference and alignments), as well as the expected output (i.e., VCF file with SVs calls).
+**Note:** to run this example, `samtools` and `bcftools` **must be in your path**. Running `SVDSS` on the example data, once downloaded, should take less than 5 minutes.
 
-Setup data to match the provided `config.yaml`:
 ```bash
-cd /path/to/SVDSS-local-repo
-mkdir example
-cd example
-mv /path/to/SVDSS-example.tar.gz .
-tar xvfz SVDSS-example.tar.gz
-cd ..
-```
-Then run (it should take less than 5 minutes):
-```bash
+# Download example data from zenodo
+wget https://zenodo.org/record/6563662/files/svdss-data.tar.gz
+mkdir -p input
+tar xvfz svdss-data.tar.gz -C input
+# Download SVDSS binary
+wget https://github.com/Parsoa/SVDSS/releases/download/v1.0.3/SVDSS_linux_x86-64
+chmod +x SVDSS_linux_x86-64
+
+# Download snakemake workflow and run it
+wget https://raw.githubusercontent.com/Parsoa/SVDSS/master/config.yaml
+wget https://raw.githubusercontent.com/Parsoa/SVDSS/master/Snakefile
 snakemake -p -j 2
+
+# Alternatively, you can use the bash helper script
+wget https://raw.githubusercontent.com/Parsoa/SVDSS/master/tests/run-svdss.sh
+bash run-svdss.sh ./SVDSS_linux_x86-64 input/22.fa input/22.bam svdss-output
 ```
 
 ### Authors
