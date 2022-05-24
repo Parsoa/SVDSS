@@ -1,4 +1,5 @@
 ![C/C++ CI](https://github.com/Parsoa/SVDSS/workflows/C/C++%20CI/badge.svg)
+[![Anaconda-Server Badge](https://anaconda.org/bioconda/malva/badges/installer/conda.svg)](https://anaconda.org/bioconda/svdss)
 
 # SVDSS: Structural Variant Discovery from Sample-specific Strings
 
@@ -11,6 +12,7 @@ SFS are the shortest substrings that are unique to one genome, called target, w.
 You can "install" SVDSS in two different ways:
 * [compiling it](#compilation-from-source) (**use this method if you want SVDSS to be fully optimized**)
 * [downloading a static binary](#static-binary)
+* [installing from conda](#install-from-conda)
 
 #### Compilation from Source
 To compile and use SVDSS, you need:
@@ -50,6 +52,13 @@ This will create the `SVDSS` binary in the root of the repo.
 
 #### Static Binary
 For user convenience, we also provide a static binary for x86_64 linux systems (see [Releases](https://github.com/Parsoa/SVDSS/releases/latest)) - use at your own risk. If it does not work, please let us know or build it yourself :)
+
+#### Install from Conda
+SVDSS is available on bioconda:
+```bash
+conda create -n svdss -c conda-forge -c bioconda svdss
+```
+This will create the environment `svdss` that includes `SVDSS` and its runtime dependencies (i.e., `samtools` and `bcftools`).
 
 ## Usage Guide for the Impatient
 Please refer to or use [Snakefile](Snakefile)/[run-svdss.sh](tests/run-svdss.sh).
