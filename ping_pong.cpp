@@ -466,7 +466,15 @@ int PingPong::index() {
     mr_thr_min(mr, thr_min) ;
 
     // Parsing the input sample
-    gzFile fp = gzopen(c->fastq.c_str(), "rb") ;
+    gzFile fp;
+    if (c->fasta != "")
+        fp = gzopen(c->fasta.c_str(), "rb") ;
+    else if (c->fastq != "")
+        fp = gzopen(c->fastq.c_str(), "rb") ;
+    else {
+        cerr << "Please provide a FASTA/Q file. Halting.." << endl;
+        exit(1);
+    }
     kseq_t *ks = kseq_init(fp) ;
     kstring_t buf = { 0, 0, 0 } ; // buffer, will contain the concatenation
     int l ;
