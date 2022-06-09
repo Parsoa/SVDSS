@@ -182,6 +182,7 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
         }
         read_seqs[p][n % threads][i][l] = '\0' ;
         seq_char2nt6(l, read_seqs[p][n % threads][i]) ; // convert to integers
+        read_names[p][n % threads][i] = fastq_iterator->name.s ;
         n += 1 ;
         if (n % threads == 0) {
             i += 1 ;
@@ -198,8 +199,8 @@ batch_type_t PingPong::process_batch(rld_t* index, int p, int i) {
     batch_type_t solutions ;
     // store read id once for all strings to save space, is it worth it?
     if (mode == 0) {
-        for (const auto &fastq_entry: fastq_entries[p][i]) {
-            ping_pong_search(index, (uint8_t*) fastq_entry.seq.c_str(), fastq_entry.seq.size(), solutions[fastq_entry.head], false, nullptr) ;
+        for (int j = 0; j < read_seqs[p][i].size(); j++) {
+            ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[read_names[p][i][j]], false, nullptr) ;
         }
     } else {
         for (int j = 0; j < read_seqs[p][i].size(); j++) {
@@ -292,11 +293,13 @@ int PingPong::search() {
     // pre-allocate read seqs
     for (int i = 0; i < 2; i++) {
         read_seqs.push_back(vector<vector<uint8_t*>>(config->threads)) ; // current and next output
+        read_names.push_back(vector<vector<string>>(config->threads)) ; // current and next output
         read_seq_lengths.push_back(vector<vector<int>>(config->threads)) ; // current and next output
         read_seq_max_lengths.push_back(vector<vector<int>>(config->threads)) ; // current and next output
         for (int j = 0; j < config->threads; j++) {
             for (int k = 0; k < batch_size / config->threads; k++) {
                 read_seqs[i][j].push_back((uint8_t*) malloc(sizeof(uint8_t) * (30001))) ;
+                read_names[i][j].push_back("") ;
                 read_seq_lengths[i][j].push_back(30000) ;
                 read_seq_max_lengths[i][j].push_back(30000) ;
             }

@@ -100,6 +100,7 @@ private:
     std::vector<std::vector<std::vector<int>>> read_seq_lengths ;
     std::vector<std::vector<std::vector<int>>> read_seq_max_lengths ;
     std::vector<std::vector<std::vector<uint8_t*>>> read_seqs ;
+    std::vector<std::vector<std::vector<string>>> read_names ;
     std::vector<std::vector<std::vector<bam1_t*>>> bam_entries ;
     std::vector<std::vector<std::vector<fastq_entry_t>>> fastq_entries ;
     bool load_batch_bam(int threads, int batch_size, int p) ;
