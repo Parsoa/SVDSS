@@ -44,7 +44,7 @@ void load_chromosomes(string path) {
     int l;
     while ((l = kseq_read(seq)) >= 0) {
         string name(seq->name.s) ;
-        if (name.find('_') == -1) {
+        // if (name.find('_') == -1) {
             lprint({"Extracted", seq->name.s, "with", to_string(l), "bases."});
             for (uint i = 0; i < l; i++) {
                 seq->seq.s[i] = toupper(seq->seq.s[i]) ;
@@ -54,7 +54,7 @@ void load_chromosomes(string path) {
             memcpy(s, seq->seq.s, l + 1) ;
             s[l] = '\0' ;
             chromosome_seqs[seq->name.s] = s;
-        }
+        // }
     }
     kseq_destroy(seq);
     gzclose(fp);
