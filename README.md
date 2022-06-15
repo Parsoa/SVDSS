@@ -75,7 +75,7 @@ Extract SFS from BAM/FASTQ/FASTA files:
     SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
 
     Optional arguments:
-            --assemble                          automatically runs SVDSS assemble on output
+        --assemble                              automatically runs SVDSS assemble on output
 
 Assemble SFS into superstrings:
     SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
@@ -93,6 +93,8 @@ Call SVs:
 
 General options:
     --threads                                   sets number of threads, default 4.
+    --version                                   print version information.
+    --help                                      print this help message.
 ```
 
 ## Detailed Usage Guide

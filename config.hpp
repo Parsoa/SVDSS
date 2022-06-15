@@ -36,6 +36,8 @@ public:
     bool assemble = false ;
     bool aggregate = false ;
     bool selective = true ;
+    bool version = false;
+    bool help = false;
 
     std::string bed ;
     std::string bam ; // reads bam (reconstructed or not)

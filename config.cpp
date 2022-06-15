@@ -37,6 +37,8 @@ Configuration::Configuration() :
         ("b,binary", "", cxxopts::value<bool>()->default_value("false"))
         ("aggregate", "", cxxopts::value<bool>()->default_value("false"))
         ("selective", "", cxxopts::value<bool>()->default_value("true"))
+        ("version", "Print version information.")
+        ("help", "Print this help.")
     ;
 }
 
@@ -113,4 +115,6 @@ void Configuration::parse(int argc, char** argv) {
     putative = results["putative"].as<bool>() ;
     aggregate = results["aggregate"].as<bool>() ;
     selective = results["selective"].as<bool>() ;
+    version = results["version"].as<bool>();
+    help = results["help"].as<bool>();
 }
