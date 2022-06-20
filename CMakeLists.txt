@@ -98,7 +98,7 @@ else ()
 endif ()
 ExternalProject_Add(abpoa
   GIT_REPOSITORY https://github.com/yangao07/abPOA.git
-  GIT_TAG 42a09de0d2ef076c4b173ff4bd8a9812ded26707
+  GIT_TAG 16c64e5163cbd0502792ca20f1069fe40c929b0d
   PATCH_COMMAND ${PATCH_CMD}
   INSTALL_COMMAND ""
 )
