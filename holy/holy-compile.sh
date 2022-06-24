@@ -23,7 +23,7 @@ ls libbz2.a
 cd ..
 
 yumdownloader --source xz-devel
-rpm2cpio xz-5.2.2-1.el7.src.rpm | cpio -idv
+rpm2cpio xz-5.2.2-2.el7_9.src.rpm | cpio -idv
 tar xvfz xz-5.2.2.tar.gz
 cd xz-5.2.2
 ./configure --enable-static
