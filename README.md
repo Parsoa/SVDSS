@@ -98,7 +98,7 @@ General options:
 ```
 
 ## Detailed Usage Guide
-SVDSS requires as input the BAM file of the sample to be genotyped, a reference genome in FASTA format. To genotype a sample we need to perform the following steps:
+SVDSS requires as input the BAM file of the sample to be genotyped, a reference genome in FASTA format (please use an appropriate reference genome, i.e., if you are not interested in ALT contigs, filter them out or use a reference genome that does not include them). To genotype a sample we need to perform the following steps:
 
 1. Build FMD index of reference genome (`SVDSS index`)
 2. Smooth the input BAM file (`SVDSS smooth`)
@@ -118,7 +118,7 @@ We will now explain each step in more detail:
 
 ### Index reference genome
 
-The FMD index is the same as from PingPong:
+Build the FMD index of the reference genome:
 
 ```
 SVDSS index --fastq GRCh38.fa --index GRCh38.bwt
@@ -160,15 +160,15 @@ You can combine SFS extraction and assembly by passing `--assemble` to `SVDSS se
 
 ### Call SVs
 
-We are now ready to call SVs. Run (note that the input `.bam` must be indexed using `samtools index` before running this):
+We are now ready to call SVs. Run (note that the input `.bam` must be sorted and indexed using `samtools` before running this):
 
 ```
 SVDSS call --reference GRCh38.fasta --bam smoothed.selective.bam --workdir $PWD --batches N
 ```
 
-You can filter the reported SVs by passing the `--min-sv-length` and `--min-cluster-weight` options. These options control the minimum length and minimum number of supporting superstrings for the reported SVs. Higher values for `--min-cluster-weight` will increase precision at the cost of reducing recall. For a 30x coverage sample, `--min-cluster-weight 4` produced the best results in our experiments.
+You can filter the reported SVs by passing the `--min-sv-length` and `--min-cluster-weight` options. These options control the minimum length and minimum number of supporting superstrings for the reported SVs. Higher values for `--min-cluster-weight` will increase precision at the cost of reducing recall. For a diploid 30x coverage sample, `--min-cluster-weight 2` produced the best results in our experiments. For a haploid 30x sample, instead, `--min-cluster-weight 4` produced the best results.
 
-This commands output two files: `svs_poa.vcf` that includes the SV calls and `poa.sam` which includes alignments of POA contigs to the reference genome.
+This commands output two files: `svs_poa.vcf` that includes the SV calls and `poa.sam` which includes alignments of POA contigs to the reference genome (these POA consensus are used to call SVs).
 
 ### Snakemake workflow
 
