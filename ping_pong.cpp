@@ -200,10 +200,16 @@ batch_type_t PingPong::process_batch(rld_t* index, int p, int i) {
     // store read id once for all strings to save space, is it worth it?
     if (mode == 0) {
         for (int j = 0; j < read_seqs[p][i].size(); j++) {
+	    if (read_seq_lengths[p][i][j] < 0)
+	        // No need here (since ping_pong_search won't crash is #reads is smaller than batch size), but let's keep this
+	        break;
             ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[read_names[p][i][j]], false, nullptr) ;
         }
     } else {
         for (int j = 0; j < read_seqs[p][i].size(); j++) {
+	    if (read_seq_lengths[p][i][j] < 0)
+	        // Avoid crash at next line when #alignments is smaller than batch size
+	        break;
             char *qname = bam_get_qname(bam_entries[p][i][j]) ;
             bool is_smoothed = smoothed_reads.find(qname) != smoothed_reads.end() ;
             if (config->putative) {
@@ -215,8 +221,7 @@ batch_type_t PingPong::process_batch(rld_t* index, int p, int i) {
                     continue ;
                 }
             }
-            //cout << qname << " " << is_smoothed << endl ;
-            ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[qname], is_smoothed, bam_entries[p][i][j]) ;
+	    ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j], solutions[qname], is_smoothed, bam_entries[p][i][j]) ;
         }
     }
     return solutions ;
@@ -300,7 +305,7 @@ int PingPong::search() {
             for (int k = 0; k < batch_size / config->threads; k++) {
                 read_seqs[i][j].push_back((uint8_t*) malloc(sizeof(uint8_t) * (30001))) ;
                 read_names[i][j].push_back("") ;
-                read_seq_lengths[i][j].push_back(30000) ;
+                read_seq_lengths[i][j].push_back(-1) ; // this to flag unused slots in a batch
                 read_seq_max_lengths[i][j].push_back(30000) ;
             }
         }
