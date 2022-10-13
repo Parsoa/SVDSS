@@ -10,7 +10,7 @@ Configuration* Configuration::getInstance() {
 }
 
 Configuration::Configuration() :
-    parser("Stella, mapping-free variation discovery.") {
+    parser("SVDSS, Structural Variant Discovery from Sample-specific Strings") {
     parser.add_options()
         ("bed", "", cxxopts::value<std::string>())
         ("bam", "", cxxopts::value<std::string>())
@@ -33,7 +33,7 @@ Configuration::Configuration() :
         ("min-cluster-weight", "", cxxopts::value<int>())
         ("clipped", "", cxxopts::value<bool>()->default_value("false"))
         ("assemble", "", cxxopts::value<bool>()->default_value("false"))
-        ("putative", "", cxxopts::value<bool>()->default_value("true"))
+        ("noputative", "", cxxopts::value<bool>()->default_value("false"))
         ("b,binary", "", cxxopts::value<bool>()->default_value("false"))
         ("aggregate", "", cxxopts::value<bool>()->default_value("false"))
         ("selective", "", cxxopts::value<bool>()->default_value("true"))
@@ -112,7 +112,7 @@ void Configuration::parse(int argc, char** argv) {
     binary = results["binary"].as<bool>() ;
     clipped = results["clipped"].as<bool>() ;
     assemble = results["assemble"].as<bool>() ;
-    putative = results["putative"].as<bool>() ;
+    putative = !(results["noputative"].as<bool>()) ;
     aggregate = results["aggregate"].as<bool>() ;
     selective = results["selective"].as<bool>() ;
     version = results["version"].as<bool>();

@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
         print_help() ;
         exit(0) ;
     }
-    cerr << argv[1] << endl;
+    cerr << "Mode: " << argv[1] << endl;
     create_workdir() ;
     if (strcmp(argv[1], "call") == 0) {
         auto caller = new Caller() ;
