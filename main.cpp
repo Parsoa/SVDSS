@@ -15,13 +15,14 @@
 #include <unistd.h>
 #include <unordered_map>
 
+// there may be some issue here. with a different include order
+// (assembler/caller/smoother at the end), compilation fails
+#include "assembler.hpp"
+#include "caller.hpp"
 #include "chromosomes.hpp"
 #include "config.hpp"
 #include "lprint.hpp"
 #include "ping_pong.hpp"
-
-#include "assembler.hpp"
-#include "caller.hpp"
 #include "smoother.hpp"
 
 #ifdef LOCAL_BUILD
