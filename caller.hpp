@@ -3,29 +3,29 @@
 
 #include <iostream>
 
-#include "htslib/sam.h"
 #include "htslib/hts.h"
+#include "htslib/sam.h"
 
+#include "chromosomes.hpp"
+#include "clipper.hpp"
+#include "config.hpp"
+#include "extender.hpp"
 #include "sv.hpp"
 #include "vcf.hpp"
-#include "config.hpp"
-#include "clipper.hpp"
-#include "extender.hpp"
-#include "chromosomes.hpp"
 
 class Caller {
 
 public:
-    void run();
+  void run();
 
 private:
-    Configuration* config;
-    std::unordered_map<std::string, std::vector<SFS>> SFSs ;
+  Configuration *config;
+  std::unordered_map<std::string, std::vector<SFS>> SFSs;
 
-    ofstream ovcf;
-    ofstream osam;
-    void load_input_sfs() ;
-    void print_vcf_header() ;
+  ofstream ovcf;
+  ofstream osam;
+  void load_input_sfs();
+  void print_vcf_header();
 };
 
 #endif

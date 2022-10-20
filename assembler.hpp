@@ -1,11 +1,11 @@
 #ifndef ASSEMBLER_HPP
 #define ASSEMBLER_HPP
 
-#include <list>
 #include <fstream>
+#include <list>
 
-#include "sfs.hpp"
 #include "config.hpp"
+#include "sfs.hpp"
 
 using namespace std;
 
