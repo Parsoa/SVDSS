@@ -27,7 +27,6 @@ using namespace std;
 // } bam1_core_t;
 
 int do_realloc_bam_data(bam1_t *b, size_t desired) {
-  // cout << "Extending BAM entry." << endl ;
   uint32_t new_m_data;
   uint8_t *new_data;
   new_m_data = desired;
@@ -115,7 +114,7 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   uint8_t *qual = bam_get_qual(alignment);
   uint8_t *new_qual = new_read_quals[_i][_j][_k];
   int pos = alignment->core.pos +
-            1; // this is 0-based, variant cpoordinates are 1-based
+            1; // this is 0-based, variant coordinates are 1-based
   // Modify current bam1_t* struct
   auto &core = alignment->core;
   vector<pair<uint32_t, uint32_t>> new_cigar;
@@ -195,7 +194,6 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
       soft_clip_offset += cigar_offsets[m].first;
       new_cigar.push_back(cigar_offsets[m]);
     } else {
-      cout << "Illegal Cigar OP" << endl;
       break;
       // if (cigar_offsets[m].second == BAM_CPAD || cigar_offsets[m].second ==
       // BAM_CHARD_CLIP || cigar_offsets[m].second == BAM_CBACK) {
@@ -204,43 +202,37 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   }
   new_seq[n] = '\0';
   new_qual[n] = '\0';
-  // int r = 0 ;
-  // for (auto op: new_cigar) {
-  //     if (op.second != BAM_CDEL) {
-  //         n -= op.first ;
-  //     }
-  //     r += op.first ;
-  // }
-  // assert(n == 0) ;
+
   char *qname = bam_get_qname(alignment);
-  // cout << n << " " << strlen(new_seq) << " " << r << endl ;
-  // cout << bam_get_qname(alignment) << endl ;
-  //  only do this on first processing thread
-  if (omp_get_thread_num() == 2) {
-    global_num_bases += num_match;
-    global_num_mismatch += num_mismatch;
-  }
-  // how many errors and SNPs do we expect? 1/1000 each, so say if we see more
-  // than twice that then don't correct
-  if (config->selective) {
-    if (num_mismatch / num_match > 3 * expected_mismatch_rate) {
-      if (omp_get_thread_num() == 3) {
-        num_ignored_reads += 1;
-      }
-      return;
-    }
-    // if we have so many deletions and insertions, then abort
-    if (ins_offset + del_offset > 0.7 * strlen(read_seq)) {
-      return;
-    }
-  }
-  if (should_ignore) {
-    // check mismatch rate
+  // char op = 'M';
+  // cerr << qname << " " << strlen(new_seq) << " " << n << endl;
+  // for (const auto p : new_cigar) {
+  //   if (p.second == BAM_CMATCH || p.second == BAM_CEQUAL ||
+  //       p.second == BAM_CDIFF)
+  //     op = 'M';
+  //   else if (p.second == BAM_CINS)
+  //     op = 'I';
+  //   else if (p.second == BAM_CDEL)
+  //     op = 'D';
+  //   else if (p.second == BAM_CSOFT_CLIP)
+  //     op = 'S';
+  //   cerr << p.first << op;
+  // }
+  // cerr << endl;
+  if (num_mismatch / num_match >= 0.02 || should_ignore) { // FIXME: HARDCODED
+    // read is too dirty or is not interesting, just skip it
     ignored_reads[omp_get_thread_num() - 2].push_back(qname);
-    return;
+  } else {
+    if (strlen(new_seq) != n) {
+      // FIXME: why does this happen?
+      cerr << "|"
+           << endl; // qname << " " << strlen(new_seq) << " " << n << endl;
+      ignored_reads[omp_get_thread_num() - 2].push_back(qname);
+      return;
+    }
+    smoothed_reads[omp_get_thread_num() - 2].push_back(qname);
+    rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar);
   }
-  smoothed_reads[omp_get_thread_num() - 2].push_back(qname);
-  rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar);
 }
 
 void Smoother::process_batch(vector<bam1_t *> bam_entries, int p, int i) {
@@ -256,7 +248,6 @@ void Smoother::process_batch(vector<bam1_t *> bam_entries, int p, int i) {
       continue;
     }
     if (alignment->core.l_qseq < 2) {
-      // cerr << "Read too short, ignoring.." << endl ;
       continue;
     }
     if (alignment->core.tid < 0) {
@@ -323,6 +314,7 @@ void Smoother::run() {
       }
     }
   }
+
   int b = 0;
   lprint({"Loading first batch.."});
   load_batch_bam(config->threads, batch_size, 1);
@@ -336,9 +328,7 @@ void Smoother::run() {
   bool should_terminate = false;
   bool loaded_last_batch = false;
   int reads_written = 0;
-  // lprint({"Starting main loop.."}) ;
   while (should_process) {
-    // lprint({"Beginning batch", to_string(b + 1)});
     if (!should_load) {
       should_process = false;
     }
@@ -351,11 +341,6 @@ void Smoother::run() {
         if (should_load) {
           loaded_last_batch =
               !load_batch_bam(config->threads, batch_size, (p + 1) % modulo);
-          // if (loaded_last_batch) {
-          //     lprint({"Last input batch loaded."});
-          // } else {
-          //     lprint({"Loaded."});
-          // }
         }
       } else if (i == 1) {
         if (b >= 1) {
@@ -363,7 +348,18 @@ void Smoother::run() {
           for (int k = 0; k < batch_size / config->threads; k++) {
             for (int j = 0; j < config->threads; j++) {
               if (bam_entries[(p + 2) % modulo][j][k] != nullptr) {
-                auto alignment = bam_entries[(p + 2) % modulo][j][k];
+                // TODO: just store smoothed reads in the output .bam
+                // if (find(smoothed_reads[j].begin(), smoothed_reads[j].end(),
+                //          bam_get_qname(bam_entries[(p + 2) % modulo][j][k]))
+                //          !=
+                //     smoothed_reads[j].end()) {
+                if (bam_entries[(p + 2) % modulo][j][k]->core.flag &
+                        BAM_FUNMAP ||
+                    bam_entries[(p + 2) % modulo][j][k]->core.flag &
+                        BAM_FSUPPLEMENTARY ||
+                    bam_entries[(p + 2) % modulo][j][k]->core.flag &
+                        BAM_FSECONDARY)
+                  continue;
                 ret = sam_write1(out_bam_file, bam_header,
                                  bam_entries[(p + 2) % modulo][j][k]);
                 reads_written += 1;
@@ -372,6 +368,7 @@ void Smoother::run() {
                   should_terminate = true;
                   break;
                 }
+                // }
               } else {
                 break;
               }
@@ -388,13 +385,6 @@ void Smoother::run() {
       lprint({"Something went wrong, aborting.."}, 2);
       return;
     }
-    // if (!should_load) {
-    //     lprint({"Processed last batch of inputs."});
-    // }
-    // if (!should_process) {
-    //     lprint({"Exiting accelerator loop."});
-    //     break ;
-    // }
     p += 1;
     p %= modulo;
     b += 1;
@@ -403,20 +393,7 @@ void Smoother::run() {
     if (s - t == 0) {
       s += 1;
     }
-    cerr << "[I] Processed batch " << b << ". Reads so far " << reads_processed
-         << ". Reads per second: " << reads_processed / (s - t)
-         << ". Time: " << s - t << "\n";
-    cerr << "[I] Processed bases: " << uint64_t(global_num_bases)
-         << ", num mismatch: " << uint64_t(global_num_mismatch)
-         << ", mismatch rate: " << global_num_mismatch / global_num_bases
-         << ", ignored reads: " << num_ignored_reads << "\n";
-    expected_mismatch_rate = global_num_mismatch / global_num_bases;
-    cerr << "\x1b[A";
-    cerr << "\x1b[A";
   }
-  cerr << endl;
-  cerr << endl;
-  lprint({"Done."});
   sam_close(bam_file);
   sam_close(out_bam_file);
   dump_smoothed_read_ids();
@@ -487,22 +464,18 @@ bool Smoother::load_batch_bam(int threads, int batch_size, int p) {
       break;
     }
   }
-  // cout << m << " reallocations.." << endl ;
   //  last batch was incomplete
   if (n != batch_size) {
     for (int j = n % threads; j < threads; j++) {
-      // cout << "Terminus at " << j << " " << i << endl ;
       for (int _ = i; _ < batch_size / threads; _++) {
         bam_entries[p][j][_] = nullptr;
       }
     }
     for (int j = 0; j < n % threads; j++) {
-      // cout << "Terminus at " << j << " " << i + 1 << endl ;
       for (int _ = i + 1; _ < batch_size / threads; _++) {
         bam_entries[p][j][_] = nullptr;
       }
     }
   }
-  // lprint({"Loaded", to_string(n), "BAM reads.."});
   return n != 0 ? true : false;
 }
