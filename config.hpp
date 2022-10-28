@@ -37,6 +37,7 @@ public:
   bool aggregate = false;
   bool selective = true;
   bool version = false;
+  bool verbose = false;
   bool help = false;
 
   std::string bed;

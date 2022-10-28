@@ -689,7 +689,30 @@ void Extender::call() {
       continue;
     }
     const auto &clusters_by_len = cluster_by_length(cluster);
-    // --- Sorting clusters by #sequences to get first 2 most weighted clusters
+    if (config->verbose) {
+      cout << "1 " << cluster.chrom << "\t" << cluster.s << "\t" << cluster.e
+           << "\t" << cluster.cov << "\t" << cluster.seqs.size() << "\t";
+      for (const auto s : cluster.seqs)
+        cout << s.size() << ",";
+      cout << "\t";
+      for (const auto s : cluster.seqs)
+        cout << s << ",";
+      cout << endl;
+      if (clusters_by_len.size() > 1) {
+        for (const auto c : clusters_by_len) {
+          cout << "- " << c.chrom << "\t" << c.s << "\t" << c.e << "\t" << c.cov
+               << "\t" << c.seqs.size() << "\t";
+          for (const auto s : c.seqs)
+            cout << s.size() << ",";
+          cout << "\t";
+          for (const auto s : c.seqs)
+            cout << s << ",";
+          cout << endl;
+        }
+      }
+    }
+    // --- Sorting clusters by #sequences to get first 2 most weighted
+    // clusters
     int i_max1 = -1;
     int i_max2 = -1;
     uint v_max1 = 0;
@@ -728,6 +751,9 @@ void Extender::call() {
           parasail_result_get_cigar(result, consensus.c_str(), consensus.size(),
                                     ref.c_str(), ref.size(), NULL);
       string cigar_str = parasail_cigar_decode(cigar);
+      if (config->verbose)
+        cout << ref << "," << consensus << "," << cigar_str << "\n"
+             << "#" << endl;
       int score = result->score;
       parasail_cigar_free(cigar);
       parasail_result_free(result);
@@ -825,6 +851,9 @@ void Extender::call() {
 
 void Extender::filter_sv_chains() {
   std::sort(svs.begin(), svs.end());
+  if (config->verbose)
+    for (const auto sv : svs)
+      cout << sv << endl;
   if (svs.size() < 2) {
     return;
   }
