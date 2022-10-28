@@ -164,6 +164,9 @@ void Caller::print_vcf_header() {
   ovcf << "##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise "
           "structural variation\">"
        << endl;
+  ovcf << "##INFO=<ID=CIGAR,Number=A,Type=String,Description=\"CIGAR of "
+          "consensus\">"
+       << endl;
   ovcf << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">"
        << endl;
   ovcf << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tDEFAULT"

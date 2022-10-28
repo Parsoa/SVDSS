@@ -749,7 +749,7 @@ void Extender::call() {
             SV sv = SV("INS", c.chrom, rpos,
                        string(chromosome_seqs[chrom] + rpos - 1, 1),
                        consensus.substr(cpos, l), c.size(), c.cov, nv, score,
-                       false, l);
+                       false, l, cigar_str);
             _svs.push_back(sv);
             nv++;
           }
@@ -759,7 +759,7 @@ void Extender::call() {
             SV sv = SV("DEL", c.chrom, rpos,
                        string(chromosome_seqs[chrom] + rpos - 1, l),
                        string(chromosome_seqs[chrom] + rpos - 1, 1), c.size(),
-                       c.cov, nv, score, false, l);
+                       c.cov, nv, score, false, l, cigar_str);
             _svs.push_back(sv);
             nv++;
           }
