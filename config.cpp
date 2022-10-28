@@ -38,6 +38,7 @@ Configuration::Configuration()
       "aggregate", "", cxxopts::value<bool>()->default_value("false"))(
       "selective", "", cxxopts::value<bool>()->default_value("true"))(
       "version", "Print version information.")("help", "Print this help.")(
+      "l", "", cxxopts::value<float>())(
       "verbose", "", cxxopts::value<bool>()->default_value("false"));
 }
 
@@ -107,6 +108,9 @@ void Configuration::parse(int argc, char **argv) {
   }
   if (results.count("min-cluster-weight")) {
     min_cluster_weight = results["min-cluster-weight"].as<int>();
+  }
+  if (results.count("l")) {
+    min_ratio = results["l"].as<float>();
   }
   binary = results["binary"].as<bool>();
   clipped = results["clipped"].as<bool>();

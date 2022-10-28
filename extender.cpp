@@ -648,9 +648,12 @@ vector<Cluster> Extender::cluster_by_length(const Cluster &cluster) {
   for (const string &seq : cluster.get_seqs()) {
     int i;
     for (i = 0; i < clusters_by_len.size(); i++) {
-      if (abs((int)clusters_by_len[i].get_len() - (int)seq.size()) <= min_d) {
+      float cl = clusters_by_len[i].get_len();
+      float sl = seq.size();
+      if (min(cl, sl) / max(cl, sl) >= config->min_ratio)
+        // if (abs((int)clusters_by_len[i].get_len() - (int)seq.size()) <=
+        // min_d) {
         break;
-      }
     }
     if (i == clusters_by_len.size()) {
       clusters_by_len.push_back(

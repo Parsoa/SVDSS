@@ -29,6 +29,7 @@ public:
   int min_indel_length = 20;
   int aggregate_batches = 5;
   int min_cluster_weight = 2;
+  float min_ratio = 0.97; // FIXME: change name
 
   bool binary = false;
   bool clipped = false;
