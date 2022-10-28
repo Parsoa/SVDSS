@@ -753,7 +753,7 @@ void Extender::call() {
       parasail_result_t *result = NULL;
       result = parasail_nw_trace_striped_16(consensus.c_str(), consensus.size(),
                                             ref.c_str(), ref.size(), 10, 1,
-                                            &parasail_blosum62);
+                                            &parasail_nuc44);
       parasail_cigar_t *cigar =
           parasail_result_get_cigar(result, consensus.c_str(), consensus.size(),
                                     ref.c_str(), ref.size(), NULL);
