@@ -467,7 +467,9 @@ void Extender::cluster_no_interval_tree() {
         low = min(low, sfs.s);
         high = max(high, sfs.e);
       } else {
-        for (int k = last_j; k < j; k++) {
+        for (int k = last_j; k < j;
+             k++) { // CHECKME: < or <=?
+                    // NOTE: <= makes the code waaaay slower
           _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_sfs[k]);
         }
         low = sfs.s;
@@ -475,7 +477,9 @@ void Extender::cluster_no_interval_tree() {
         last_j = j;
       }
     }
-    for (int k = last_j; k < intervals[i].second; k++) {
+    for (int k = last_j; k <= intervals[i].second;
+         k++) { // CHECKME: it was < but in that way
+                // we were losing an sfs per cluster
       _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_sfs[k]);
     }
     if (t == 0) {
