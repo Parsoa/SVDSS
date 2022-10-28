@@ -877,22 +877,22 @@ void Extender::filter_sv_chains() {
     auto &sv = svs[i];
     if (sv.chrom == prev.chrom && sv.s - prev.e < 2 * sv.l &&
         prev.type == sv.type) {
-      // cout << sv.chrom << " " << sv.s << " " << sv.type << " ---- " << prev.s
-      // << endl ;
       //  check for sequence similarity
       double w_r =
-          max((double)sv.w, (double)prev.w) / min((double)sv.w, (double)prev.w);
+          min((double)sv.w, (double)prev.w) / max((double)sv.w, (double)prev.w);
       double l_r =
           min((double)sv.l, (double)prev.l) / max((double)sv.l, (double)prev.l);
-      if (w_r >= 2 && l_r >= 0.9) {
-        double d;
+      int d = sv.s - prev.s;
+      if (d < 100 && w_r >= 0.9 &&
+          l_r >= config->min_ratio) { // FIXME: hardcoded + use different ratio
+                                      // here. min_ratio was for clusters
+        double sim;
         if (sv.type == "DEL") {
-          d = rapidfuzz::fuzz::ratio(sv.refall, prev.refall);
+          sim = rapidfuzz::fuzz::ratio(sv.refall, prev.refall);
         } else {
-          d = rapidfuzz::fuzz::ratio(sv.altall, prev.altall);
+          sim = rapidfuzz::fuzz::ratio(sv.altall, prev.altall);
         }
-        // cout << w_r << " " << l_r << " " << d << endl ;
-        if (d > 70) {
+        if (sim > 70) {
           if (sv.w > prev.w) {
             _svs.push_back(sv);
           } else {
