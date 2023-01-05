@@ -225,8 +225,7 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   } else {
     if (strlen(new_seq) != n) {
       // FIXME: why does this happen?
-      cerr << "|"
-           << endl; // qname << " " << strlen(new_seq) << " " << n << endl;
+      cerr << "|" << qname << " " << strlen(new_seq) << " " << n << endl;
       ignored_reads[omp_get_thread_num() - 2].push_back(qname);
       return;
     }
