@@ -56,8 +56,8 @@ void rebuild_bam_entry(bam1_t *alignment, char *seq, uint8_t *qual,
   memcpy(aux, alignment->data + alignment->l_data - l_aux, l_aux);
   // update core
   alignment->core.n_cigar = cigar.size();
-  alignment->core.l_qseq = strlen(seq);
   int l = strlen(seq);
+  alignment->core.l_qseq = l;
   // rebuild data
   int l_data = alignment->core.l_qname + (4 * alignment->core.n_cigar) +
                ((l + 1) >> 1) + l + l_aux;
@@ -92,15 +92,13 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   for (auto op : cigar_offsets) {
     l += op.first;
   }
-  if (read_seq_max_lengths[_i][_j][_k] < l) {
-    free(read_seqs[_i][_j][_k]);
+  if (new_read_seq_max_lengths[_i][_j][_k] < l) {
     free(new_read_seqs[_i][_j][_k]);
     free(new_read_quals[_i][_j][_k]);
     //
-    read_seqs[_i][_j][_k] = (char *)malloc(sizeof(char) * (l + 1));
     new_read_seqs[_i][_j][_k] = (char *)malloc(sizeof(char) * (l + 1));
     new_read_quals[_i][_j][_k] = (uint8_t *)malloc(sizeof(char) * (l + 1));
-    read_seq_max_lengths[_i][_j][_k] = l;
+    new_read_seq_max_lengths[_i][_j][_k] = l;
   }
   //
   int n = 0;
@@ -224,8 +222,9 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
     ignored_reads[omp_get_thread_num() - 2].push_back(qname);
   } else {
     if (strlen(new_seq) != n) {
-      // FIXME: why does this happen?
-      cerr << "|" << qname << " " << strlen(new_seq) << " " << n << endl;
+      // CHECKME: this now should be fixed (read_seqs must not be freed above - only the new ones)
+      // cerr << "[W] " << qname << " " << strlen(new_seq) << "/" << strlen((char*)new_qual) << " " << n << endl;
+      cerr << "[W] this shouldn't happen anymore. If you see this warning, please open an issue at https://github.com/Parsoa/SVDSS/issues" << endl;
       ignored_reads[omp_get_thread_num() - 2].push_back(qname);
       return;
     }
@@ -283,15 +282,24 @@ void Smoother::run() {
   int modulo = 3;
   int batch_size = (10000 / config->threads) * config->threads;
   for (int i = 0; i < modulo; i++) {
+    // original read sequences
     read_seqs.push_back(
         vector<vector<char *>>(config->threads)); // current and next output
+    // smoothed read sequences
     new_read_seqs.push_back(
         vector<vector<char *>>(config->threads)); // current and next output
+    // smoothed read qualities
     new_read_quals.push_back(
         vector<vector<uint8_t *>>(config->threads)); // current and next output
+    // CHECKME: why do we need to store two lengths (read_seq_lengths and read_seq_max_lengths)? When we have to reallocate for a too long read, we change both of them. So they should always contain the same value
+    // original read lengths
     read_seq_lengths.push_back(
         vector<vector<int>>(config->threads)); // current and next output
+    // original read max lengths
     read_seq_max_lengths.push_back(
+        vector<vector<int>>(config->threads)); // current and next output
+    // smoothed read max lengths
+    new_read_seq_max_lengths.push_back(
         vector<vector<int>>(config->threads)); // current and next output
     for (int j = 0; j < config->threads; j++) {
       for (int k = 0; k < batch_size / config->threads; k++) {
@@ -302,6 +310,7 @@ void Smoother::run() {
         //
         read_seq_lengths[i][j].push_back(30000);
         read_seq_max_lengths[i][j].push_back(30000);
+        new_read_seq_max_lengths[i][j].push_back(30000);
       }
     }
   }
@@ -439,13 +448,8 @@ bool Smoother::load_batch_bam(int threads, int batch_size, int p) {
     uint32_t l = alignment->core.l_qseq; // length of the read
     if (read_seq_max_lengths[p][n % threads][i] < l) {
       free(read_seqs[p][n % threads][i]);
-      free(new_read_seqs[p][n % threads][i]);
-      free(new_read_quals[p][n % threads][i]);
       //
       read_seqs[p][n % threads][i] = (char *)malloc(sizeof(char) * (l + 1));
-      new_read_seqs[p][n % threads][i] = (char *)malloc(sizeof(char) * (l + 1));
-      new_read_quals[p][n % threads][i] =
-          (uint8_t *)malloc(sizeof(char) * (l + 1));
       read_seq_max_lengths[p][n % threads][i] = l;
       m += 1;
     }

@@ -48,6 +48,7 @@ public:
   std::vector<std::vector<std::vector<char *>>> read_seqs;
   std::vector<std::vector<std::vector<char *>>> new_read_seqs;
   std::vector<std::vector<std::vector<uint8_t *>>> new_read_quals;
+  std::vector<std::vector<std::vector<int>>> new_read_seq_max_lengths;
 
   void run();
   bool load_batch_bam(int threads, int batch_size, int p);
