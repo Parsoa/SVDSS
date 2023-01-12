@@ -14,7 +14,6 @@
 #include "parasail.h"
 #include "parasail/matrices/nuc44.h"
 #include "rapidfuzz/fuzz.hpp"
-#include "rapidfuzz/utils.hpp"
 
 #include "bam.hpp"
 #include "chromosomes.hpp"

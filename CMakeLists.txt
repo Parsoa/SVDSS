@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
 include(ExternalProject)
+include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -43,13 +44,8 @@ if(NOT DEFINED CONDAPREFIX)
   message(STATUS "libdeflate will be built from source")
   ExternalProject_Add(deflate
     GIT_REPOSITORY https://github.com/ebiggers/libdeflate.git
-    GIT_TAG 047aa84e01b38d82f3612810e357bd40f14a3d39
+    GIT_TAG 020133854ff73b8506fe59f92a9b5b622d360716 # v1.15
     BUILD_IN_SOURCE 1
-    UPDATE_COMMAND ""
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND make PREFIX="."
-      "CC=${CMAKE_C_COMPILER}"
-      "CFLAGS=-fPIC -O3" libdeflate.a
     INSTALL_COMMAND "")
   ExternalProject_Get_Property(deflate SOURCE_DIR)
   SET(DEFLATE_SOURCE_DIR ${SOURCE_DIR})
@@ -59,15 +55,15 @@ if(NOT DEFINED CONDAPREFIX)
 
   # HTSLIB
   #########
-  SET(CONF_CMD autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR}")
+  SET(CONF_CMD autoheader && autoreconf -i && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR}")
   if (HOLYBUILD)
     # we have to include local libraries (libbz2 and liblzma)
-    SET(CONF_CMD autoheader && autoreconf && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR} -I${BZIP_LIB_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR} -L${BZIP_LIB_DIR} -L${LZMA_LIB_DIR}")
+    SET(CONF_CMD autoheader && autoreconf -i && ./configure --disable-libcurl --disable-gcs --with-libdeflate "CC=${CMAKE_C_COMPILER}" "CFLAGS=-O3 -I${DEFLATE_SOURCE_DIR} -I${BZIP_LIB_DIR}" "LDFLAGS=-L${DEFLATE_SOURCE_DIR} -L${BZIP_LIB_DIR} -L${LZMA_LIB_DIR}")
   endif ()
   message(STATUS "htslib will be built from source")
   ExternalProject_Add(htslib
     GIT_REPOSITORY https://github.com/samtools/htslib.git
-    GIT_TAG 2cd99cf333938a9eb70393bc59379e1d6ea66b37
+    GIT_TAG 4e61c128238f3e7cbb3b1f4e9c0fdb4880aa9a10 # v1.16
     UPDATE_COMMAND ""
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND ${CONF_CMD}
@@ -98,7 +94,7 @@ else ()
 endif ()
 ExternalProject_Add(abpoa
   GIT_REPOSITORY https://github.com/yangao07/abPOA.git
-  GIT_TAG 16c64e5163cbd0502792ca20f1069fe40c929b0d
+  GIT_TAG 16c64e5163cbd0502792ca20f1069fe40c929b0d # v1.41
   PATCH_COMMAND ${PATCH_CMD}
   INSTALL_COMMAND ""
 )
@@ -114,7 +110,7 @@ SET(ABPOA_INCLUDE_DIR ${ABPOA_SOURCE_DIR}/include)
 message(STATUS "parasail will be built from source")
 ExternalProject_Add(parasail
   GIT_REPOSITORY https://github.com/jeffdaily/parasail.git
-  GIT_TAG e236a6feec7bc84fb81923d783acb345e538a281
+  GIT_TAG d23aed253fb5ecc7aeab0f81b6d64fcc26448089 # v2.6
   UPDATE_COMMAND ""
   BUILD_IN_SOURCE 1
   CMAKE_ARGS -DBUILD_SHARED_LIBS=OFF
@@ -128,22 +124,16 @@ set_target_properties(PARASAIL PROPERTIES IMPORTED_LOCATION ${PARASAIL_SOURCE_DI
 
 # rapidfuzz-cpp
 ################
-ExternalProject_Add(rapidfuzz
-    GIT_REPOSITORY https://github.com/maxbachmann/rapidfuzz-cpp.git
-    GIT_TAG d1e82379395cafc6d439c1c1e2cbe7512eaf2518
-    BUILD_IN_SOURCE 1
-    UPDATE_COMMAND ""
-    INSTALL_COMMAND ""
-)
-ExternalProject_Get_Property(rapidfuzz SOURCE_DIR)
-SET(RAPIDFUZZ_SOURCE_DIR ${SOURCE_DIR})
-SET(RAPIDFUZZ_INCLUDE_DIR ${RAPIDFUZZ_SOURCE_DIR})
+FetchContent_Declare(rapidfuzz
+  GIT_REPOSITORY https://github.com/maxbachmann/rapidfuzz-cpp.git
+  GIT_TAG 5412d5d877518e7754394bdbec76e45c8187c631) # v1.10.4
+FetchContent_MakeAvailable(rapidfuzz)
 
 # interval-tree
 ################
 ExternalProject_Add(intervaltree
     GIT_REPOSITORY https://github.com/5cript/interval-tree.git
-    GIT_TAG 4d7c66ce4fb542a29a7d74039f8e7c92fae3d6f8
+    GIT_TAG 309b9c725191d4bb1d134f28a8a32ad2f68a8ffa
     UPDATE_COMMAND ""
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
@@ -151,7 +141,7 @@ ExternalProject_Add(intervaltree
 )
 ExternalProject_Get_Property(intervaltree SOURCE_DIR)
 SET(INTERVALTREE_SOURCE_DIR ${SOURCE_DIR})
-SET(INTERVALTREE_INCLUDE_DIR ${INTERVALTREE_SOURCE_DIR})
+SET(INTERVALTREE_INCLUDE_DIR ${INTERVALTREE_SOURCE_DIR}/include/interval-tree)
 
 # ropebwt2
 ##########
@@ -213,6 +203,7 @@ else()
 endif()
 
 target_link_libraries(SVDSS
+  PUBLIC rapidfuzz::rapidfuzz
   PUBLIC ${BINARY_DIR}/lib/libabpoa.a
   PUBLIC PARASAIL
   PUBLIC ROPEBWT
