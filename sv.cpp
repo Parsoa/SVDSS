@@ -6,7 +6,7 @@ SV::SV() { l = 0; }
 
 SV::SV(const string type_, const string &chrom_, uint s_, const string &refall_,
        const string &altall_, const uint w_, const uint cov_, const int ngaps_,
-       const int score_, bool imprecise_, uint l_) {
+       const int score_, bool imprecise_, uint l_, string cigar_) {
   type = type_;
   chrom = chrom_;
   s = s_;
@@ -19,6 +19,7 @@ SV::SV(const string type_, const string &chrom_, uint s_, const string &refall_,
   ngaps = ngaps_;
   score = score_;
   imprecise = imprecise_;
+  cigar = cigar_;
   idx = type + "_" + chrom + ":" + to_string(s) + "-" + to_string(e);
   idx += "_" + to_string(abs(l));
   gt = "./.";
@@ -54,7 +55,8 @@ ostream &operator<<(ostream &os, const SV &sv) {
      << "WEIGHT=" << sv.w << ";"
      << "COV=" << sv.cov << ";"
      << "AS=" << sv.score << ";"
-     << "NV=" << sv.ngaps
+     << "NV=" << sv.ngaps << ";"
+     << "CIGAR=" << sv.cigar
      << (sv.imprecise ? ";IMPRECISE\t" : "\t")
      // -
      << "GT"

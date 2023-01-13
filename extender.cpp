@@ -42,9 +42,9 @@ void Extender::run(int _threads) {
           make_pair(cluster.first, ExtCluster(cluster.second)));
     }
   }
-  for (const auto &cluster : _ext_clusters) {
+  for (const auto &cluster : _ext_clusters)
     ext_clusters.push_back(cluster.second);
-  }
+
   // process each cluster separately
   _p_clusters.resize(threads);
   extract_sfs_sequences();
@@ -53,6 +53,7 @@ void Extender::run(int _threads) {
     clusters.insert(clusters.begin(), _p_clusters[i].begin(),
                     _p_clusters[i].end());
   }
+
   // merge POA alignments
   _p_svs.resize(threads);
   _p_alignments.resize(threads);
@@ -166,11 +167,6 @@ void Extender::extend_parallel() {
         // load next batch of entries
         if (should_load) {
           loaded_last_batch = !load_batch_bam(threads, batch_size, (p + 1) % 2);
-          if (loaded_last_batch) {
-            // lprint({"Last input batch loaded."});
-          } else {
-            // lprint({"Loaded."});
-          }
         }
       } else {
         process_batch(bam_entries[p][t - 1], t - 1);
@@ -178,9 +174,6 @@ void Extender::extend_parallel() {
     }
 #pragma omp single
     {
-      // if (loaded_last_batch) {
-      //     break ;
-      // }
       p += 1;
       p %= 2;
       b += 1;
@@ -235,16 +228,11 @@ bool Extender::load_batch_bam(int threads, int batch_size, int p) {
     }
   }
   if (n != 0 && n != batch_size) {
-    for (int j = n % threads; j < threads; j++) {
-      // cout << "Terminus at " << j << " " << i << endl ;
+    for (int j = n % threads; j < threads; j++)
       bam_entries[p][j][i] = nullptr;
-    }
-    for (int j = 0; j < n % threads; j++) {
-      if (i + 1 < bam_entries[p][j].size()) {
-        // cout << "Terminus at " << j << " " << i + 1 << endl ;
+    for (int j = 0; j < n % threads; j++)
+      if (i + 1 < bam_entries[p][j].size())
         bam_entries[p][j][i + 1] = nullptr;
-      }
-    }
   }
   // lprint({"Loaded", to_string(n), "BAM reads.."});
   return n != 0 ? true : false;
@@ -255,7 +243,6 @@ void Extender::process_batch(vector<bam1_t *> bam_entries, int index) {
   for (int b = 0; b < bam_entries.size(); b++) {
     aln = bam_entries[b];
     if (aln == nullptr) {
-      // cout << "Terminus " << b << " " << index << " " << endl ;
       break;
     }
     extend_alignment(aln, index);
@@ -302,7 +289,6 @@ void Extender::extend_alignment(bam1_t *aln, int index) {
         break;
       }
     }
-    // cout << refs << "-" << refe << endl ;
     // We extract the local alignment of the region of interest
     if (refs == -1 && refe == -1) {
       // we couldn't place the first and the last base, so we skip this -
@@ -426,9 +412,7 @@ bool overlap(int s1, int e1, const ExtSFS &sfs) {
 }
 
 void Extender::cluster_no_interval_tree() {
-  lprint({"Sorting ", to_string(extended_sfs.size()), " extended SFS.."});
-  std::sort(extended_sfs.begin(), extended_sfs.end());
-  lprint({"Done."});
+  sort(extended_sfs.begin(), extended_sfs.end());
   auto r = std::max_element(extended_sfs.begin(), extended_sfs.end(),
                             [](const ExtSFS &lhs, const ExtSFS &rhs) {
                               return lhs.e - lhs.s < rhs.e - rhs.s;
@@ -483,7 +467,9 @@ void Extender::cluster_no_interval_tree() {
         low = min(low, sfs.s);
         high = max(high, sfs.e);
       } else {
-        for (int k = last_j; k < j; k++) {
+        for (int k = last_j; k < j;
+             k++) { // CHECKME: < or <=?
+                    // NOTE: <= makes the code waaaay slower
           _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_sfs[k]);
         }
         low = sfs.s;
@@ -491,7 +477,9 @@ void Extender::cluster_no_interval_tree() {
         last_j = j;
       }
     }
-    for (int k = last_j; k < intervals[i].second; k++) {
+    for (int k = last_j; k <= intervals[i].second;
+         k++) { // CHECKME: it was < but in that way
+                // we were losing an sfs per cluster
       _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_sfs[k]);
     }
     if (t == 0) {
@@ -565,8 +553,8 @@ void Extender::extract_sfs_sequences() {
           aln->core.flag & BAM_FSECONDARY) {
         continue;
       }
-      ++cov; // FIXME: this cov takes into account also reads starting or ending
-             // inside the cluster (maybe we should skip those?)
+      ++cov; // FIXME: this cov takes into account also reads starting or
+             // ending inside the cluster (maybe we should skip those?)
 
       char *qname = bam_get_qname(aln);
       if (reads.find(qname) == reads.end()) {
@@ -660,9 +648,12 @@ vector<Cluster> Extender::cluster_by_length(const Cluster &cluster) {
   for (const string &seq : cluster.get_seqs()) {
     int i;
     for (i = 0; i < clusters_by_len.size(); i++) {
-      if (abs((int)clusters_by_len[i].get_len() - (int)seq.size()) <= min_d) {
+      float cl = clusters_by_len[i].get_len();
+      float sl = seq.size();
+      if (min(cl, sl) / max(cl, sl) >= config->min_ratio)
+        // if (abs((int)clusters_by_len[i].get_len() - (int)seq.size()) <=
+        // min_d) {
         break;
-      }
     }
     if (i == clusters_by_len.size()) {
       clusters_by_len.push_back(
@@ -705,7 +696,30 @@ void Extender::call() {
       continue;
     }
     const auto &clusters_by_len = cluster_by_length(cluster);
-    // --- Sorting clusters by #sequences to get first 2 most weighted clusters
+    if (config->verbose) {
+      cout << "1 " << cluster.chrom << "\t" << cluster.s << "\t" << cluster.e
+           << "\t" << cluster.cov << "\t" << cluster.seqs.size() << "\t";
+      for (const auto s : cluster.seqs)
+        cout << s.size() << ",";
+      cout << "\t";
+      for (const auto s : cluster.seqs)
+        cout << s << ",";
+      cout << endl;
+      if (clusters_by_len.size() > 1) {
+        for (const auto c : clusters_by_len) {
+          cout << "- " << c.chrom << "\t" << c.s << "\t" << c.e << "\t" << c.cov
+               << "\t" << c.seqs.size() << "\t";
+          for (const auto s : c.seqs)
+            cout << s.size() << ",";
+          cout << "\t";
+          for (const auto s : c.seqs)
+            cout << s << ",";
+          cout << endl;
+        }
+      }
+    }
+    // --- Sorting clusters by #sequences to get first 2 most weighted
+    // clusters
     int i_max1 = -1;
     int i_max2 = -1;
     uint v_max1 = 0;
@@ -735,14 +749,18 @@ void Extender::call() {
       vector<SV> _svs; // svs on current cluster
       string ref = string(chromosome_seqs[chrom] + c.s, c.e - c.s + 1);
       string consensus = c.poa();
+
       parasail_result_t *result = NULL;
       result = parasail_nw_trace_striped_16(consensus.c_str(), consensus.size(),
                                             ref.c_str(), ref.size(), 10, 1,
-                                            &parasail_blosum62);
+                                            &parasail_nuc44);
       parasail_cigar_t *cigar =
           parasail_result_get_cigar(result, consensus.c_str(), consensus.size(),
                                     ref.c_str(), ref.size(), NULL);
       string cigar_str = parasail_cigar_decode(cigar);
+      if (config->verbose)
+        cout << ref << "," << consensus << "," << cigar_str << "\n"
+             << "#" << endl;
       int score = result->score;
       parasail_cigar_free(cigar);
       parasail_result_free(result);
@@ -764,7 +782,7 @@ void Extender::call() {
             SV sv = SV("INS", c.chrom, rpos,
                        string(chromosome_seqs[chrom] + rpos - 1, 1),
                        consensus.substr(cpos, l), c.size(), c.cov, nv, score,
-                       false, l);
+                       false, l, cigar_str);
             _svs.push_back(sv);
             nv++;
           }
@@ -774,7 +792,7 @@ void Extender::call() {
             SV sv = SV("DEL", c.chrom, rpos,
                        string(chromosome_seqs[chrom] + rpos - 1, l),
                        string(chromosome_seqs[chrom] + rpos - 1, 1), c.size(),
-                       c.cov, nv, score, false, l);
+                       c.cov, nv, score, false, l, cigar_str);
             _svs.push_back(sv);
             nv++;
           }
@@ -801,7 +819,7 @@ void Extender::call() {
       //    if (del.s <= sv.e) {
       //        sv.e = del.e ;
       //        int overlap = sv.e - del.s + 1 ;
-      //        sv.refall = sv.altall + del..substr(overlap, del.l - overlap) ;
+      //        sv.refall = sv.altall + del..substr(overlap, del.l - overlap);
       //    }
       //}
       // -- Combine svs with same length (maybe useless now - only if diploid
@@ -840,6 +858,9 @@ void Extender::call() {
 
 void Extender::filter_sv_chains() {
   std::sort(svs.begin(), svs.end());
+  if (config->verbose)
+    for (const auto sv : svs)
+      cout << sv << endl;
   if (svs.size() < 2) {
     return;
   }
@@ -856,22 +877,22 @@ void Extender::filter_sv_chains() {
     auto &sv = svs[i];
     if (sv.chrom == prev.chrom && sv.s - prev.e < 2 * sv.l &&
         prev.type == sv.type) {
-      // cout << sv.chrom << " " << sv.s << " " << sv.type << " ---- " << prev.s
-      // << endl ;
       //  check for sequence similarity
       double w_r =
-          max((double)sv.w, (double)prev.w) / min((double)sv.w, (double)prev.w);
+          min((double)sv.w, (double)prev.w) / max((double)sv.w, (double)prev.w);
       double l_r =
           min((double)sv.l, (double)prev.l) / max((double)sv.l, (double)prev.l);
-      if (w_r >= 2 && l_r >= 0.9) {
-        double d;
+      int d = sv.s - prev.s;
+      if (d < 100 && w_r >= 0.9 &&
+          l_r >= config->min_ratio) { // FIXME: hardcoded + use different ratio
+                                      // here. min_ratio was for clusters
+        double sim;
         if (sv.type == "DEL") {
-          d = rapidfuzz::fuzz::ratio(sv.refall, prev.refall);
+          sim = rapidfuzz::fuzz::ratio(sv.refall, prev.refall);
         } else {
-          d = rapidfuzz::fuzz::ratio(sv.altall, prev.altall);
+          sim = rapidfuzz::fuzz::ratio(sv.altall, prev.altall);
         }
-        // cout << w_r << " " << l_r << " " << d << endl ;
-        if (d > 70) {
+        if (sim > 70) {
           if (sv.w > prev.w) {
             _svs.push_back(sv);
           } else {
@@ -881,9 +902,6 @@ void Extender::filter_sv_chains() {
           continue;
         }
       }
-    }
-    if (prev.s == 205603627) {
-      break;
     }
     _svs.push_back(prev);
     prev = sv;

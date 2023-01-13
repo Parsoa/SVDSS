@@ -6,8 +6,9 @@
 #include <string>
 #include <unordered_map>
 
-class SV {
+using namespace std;
 
+class SV {
 public:
   std::string type;
   std::string chrom;
@@ -23,12 +24,13 @@ public:
   int score;
   std::string gt;
   bool imprecise;
+  string cigar;
 
   SV();
   SV(const std::string type_, const std::string &chrom_, uint s_,
      const std::string &refall_, const std::string &altall_, const uint w_,
      const uint cov_, const int ngaps_, const int score_,
-     bool imprecise_ = false, uint l_ = 0);
+     bool imprecise_ = false, uint l_ = 0, string cigar_ = ".");
   void genotype();
 
   bool operator<(const SV &c) const {

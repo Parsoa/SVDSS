@@ -84,6 +84,9 @@ void print_vcf_header(const unordered_map<string, char *> &ref, ofstream &o,
   o << "##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise "
        "structural variation\">"
     << endl;
+  o << "##INFO=<ID=CIGAR,Number=A,Type=String,Description=\"CIGAR of "
+       "consensus\">"
+    << endl;
   o << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl;
   o << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" << sample
     << endl;

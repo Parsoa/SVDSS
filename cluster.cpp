@@ -27,12 +27,19 @@ string Cluster::poa() {
   abpt->out_msa = 0;
   abpt->out_cons = 1;
   abpt->out_gfa = 0;
-  // abpt->w = 6, abpt->k = 9;
-  // abpt->min_w = 10; // minimizer-based seeding and partition
   // abpt->is_diploid = 1;
-  // abpt->min_freq = 0.3;
   abpt->progressive_poa = 0;
   abpoa_post_set_para(abpt);
+
+  // abpt->match = 2;      // match score
+  // abpt->mismatch = 4;   // mismatch penalty
+  // abpt->gap_mode = ABPOA_CONVEX_GAP; // gap penalty mode
+  // abpt->gap_open1 = 4;  // gap open penalty #1
+  // abpt->gap_ext1 = 2;   // gap extension penalty #1
+  // abpt->gap_open2 = 24; // gap open penalty #2
+  // abpt->gap_ext2 = 1;   // gap extension penalty #2
+  // gap_penalty = min{gap_open1 + gap_len * gap_ext1, gap_open2 + gap_len *
+  // gap_ext2}
 
   int *seq_lens = (int *)malloc(sizeof(int) * n_seqs);
   uint8_t **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seqs);
