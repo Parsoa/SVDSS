@@ -2,16 +2,17 @@
 
 To build a portable binary that works on any linux machine (at least we hope so),
 we use the [holy-build-box](https://github.com/phusion/holy-build-box) system.
+The binary is copied here (`holy` subfolder).
 
 ```
 docker pull phusion/holy-build-box-64:latest
 # cd root of this repo
-docker run -t -i --rm -v `pwd`:/io phusion/holy-build-box-64:3.0.4 /hbb_exe/activate-exec bash /io/holy/holy-compile.sh
+docker run -t -i --rm -v `pwd`:/io phusion/holy-build-box-64:latest /hbb_exe/activate-exec bash /io/holy/holy-compile.sh
 # quite useful (i.e., to run libcheck on a binary):
-# docker run -t -i --rm -v `pwd`:/io phusion/holy-build-box-64:3.0.4 /hbb_exe/activate-exec bash
+cd holy
+docker run -t -i --rm -v `pwd`:/io phusion/holy-build-box-64:latest /hbb_exe/activate-exec bash
+libcheck SVDSS_linux_x86-64
 ```
-
-The binary is then copied here (`holy` subfolder).
 
 Note:
 * this binary should not be linked to any [non-essential library](https://github.com/phusion/holy-build-box/blob/master/ESSENTIAL-SYSTEM-LIBRARIES.md) (at least this is what `libcheck` says)
