@@ -217,7 +217,8 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   //   cerr << p.first << op;
   // }
   // cerr << endl;
-  if (num_mismatch / num_match >= 0.02 || should_ignore) { // FIXME: HARDCODED
+
+  if (num_mismatch / num_match >= config->al_accuracy || should_ignore) {
     // read is too dirty or is not interesting, just skip it
     ignored_reads[omp_get_thread_num() - 2].push_back(qname);
   } else {

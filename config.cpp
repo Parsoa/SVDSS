@@ -39,6 +39,7 @@ Configuration::Configuration()
       "selective", "", cxxopts::value<bool>()->default_value("true"))(
       "version", "Print version information.")("help", "Print this help.")(
       "l", "", cxxopts::value<float>())(
+      "acc", "", cxxopts::value<float>())(
       "verbose", "", cxxopts::value<bool>()->default_value("false"));
 }
 
@@ -111,6 +112,9 @@ void Configuration::parse(int argc, char **argv) {
   }
   if (results.count("l")) {
     min_ratio = results["l"].as<float>();
+  }
+  if (results.count("acc")) {
+    al_accuracy = results["acc"].as<float>();
   }
   binary = results["binary"].as<bool>();
   clipped = results["clipped"].as<bool>();
