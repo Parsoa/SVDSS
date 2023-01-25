@@ -263,6 +263,7 @@ void Extender::extend_alignment(bam1_t *aln, int index) {
   pair<uint, uint> lclip;
   pair<uint, uint> rclip;
   int last_pos = 0;
+  vector<ExtSFS> local_extended_sfs;
   for (const SFS &sfs : SFSs->at(qname)) {
     int s = sfs.s;
     int e = sfs.s + sfs.l - 1;
@@ -391,11 +392,41 @@ void Extender::extend_alignment(bam1_t *aln, int index) {
       cerr << "Error on " << qname << ". SFS starting at " << sfs.s
            << " (length " << sfs.l << ")." << endl;
     } else {
-      _p_extended_sfs[index].push_back(ExtSFS(string(chrom), string(qname),
-                                              prekmer.second,
-                                              postkmer.second + kmer_size));
+      local_extended_sfs.push_back(
+          ExtSFS(string(chrom), string(qname), prekmer.second,
+                 postkmer.second + kmer_size, prekmer.first,
+                 postkmer.first + kmer_size));
     }
   }
+  // when two SFSs are close but not overlapping, we may end up with two
+  // overlapping extended SFSs merge SFS two by two until we don't need to merge
+  // anything
+  vector<ExtSFS> merged_extended_sfs;
+  for (int i = 0; i < local_extended_sfs.size(); ++i) {
+    int j;
+    for (j = 0; j < merged_extended_sfs.size(); ++j) {
+      if ((local_extended_sfs.at(i).s <= merged_extended_sfs.at(j).s &&
+           merged_extended_sfs.at(j).s <= local_extended_sfs.at(i).e) ||
+          (merged_extended_sfs.at(j).s <= local_extended_sfs.at(i).s &&
+           local_extended_sfs.at(i).s <= merged_extended_sfs.at(j).e))
+        break;
+    }
+    if (j < merged_extended_sfs.size()) {
+      merged_extended_sfs[j].s =
+          min(merged_extended_sfs.at(j).s, local_extended_sfs.at(i).s);
+      merged_extended_sfs[j].e =
+          max(merged_extended_sfs.at(j).e, local_extended_sfs.at(i).e);
+      merged_extended_sfs[j].qs =
+          min(merged_extended_sfs.at(j).qs, local_extended_sfs.at(i).qs);
+      merged_extended_sfs[j].qe =
+          max(merged_extended_sfs.at(j).qe, local_extended_sfs.at(i).qe);
+    } else {
+      merged_extended_sfs.push_back(local_extended_sfs.at(i));
+    }
+  }
+  for (const auto mes : merged_extended_sfs)
+    _p_extended_sfs[index].push_back(mes);
+
   if (lclip.second > 0) {
     _p_clips[index].push_back(
         Clip(qname, chrom, lclip.first, lclip.second, true));
