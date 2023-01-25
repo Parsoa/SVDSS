@@ -641,7 +641,7 @@ void Extender::extract_sfs_sequences() {
         ++skip_3;
       } else {
         string _seq(seq[t], qs, qe - qs + 1);
-        global_cluster.add(_seq);
+        global_cluster.add(qname, _seq);
       }
     }
     if (global_cluster.size() >= min_w) {
@@ -676,7 +676,9 @@ void Extender::extract_sfs_sequences() {
 
 vector<Cluster> Extender::cluster_by_length(const Cluster &cluster) {
   vector<Cluster> clusters_by_len;
-  for (const string &seq : cluster.get_seqs()) {
+  for (uint c = 0; c < cluster.size(); ++c) {
+    const string &name = cluster.get_name(c);
+    const string &seq = cluster.get_seq(c);
     int i;
     for (i = 0; i < clusters_by_len.size(); i++) {
       float cl = clusters_by_len[i].get_len();
@@ -690,7 +692,7 @@ vector<Cluster> Extender::cluster_by_length(const Cluster &cluster) {
       clusters_by_len.push_back(
           Cluster(cluster.chrom, cluster.s, cluster.e, cluster.cov));
     }
-    clusters_by_len[i].add(seq);
+    clusters_by_len[i].add(name, seq);
   }
   return clusters_by_len;
 }
@@ -814,6 +816,7 @@ void Extender::call() {
                        string(chromosome_seqs[chrom] + rpos - 1, 1),
                        consensus.substr(cpos, l), c.size(), c.cov, nv, score,
                        false, l, cigar_str);
+            sv.add_reads(c.get_names());
             _svs.push_back(sv);
             nv++;
           }
@@ -824,6 +827,7 @@ void Extender::call() {
                        string(chromosome_seqs[chrom] + rpos - 1, l),
                        string(chromosome_seqs[chrom] + rpos - 1, 1), c.size(),
                        c.cov, nv, score, false, l, cigar_str);
+            sv.add_reads(c.get_names());
             _svs.push_back(sv);
             nv++;
           }

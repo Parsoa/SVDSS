@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 using namespace std;
 
@@ -25,12 +26,14 @@ public:
   std::string gt;
   bool imprecise;
   string cigar;
+  string reads;
 
   SV();
   SV(const std::string type_, const std::string &chrom_, uint s_,
      const std::string &refall_, const std::string &altall_, const uint w_,
      const uint cov_, const int ngaps_, const int score_,
      bool imprecise_ = false, uint l_ = 0, string cigar_ = ".");
+  void add_reads(const vector<string> &reads_);
   void genotype();
 
   bool operator<(const SV &c) const {

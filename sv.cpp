@@ -26,6 +26,12 @@ SV::SV(const string type_, const string &chrom_, uint s_, const string &refall_,
   genotype();
 }
 
+void SV::add_reads(const vector<string> &names) {
+  for (const string &name : names)
+    reads += name + ",";
+  reads.pop_back();
+}
+
 void SV::genotype() {
   if (imprecise) {
     gt = "./.";
@@ -56,7 +62,8 @@ ostream &operator<<(ostream &os, const SV &sv) {
      << "COV=" << sv.cov << ";"
      << "AS=" << sv.score << ";"
      << "NV=" << sv.ngaps << ";"
-     << "CIGAR=" << sv.cigar
+     << "CIGAR=" << sv.cigar << ";"
+     << "READS=" << sv.reads
      << (sv.imprecise ? ";IMPRECISE\t" : "\t")
      // -
      << "GT"

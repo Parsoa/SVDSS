@@ -167,6 +167,9 @@ void Caller::print_vcf_header() {
   ovcf << "##INFO=<ID=CIGAR,Number=A,Type=String,Description=\"CIGAR of "
           "consensus\">"
        << endl;
+  ovcf << "##INFO=<ID=READS,Number=.,Type=String,Description=\"Reads "
+          "identifiers supporting the call\">"
+       << endl;
   ovcf << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">"
        << endl;
   ovcf << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tDEFAULT"
