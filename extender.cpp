@@ -42,6 +42,7 @@ void Extender::run(int _threads) {
           make_pair(cluster.first, ExtCluster(cluster.second)));
     }
   }
+
   for (const auto &cluster : _ext_clusters)
     ext_clusters.push_back(cluster.second);
 
@@ -53,6 +54,19 @@ void Extender::run(int _threads) {
     clusters.insert(clusters.begin(), _p_clusters[i].begin(),
                     _p_clusters[i].end());
   }
+
+  ofstream clofile;
+  clofile.open(config->workdir + "/clusters.txt");
+  for (const auto &cluster : clusters) {
+    // CHECKME: is ending position (cluster.first.second) inclusive? I'm
+    // assuming yes
+    clofile << cluster.chrom << ":" << cluster.s << "-" << cluster.e << "\t"
+            << cluster.size();
+    for (int i = 0; i < cluster.size(); ++i)
+      clofile << "\t" << cluster.get_name(i) << ":" << cluster.get_seq(i);
+    clofile << endl;
+  }
+  clofile.close();
 
   // merge POA alignments
   _p_svs.resize(threads);

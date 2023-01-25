@@ -52,14 +52,20 @@ bool operator<(const SFS &, const SFS &);
 struct ExtSFS {
   std::string chrom;
   std::string qname;
+  // reference positions
   int s;
   int e;
+  // query positions
+  int qs;
+  int qe;
 
-  ExtSFS(const std::string &_chrom, const std::string &_qname, int _s, int _e) {
+  ExtSFS(const std::string &_chrom, const std::string &_qname, int _s, int _e, int _qs, int _qe) {
     chrom = _chrom;
     qname = _qname;
     s = _s;
     e = _e;
+    qs = _qs;
+    qe = _qe;
   }
 
   bool operator<(const ExtSFS &c) const {
