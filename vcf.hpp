@@ -41,8 +41,4 @@ template <> struct hash<vcf_variant_t> {
 std::unordered_map<std::string, std::vector<vcf_variant_t>>
     load_vcf_file(std::string);
 
-// Write custom VCF header to ostream (it needs chromosome_seqs)
-void print_vcf_header(const unordered_map<string, char *> &, ofstream &,
-                      const string &sample = "DEFAULT");
-
 #endif
