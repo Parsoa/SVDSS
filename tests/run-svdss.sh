@@ -1,32 +1,36 @@
 #!/bin/sh
+
 SVDSS_BIN=$1
 fa=$2
 bam=$3
 wd=$4
 threads=4
+w=2
 
 mkdir -p ${wd}
 
-echo "################"
-echo "### INDEXING ###"
-echo "################"
-${SVDSS_BIN} index --fastq ${fa} --index ${fa}.fmd
+if [ ! -f ${fa}.fmd ]
+then
+    echo "[$(date)] Indexing.."
+    ${SVDSS_BIN} index --reference ${fa} --index ${fa}.fmd
+fi
 
-echo "#################"
-echo "### SMOOTHING ###"
-echo "#################"
-${SVDSS_BIN} smooth --reference ${fa} --bam ${bam} --workdir ${wd} --threads ${threads}
-samtools sort -T {output.bam}.sort-tmp ${wd}/smoothed.selective.bam > ${wd}/smoothed.selective.sorted.bam
-samtools index ${wd}/smoothed.selective.sorted.bam
+if [ ! -f ${wd}/smoothed.bam ]
+then
+    echo "[$(date)] Smoothing.."
+    ${SVDSS_BIN} smooth --reference ${fa} --bam ${bam} --threads ${threads} > ${wd}/smoothed.bam
+    samtools index ${wd}/smoothed.bam
+fi
 
-echo "#################"
-echo "### SEARCHING ###"
-echo "#################"
-${SVDSS_BIN} search --index ${fa}.fmd --bam ${wd}/smoothed.selective.sorted.bam --threads ${threads} --workdir ${wd} --assemble
+if [ ! -f ${wd}/solution_batch_0.assembled.sfs ]
+then
+    echo "[$(date)] Computing SFSs.."
+    ${SVDSS_BIN} search --index ${fa}.fmd --bam ${wd}/smoothed.bam --workdir ${wd} --threads ${threads}
+fi
 
-echo "###############"
-echo "### CALLING ###"
-echo "###############"
-n=$(ls ${wd}/solution_batch_*.assembled.sfs | wc -l)
-${SVDSS_BIN} call --reference ${fa} --bam ${wd}/smoothed.selective.sorted.bam --threads 4 --workdir ${wd} --batches ${n}
-bcftools sort ${wd}/svs_poa.vcf > ${wd}/SVDSS.vcf
+if [ ! -f ${wd}/SVDSS.vcf.gz ]
+then
+    echo "[$(date)] Calling SVs.."
+    ${SVDSS_BIN} call --reference ${fa} --bam ${wd}/smoothed.bam --threads ${threads} --workdir ${wd} --min-cluster-weight ${w}
+    bcftools sort ${wd}/svs_poa.vcf > ${wd}/SVDSS.vcf
+fi

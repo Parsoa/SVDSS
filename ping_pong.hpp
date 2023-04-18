@@ -20,12 +20,11 @@
 #include "rld0.h"
 #include "rle.h"
 
+#include "htslib/bgzf.h"
 #include "htslib/hfile.h"
+#include "htslib/hts.h"
 #include "htslib/hts_endian.h"
-#include <htslib/bgzf.h>
-#include <htslib/hfile.h>
-#include <htslib/hts.h>
-#include <htslib/sam.h>
+#include "htslib/sam.h"
 #include <zlib.h>
 
 #include "assembler.hpp"
@@ -104,8 +103,7 @@ private:
   bool load_batch_fastq(int threads, int batch_size, int p);
   batch_type_t process_batch(rld_t *index, int p, int i);
   void ping_pong_search(rld_t *index, uint8_t *seq, int l,
-                        std::vector<sfs_type_t> &solutions, bool is_smoothed,
-                        bam1_t *);
+                        std::vector<sfs_type_t> &solutions, bam1_t *);
   void output_batch(int);
 
   std::vector<std::vector<batch_type_t>> batches;

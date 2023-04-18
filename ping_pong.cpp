@@ -64,7 +64,7 @@ bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
 // we filter them
 void PingPong::ping_pong_search(rld_t *index, uint8_t *P, int l,
                                 std::vector<sfs_type_t> &solutions,
-                                bool is_smoothed, bam1_t *aln) {
+                                bam1_t *aln) {
   // cout << bam_get_qname(aln) << endl ;
   rldintv_t sai;
   int begin = l - 1;
@@ -224,7 +224,7 @@ batch_type_t PingPong::process_batch(rld_t *index, int p, int i) {
         // than batch size), but let's keep this
         break;
       ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j],
-                       solutions[read_names[p][i][j]], false, nullptr);
+                       solutions[read_names[p][i][j]], nullptr);
     }
   } else {
     for (int j = 0; j < read_seqs[p][i].size(); j++) {
@@ -232,18 +232,11 @@ batch_type_t PingPong::process_batch(rld_t *index, int p, int i) {
         // Avoid crash at next line when #alignments is smaller than batch size
         break;
       char *qname = bam_get_qname(bam_entries[p][i][j]);
-      bool is_smoothed = smoothed_reads.find(qname) != smoothed_reads.end();
-      if (config->putative) {
-        if (ignored_reads.find(qname) != ignored_reads.end()) {
-          continue;
-        }
-        // was not ignored, so either it's smoothed or not:
-        if (!is_smoothed) {
-          continue;
-        }
-      }
+      int xf_t = bam_aux2i(bam_aux_get(bam_entries[p][i][j], "XF"));
+      if (config->putative and xf_t != 0)
+        continue;
       ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j],
-                       solutions[qname], is_smoothed, bam_entries[p][i][j]);
+                       solutions[qname], bam_entries[p][i][j]);
     }
   }
   return solutions;
@@ -311,10 +304,6 @@ int PingPong::search() {
   } else {
     lprint({"No input file provided, aborting.."}, 2);
     exit(1);
-  }
-  if (config->putative) {
-    lprint({"Putative SFS extraction enabled."});
-    load_smoothed_read_ids();
   }
   // allocate all necessary stuff
   int p = 0;
@@ -457,34 +446,11 @@ int PingPong::search() {
   }
   cerr << endl;
   lprint({"Done."});
-  cout << non_x_reads << " processed." << endl;
   // cleanup
   kseq_destroy(fastq_iterator);
   gzclose(fastq_file);
   num_output_batches = current_batch;
   return u;
-}
-
-void PingPong::load_smoothed_read_ids() {
-  lprint({"Loading smoothed read ids.."});
-  ifstream ignore_file(config->workdir + "/ignored_reads.txt");
-  if (ignore_file.is_open()) {
-    string read_name;
-    while (getline(ignore_file, read_name)) {
-      ignored_reads[read_name] = true;
-    }
-    ignore_file.close();
-  }
-  ifstream in_file(config->workdir + "/smoothed_reads.txt");
-  if (in_file.is_open()) {
-    string read_name;
-    while (getline(in_file, read_name)) {
-      smoothed_reads[read_name] = true;
-    }
-    in_file.close();
-  }
-  lprint({"Loaded", to_string(ignored_reads.size()), "ignored read ids."});
-  lprint({"Loaded", to_string(smoothed_reads.size()), "smoothed read ids."});
 }
 
 // ============================================================================= \\
@@ -524,8 +490,8 @@ int PingPong::index() {
 
   // Parsing the input sample
   gzFile fp;
-  if (c->fasta != "")
-    fp = gzopen(c->fasta.c_str(), "rb");
+  if (c->reference != "")
+    fp = gzopen(c->reference.c_str(), "rb");
   else if (c->fastq != "")
     fp = gzopen(c->fastq.c_str(), "rb");
   else {

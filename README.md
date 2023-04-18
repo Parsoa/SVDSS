@@ -64,37 +64,22 @@ This will create the environment `svdss` that includes `SVDSS` and its runtime d
 Please refer to or use [Snakefile](Snakefile)/[run-svdss.sh](tests/run-svdss.sh).
 
 ```
-Index reference/sample:
-    SVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file
+Index reference:
+    SVDSS index --reference /path/to/genome/file --index /path/to/output/index/file
 
-    Optional arguments:
-        -b, --binary                            output index in binary format. Allows for another index to be appended to this index later.
-        -a, --append /path/to/binary/index      append to existing binary index.
+Smooth sample:
+    SVDSS smooth --reference /path/to/reference/genome/fasta --bam /path/to/input/bam/file > smoothed.bam
 
 Extract SFS from BAM/FASTQ/FASTA files:
-    SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
-
-    Optional arguments:
-        --assemble                              automatically runs SVDSS assemble on output
-
-Assemble SFS into superstrings:
-    SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
-
-Reconstruct sample:
-    SVDSS smooth --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+    SVDSS search --index /path/to/index --bam /path/to/input/bam --workdir /output/directory
 
 Call SVs:
-    SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
-
-    Optional arguments:
-        --clipped                               calls SVs from clipped SFS.
-        --min-cluster-weight                    minimum number of supporting superstrings for a call to be reported.
-        --min-sv-length                         minimum length of reported SVs. Default is 25. Values < 25 are ignored.
+    SVDSS call --reference /path/to/reference/genome/fasta --bam /path/to/input/bam/file --workdir /path/to/assembled/.sfs/files
 
 General options:
-    --threads                                   sets number of threads, default 4.
-    --version                                   print version information.
-    --help                                      print this help message.
+    -t,--threads                       sets number of threads (default: 4)
+    --version                          print version information
+    -h,--help                          print help message
 ```
 
 ## Detailed Usage Guide
@@ -121,7 +106,7 @@ We will now explain each step in more detail:
 Build the FMD index of the reference genome:
 
 ```
-SVDSS index --fastq GRCh38.fa --index GRCh38.bwt
+SVDSS index --reference GRCh38.fa --index GRCh38.fmd
 ```
 
 The `--index` option specifies the output file name.
@@ -131,44 +116,33 @@ The `--index` option specifies the output file name.
 Smoothing removes  nearly all SNPs, small indels and sequencing errors from reads. This results in smaller number of SFS being extracted and increases the relevance of extracted SFS to SV discovery significantly. To smooth the sample run: 
 
 ```
-SVDSS smooth --bam sample.bam --workdir $PWD --reference GRCh38.fa --threads 16
+SVDSS smooth --bam sample.bam --reference GRCh38.fa --threads 16 > smoothed.bam
 ```
 
-This produces a file named `smoothed.selective.bam`. This file is sorted in the same order as the input file, however it needs to be indexed again with `samtools index`. The command also produces two files `smoothed_reads.txt` and `ignored_reads.txt` in `workdir` that contains the ids of reads that were smoothed and ids of reads that didn't have any large (> 20bp) indels in their alignemnts. This information is used by the next step.
+This writes to stdout the smoothed bam. This file is sorted in the same order as the input file, however it needs to be indexed again with `samtools index`.
 
 ### Extract SFS from target sample
 
 To extract SFS run:
 
 ```
-SVDSS search --index GRCh38.bwt --bam smoothed.selective.bam --workdir $PWD
+SVDSS search --index GRCh38.fmd --bam smoothed.bam --workdir $PWD
 ```
 
-This step produces a number of `solution_batch_<i>.sfs` files. These files include the coordinates of SFS relative to the reads they were extracted from.
+This step produces a number of `solution_batch_<i>.assembled.sfs` files in the working directory. These files include the coordinates of SFS relative to the reads they were extracted from.
 
-### Assemble SFS into superstrings
-
-To reduce redundancy, overlapping SFS on each reads are merged. Simply run:
-
-```
-SVDSS assemble --workdir $PWD --batches N
-```
-
-Here `N` is the number of files produces by the previous step. Each `.sfs` file will be processed independently and output as a `solution_batch_<i>.assembled.sfs` file.
-
-You can combine SFS extraction and assembly by passing `--assemble` to `SVDSS search`. This will automatically run the assembler.
 
 ### Call SVs
 
 We are now ready to call SVs. Run (note that the input `.bam` must be sorted and indexed using `samtools` before running this):
 
 ```
-SVDSS call --reference GRCh38.fasta --bam smoothed.selective.bam --workdir $PWD --batches N
+SVDSS call --reference GRCh38.fasta --bam smoothed.bam --workdir $PWD --threads 16
 ```
 
 You can filter the reported SVs by passing the `--min-sv-length` and `--min-cluster-weight` options. These options control the minimum length and minimum number of supporting superstrings for the reported SVs. Higher values for `--min-cluster-weight` will increase precision at the cost of reducing recall. For a diploid 30x coverage sample, `--min-cluster-weight 2` produced the best results in our experiments. For a haploid 30x sample, instead, `--min-cluster-weight 4` produced the best results.
 
-This commands output two files: `svs_poa.vcf` that includes the SV calls and `poa.sam` which includes alignments of POA contigs to the reference genome (these POA consensus are used to call SVs).
+This commands output two files in the working directory: `svs_poa.vcf` that includes the SV calls and `poa.sam` which includes alignments of POA contigs to the reference genome (these POA consensus are used to call SVs).
 
 ### Snakemake workflow
 

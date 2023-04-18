@@ -1,6 +1,7 @@
 #ifndef CALLER_HPP
 #define CALLER_HPP
 
+#include <dirent.h>
 #include <iostream>
 
 #include "htslib/hts.h"

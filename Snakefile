@@ -23,7 +23,7 @@ rule pp_index:
     benchmark: pjoin(ODIR, "benchmark", "pp-index.txt")
     shell:
         """
-        {SVDSS_BIN} index --fastq {input.fa} --index {output.fmd}
+        {SVDSS_BIN} index --reference {input.fa} --index {output.fmd}
         """
 
 rule pp_reconstruct:
@@ -31,34 +31,19 @@ rule pp_reconstruct:
         fa = REF,
         bam = BAM
     output:
-        bam = pjoin(ODIR, "smoothed.selective.bam")
+        bam = pjoin(ODIR, "smoothed.bam")
     params:
         wd = pjoin(ODIR)
     threads: THREADS
     shell:
         """
-        {SVDSS_BIN} smooth --reference {input.fa} --bam {input.bam} --workdir {params.wd} --threads {threads}
-        """
-
-rule pp_sortreconstruct:
-    input:
-        bam = pjoin(ODIR, "smoothed.selective.bam")
-    output:
-        bam = pjoin(ODIR, "smoothed.selective.sorted.bam")
-    params:
-        sam = pjoin(ODIR, "reconstructed.sam"),
-        tmpd = pjoin(ODIR)
-    threads: 1
-    shell:
-        """
-        samtools sort -T {output.bam}.sort-tmp {input.bam} > {output.bam}
-        samtools index {output.bam}
+        {SVDSS_BIN} smooth --reference {input.fa} --bam {input.bam} --threads {threads} > {output.bam}
         """
 
 rule pp_search:
     input:
         fmd = REF + ".fmd",
-        bam = pjoin(ODIR, "smoothed.selective.sorted.bam")
+        bam = pjoin(ODIR, "smoothed.bam")
     output:
         sfs = pjoin(ODIR, "solution_batch_0.assembled.sfs")
     params:
@@ -72,7 +57,7 @@ rule pp_search:
 rule pp_call:
     input:
         fa = REF,
-        bam = pjoin(ODIR, "smoothed.selective.sorted.bam"),
+        bam = pjoin(ODIR, "smoothed.bam"),
         sfs = pjoin(ODIR, "solution_batch_0.assembled.sfs")
     output:
         vcf = pjoin(ODIR, "svdss.vcf")
@@ -81,7 +66,6 @@ rule pp_call:
     threads: THREADS
     shell:
         """
-        n=$(ls {params.wd}/solution_batch_*.assembled.sfs | wc -l)
-        {SVDSS_BIN} call --reference {input.fa} --bam {input.bam} --threads {threads} --workdir {params.wd} --batches ${{n}}
+        {SVDSS_BIN} call --reference {input.fa} --bam {input.bam} --threads {threads} --workdir {params.wd}
         bcftools sort {params.wd}/svs_poa.vcf > {output.vcf}
         """

@@ -39,8 +39,6 @@ public:
   // output BAM file
   samFile *out_bam_file;
   // <time < batch < reads > > >
-  std::vector<std::vector<std::string>> smoothed_reads;
-  std::vector<std::vector<std::string>> ignored_reads;
   std::vector<std::vector<std::vector<bam1_t *>>> bam_entries;
 
   std::vector<std::vector<std::vector<int>>> read_seq_lengths;
@@ -65,8 +63,6 @@ private:
   double expected_mismatch_rate = 0.002;
   int num_ignored_reads = 0;
   int reads_processed = 0;
-
-  void dump_smoothed_read_ids();
 };
 
 #endif

@@ -1,35 +1,37 @@
 #include "assembler.hpp"
 
 void Assembler::run() {
-  auto c = Configuration::getInstance();
-  int num_batches = c->aggregate_batches;
-  int tau = -1; // c->cutoff;
+  cerr << "Assembler is brokwn. Need to fix it.." << endl;
+  //   auto c = Configuration::getInstance();
+  //   int num_batches = c->aggregate_batches;
+  //   int tau = -1; // c->cutoff;
 
-  lprint({"Assembling high-abundance strings from", to_string(num_batches),
-          "batches.."});
-#pragma omp parallel for num_threads(c->threads)
-  for (int j = 0; j < num_batches; j++) {
-    lprint({"Loading batch", to_string(j) + ".."});
-    string s_j = std::to_string(j);
-    string inpath = c->workdir + "/solution_batch_" + s_j + ".sfs";
-    string outpath = c->workdir + "/solution_batch_" + s_j + ".assembled.sfs";
-    ofstream outf(outpath);
-    map<string, vector<SFS>> SFSs = parse_sfsfile(inpath, tau);
-    // cout << SFSs.size() << "SFS in total." << endl ;
-    for (map<string, vector<SFS>>::iterator it = SFSs.begin(); it != SFSs.end();
-         ++it) {
-      string ridx = it->first;
-      vector<SFS> sfs = it->second;
-      vector<SFS> assembled_sfs = assemble(sfs);
-      bool is_first = true;
-      for (const SFS &sfs : assembled_sfs) {
-        outf << (is_first ? ridx : "*") << "\t"
-             << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << endl;
-        is_first = false;
-      }
-    }
-    outf.close();
-  }
+  //   lprint({"Assembling high-abundance strings from", to_string(num_batches),
+  //           "batches.."});
+  // #pragma omp parallel for num_threads(c->threads)
+  //   for (int j = 0; j < num_batches; j++) {
+  //     lprint({"Loading batch", to_string(j) + ".."});
+  //     string s_j = std::to_string(j);
+  //     string inpath = c->workdir + "/solution_batch_" + s_j + ".sfs";
+  //     string outpath = c->workdir + "/solution_batch_" + s_j +
+  //     ".assembled.sfs"; ofstream outf(outpath); map<string, vector<SFS>> SFSs
+  //     = parse_sfsfile(inpath, tau);
+  //     // cout << SFSs.size() << "SFS in total." << endl ;
+  //     for (map<string, vector<SFS>>::iterator it = SFSs.begin(); it !=
+  //     SFSs.end();
+  //          ++it) {
+  //       string ridx = it->first;
+  //       vector<SFS> sfs = it->second;
+  //       vector<SFS> assembled_sfs = assemble(sfs);
+  //       bool is_first = true;
+  //       for (const SFS &sfs : assembled_sfs) {
+  //         outf << (is_first ? ridx : "*") << "\t"
+  //              << "\t" << sfs.s << "\t" << sfs.l << "\t" << sfs.c << endl;
+  //         is_first = false;
+  //       }
+  //     }
+  //     outf.close();
+  //   }
 }
 
 vector<SFS> Assembler::assemble(vector<SFS> &sfs) {

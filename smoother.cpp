@@ -218,19 +218,24 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   // }
   // cerr << endl;
 
-  if (num_mismatch / num_match >= config->al_accuracy || should_ignore) {
+  if (num_mismatch / num_match >= config->al_accuracy) {
     // read is too dirty or is not interesting, just skip it
-    ignored_reads[omp_get_thread_num() - 2].push_back(qname);
+    bam_aux_update_int(alignment, "XF", 1);
+  } else if (should_ignore) {
+    bam_aux_update_int(alignment, "XF", 2);
   } else {
     if (strlen(new_seq) != n) {
-      // CHECKME: this now should be fixed (read_seqs must not be freed above - only the new ones)
-      // cerr << "[W] " << qname << " " << strlen(new_seq) << "/" << strlen((char*)new_qual) << " " << n << endl;
-      cerr << "[W] this shouldn't happen anymore. If you see this warning, please open an issue at https://github.com/Parsoa/SVDSS/issues" << endl;
-      ignored_reads[omp_get_thread_num() - 2].push_back(qname);
+      // CHECKME: this now should be fixed (read_seqs must not be freed above -
+      // only the new ones) cerr << "[W] " << qname << " " << strlen(new_seq) <<
+      // "/" << strlen((char*)new_qual) << " " << n << endl;
+      cerr << "[W] this shouldn't happen anymore. If you see this warning, "
+              "please open an issue at https://github.com/Parsoa/SVDSS/issues"
+           << endl;
+      bam_aux_update_int(alignment, "XF", 3);
       return;
     }
-    smoothed_reads[omp_get_thread_num() - 2].push_back(qname);
     rebuild_bam_entry(alignment, new_seq, new_qual, new_cigar);
+    bam_aux_update_int(alignment, "XF", 0);
   }
 }
 
@@ -263,16 +268,14 @@ void Smoother::process_batch(vector<bam1_t *> bam_entries, int p, int i) {
 // BAM writing based on https://www.biostars.org/p/181580/
 void Smoother::run() {
   config = Configuration::getInstance();
+
   load_chromosomes(config->reference);
   // parse arguments
   bam_file = hts_open(config->bam.c_str(), "r");
   bam_index = sam_index_load(bam_file, config->bam.c_str());
   bam_header = sam_hdr_read(bam_file); // read header
   bgzf_mt(bam_file->fp.bgzf, 8, 1);
-  auto out_bam_path =
-      config->workdir +
-      (config->selective ? "/smoothed.selective.bam" : "/smoothed.bam");
-  out_bam_file = hts_open(out_bam_path.c_str(), "wb");
+  out_bam_file = hts_open("-", "wb");
   bgzf_mt(out_bam_file->fp.bgzf, 8, 1);
   int r = sam_hdr_write(out_bam_file, bam_header);
   if (r < 0) {
@@ -292,7 +295,9 @@ void Smoother::run() {
     // smoothed read qualities
     new_read_quals.push_back(
         vector<vector<uint8_t *>>(config->threads)); // current and next output
-    // CHECKME: why do we need to store two lengths (read_seq_lengths and read_seq_max_lengths)? When we have to reallocate for a too long read, we change both of them. So they should always contain the same value
+    // CHECKME: why do we need to store two lengths (read_seq_lengths and
+    // read_seq_max_lengths)? When we have to reallocate for a too long read, we
+    // change both of them. So they should always contain the same value
     // original read lengths
     read_seq_lengths.push_back(
         vector<vector<int>>(config->threads)); // current and next output
@@ -328,8 +333,6 @@ void Smoother::run() {
   lprint({"Loading first batch.."});
   load_batch_bam(config->threads, batch_size, 1);
   int p = 1;
-  ignored_reads.resize(config->threads);
-  smoothed_reads.resize(config->threads);
   time_t t;
   time(&t);
   bool should_load = true;
@@ -357,11 +360,6 @@ void Smoother::run() {
           for (int k = 0; k < batch_size / config->threads; k++) {
             for (int j = 0; j < config->threads; j++) {
               if (bam_entries[(p + 2) % modulo][j][k] != nullptr) {
-                // TODO: just store smoothed reads in the output .bam
-                // if (find(smoothed_reads[j].begin(), smoothed_reads[j].end(),
-                //          bam_get_qname(bam_entries[(p + 2) % modulo][j][k]))
-                //          !=
-                //     smoothed_reads[j].end()) {
                 if (bam_entries[(p + 2) % modulo][j][k]->core.flag &
                         BAM_FUNMAP ||
                     bam_entries[(p + 2) % modulo][j][k]->core.flag &
@@ -377,7 +375,6 @@ void Smoother::run() {
                   should_terminate = true;
                   break;
                 }
-                // }
               } else {
                 break;
               }
@@ -405,35 +402,8 @@ void Smoother::run() {
   }
   sam_close(bam_file);
   sam_close(out_bam_file);
-  dump_smoothed_read_ids();
   lprint({"Loaded", to_string(reads_processed), "reads."});
   lprint({"Wrote", to_string(reads_written), "reads."});
-}
-
-void Smoother::dump_smoothed_read_ids() {
-  lprint({"Dumping smoothed read ids.."});
-  ofstream qname_file(config->workdir + "/smoothed_reads.txt");
-  if (qname_file.is_open()) {
-    for (int i = 0; i < config->threads; i++) {
-      for (const auto &qname : smoothed_reads[i]) {
-        qname_file << qname << endl;
-      }
-    }
-  } else {
-    lprint({"Error openning smoothed_reads.txt."}, 2);
-  }
-  qname_file.close();
-  ofstream ignore_file(config->workdir + "/ignored_reads.txt");
-  if (ignore_file.is_open()) {
-    for (int i = 0; i < config->threads; i++) {
-      for (const auto &qname : ignored_reads[i]) {
-        ignore_file << qname << endl;
-      }
-    }
-    ignore_file.close();
-  } else {
-    lprint({"Error openning ignored_read.txt."}, 2);
-  }
 }
 
 bool Smoother::load_batch_bam(int threads, int batch_size, int p) {

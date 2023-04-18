@@ -83,9 +83,20 @@ void Caller::run() {
 
 void Caller::load_input_sfs() {
   int threads = config->threads;
-  int num_batches = config->aggregate_batches;
-  int num_threads = num_batches < threads ? num_batches : threads;
+  int num_batches = 0;
+  if (auto dir = opendir(config->workdir.c_str())) {
+    while (auto f = readdir(dir)) {
+      string fn = f->d_name; // FIXME
+      if (!f->d_name || f->d_name[0] == '.')
+        continue; // Skip everything that starts with a dot
+      if (fn.substr(0, 5).compare("solut") == 0)
+        ++num_batches;
+    }
+    closedir(dir);
+  }
+
   vector<unordered_map<string, vector<SFS>>> _SFSs(num_batches);
+  int num_threads = num_batches < threads ? num_batches : threads;
   lprint({"Loading assmbled SFS.."});
 #pragma omp parallel for num_threads(num_threads)
   for (int j = 0; j < num_batches; j++) {
