@@ -60,8 +60,8 @@ void Extender::run(int _threads) {
   for (const auto &cluster : clusters) {
     // CHECKME: is ending position (cluster.first.second) inclusive? I'm
     // assuming yes
-    clofile << cluster.chrom << ":" << cluster.s << "-" << cluster.e << "\t"
-            << cluster.size();
+    clofile << cluster.chrom << ":" << cluster.s + 1 << "-" << cluster.e + 1
+            << "\t" << cluster.size();
     for (int i = 0; i < cluster.size(); ++i)
       clofile << "\t" << cluster.get_name(i) << ":" << cluster.get_seq(i);
     clofile << endl;
