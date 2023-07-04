@@ -828,7 +828,7 @@ void Extender::call() {
           if (l > config->min_sv_length) {
             SV sv = SV("INS", c.chrom, rpos,
                        string(chromosome_seqs[chrom] + rpos - 1, 1),
-                       consensus.substr(cpos, l), c.size(), c.cov, nv, score,
+                       string(chromosome_seqs[chrom] + rpos - 1, 1) + consensus.substr(cpos, l), c.size(), c.cov, nv, score,
                        false, l, cigar_str);
             sv.add_reads(c.get_names());
             _svs.push_back(sv);
