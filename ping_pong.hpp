@@ -50,6 +50,22 @@ static unsigned char seq_nt6_table[128] = {
     5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 5, 2, 5, 5, 5, 3, 5, 5, 5, 5, 5, 5,
     5, 5, 5, 5, 5, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
+static inline int kputsn(const char *p, int l, kstring_t *s) {
+  if (s->l + l + 1 >= s->m) {
+    char *tmp;
+    s->m = s->l + l + 2;
+    kroundup32(s->m);
+    if ((tmp = (char *)realloc(s->s, s->m)))
+      s->s = tmp;
+    else
+      return EOF;
+  }
+  memcpy(s->s + s->l, p, l);
+  s->l += l;
+  s->s[s->l] = 0;
+  return l;
+}
+
 typedef SFS sfs_type_t;
 typedef map<string, vector<sfs_type_t>> batch_type_t;
 
@@ -61,25 +77,17 @@ public:
   int index();
   int search();
 
-  int num_output_batches;
-
 private:
   Configuration *config;
 
   int bam_mode;
-  int current_batch = 0;
-  int last_dumped_batch = 0;
+  int current_obatch = 0;
   int reads_processed = 0;
-  int non_x_reads = 0;
 
   gzFile fastq_file;
   kseq_t *fastq_iterator;
   samFile *bam_file;
   bam_hdr_t *bam_header;
-
-  unordered_map<string, bool> smoothed_reads;
-  unordered_map<string, bool> ignored_reads;
-  void load_smoothed_read_ids();
 
   vector<vector<vector<int>>> read_seq_lengths;
   vector<vector<vector<int>>> read_seq_max_lengths;
@@ -91,14 +99,10 @@ private:
   bool load_batch_fastq(int threads, int batch_size, int p);
   batch_type_t process_batch(rld_t *index, int p, int i);
   void ping_pong_search(rld_t *index, uint8_t *seq, int l,
-                        vector<sfs_type_t> &solutions, int);
+                        vector<sfs_type_t> &solutions, int hp);
   void output_batch(int);
 
   vector<vector<batch_type_t>> obatches;
-
-  bool check_solution(rld_t *index, string S);
-  bool backward_search(rld_t *index, const uint8_t *P, int p2);
-  fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l);
 };
 
 #endif

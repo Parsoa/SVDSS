@@ -6,13 +6,13 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <zlib.h>
+
+#include <kseq.h>
 
 #ifdef __GNUC__
 #pragma GCC system_header
 #endif
-
-#include "kseq.h"
-#include <zlib.h>
 
 KSEQ_INIT(gzFile, gzread)
 
