@@ -84,7 +84,7 @@ bool PingPong::load_batch_bam(int p) {
                         bam_entries[p][nseqs % threads][i])) >= 0) {
     bam1_t *alignment = bam_entries[p][nseqs % threads][i];
     if (alignment == nullptr) {
-      cerr << "nullptr. Why are we here? Please check" << endl;
+      spdlog::critical("nullptr. Why are we here? Please check");
       exit(1);
     }
     reads_processed += 1;
@@ -95,7 +95,7 @@ bool PingPong::load_batch_bam(int p) {
     if (alignment->core.l_qseq < 100) // FIXME: why do we need this?
       continue;
     if (alignment->core.tid < 0) {
-      cerr << "core.tid < 0. Why are we here? Please check" << endl;
+      spdlog::critical("core.tid < 0. Why are we here? Please check");
       exit(1);
     }
 
@@ -252,23 +252,20 @@ int PingPong::search() {
   config = Configuration::getInstance();
 
   // parse arguments
-  cerr << "Restoring index..";
+  spdlog::info("Restoring index..");
   rld_t *index = rld_restore(config->index.c_str());
-  cerr << "Done." << endl;
   if (config->bam != "") {
-    cerr << "BAM input: " << config->bam << endl;
     bam_file = hts_open(config->bam.c_str(), "r");
     bam_header = sam_hdr_read(bam_file);
     bgzf_mt(bam_file->fp.bgzf, 8, 1);
     bam_mode = 1;
   } else if (config->fastq != "") {
-    cerr << "FASTQ input: " << config->fastq << endl;
-    cerr << "Note that FASTQ mode is not optimized" << endl;
+    spdlog::warn("FASTQ mode is not optimized");
     fastq_file = gzopen(config->fastq.c_str(), "r");
     fastq_iterator = kseq_init(fastq_file);
     bam_mode = 0;
   } else {
-    cerr << "No .bam/.fq file provided, aborting.." << endl;
+    spdlog::critical("No .bam/.fq file provided, aborting..");
     exit(1);
   }
   // allocate all necessary stuff
@@ -323,8 +320,7 @@ int PingPong::search() {
 
   uint64_t total_sfs = 0;
   int64_t sfs_to_output = 0;
-  cerr << "Extracting SFS strings on " << config->threads << " threads.."
-       << endl;
+  spdlog::info("Extracting SFS strings on {} threads..", config->threads);
 
   while (should_process) {
     if (!should_load)
@@ -377,11 +373,9 @@ int PingPong::search() {
       ++curr_time;
     time(&curr_time);
 
-    cerr << "Batches loaded so far: " << obatches.size()
-         << ". Reads loaded so far: " << reads_processed
+    cerr << "Reads loaded so far: " << reads_processed
          << ". Reads processed per second: "
          << reads_processed / (curr_time - start_time)
-         << ". SFS extracted so far: " << total_sfs
          << ". Batches exported: " << current_obatch
          << ". Time: " << curr_time - start_time << "\r";
   }
@@ -418,9 +412,9 @@ int PingPong::index() {
   bool binary_output = config->binary;
   if (config->append != "") {
     FILE *fp;
-    cerr << "Appending to index: " << config->append << endl;
+    spdlog::info("Appending to index: {}", config->append);
     if ((fp = fopen(config->append.c_str(), "rb")) == 0) {
-      cerr << "Failed to open file " << config->append << endl;
+      spdlog::critical("Failed to open file {}", config->append);
       return 1;
     }
     mr = mr_restore(fp);
@@ -439,7 +433,7 @@ int PingPong::index() {
   else if (config->fastq != "")
     fp = gzopen(config->fastq.c_str(), "rb");
   else {
-    cerr << "Please provide a FASTA/Q file. Halting.." << endl;
+    spdlog::critical("Please provide a FASTA/Q file. Halting..");
     exit(1);
   }
   kseq_t *ks = kseq_init(fp);

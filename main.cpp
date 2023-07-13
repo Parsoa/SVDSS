@@ -15,6 +15,9 @@
 #include <unistd.h>
 #include <unordered_map>
 
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
+
 // there may be some issue here. with a different include order
 // (assembler/caller/smoother at the end), compilation fails
 #include "assembler.hpp"
@@ -36,12 +39,10 @@ const string version = "v1.0.5";
 void create_workdir() {
   auto c = Configuration::getInstance();
   struct stat info;
-  cerr << c->workdir << endl;
   if (stat(c->workdir.c_str(), &info) != 0) {
-    cerr << "Working directory does not exist. creating.." << endl;
     int check = mkdir(c->workdir.c_str(), 0777);
     if (check != 0) {
-      cerr << "Failed to create output directory, aborting.." << endl;
+      spdlog::critical("Failed to create output directory, aborting..");
       exit(EXIT_FAILURE);
     }
   }
@@ -50,7 +51,11 @@ void create_workdir() {
 int main(int argc, char **argv) {
   time_t t;
   time(&t);
+  spdlog::set_default_logger(spdlog::stderr_color_st("stderr"));
+
   auto c = Configuration::getInstance();
+  // if (opt::verbose)
+  //   spdlog::set_level(spdlog::level::debug);
 
   if (argc == 1) {
     c->print_help("");
@@ -69,8 +74,6 @@ int main(int argc, char **argv) {
     exit(EXIT_SUCCESS);
   }
 
-  // cerr << "SVDSS, Structural Variant Discovery from Sample-specific Strings."
-  // << endl; cerr << "Mode: " << argv[1] << endl;
   if (strcmp(argv[1], "call") == 0) {
     if (c->reference == "" || c->bam == "" || c->workdir == "") {
       c->print_help(argv[1]);
@@ -109,7 +112,7 @@ int main(int argc, char **argv) {
   }
   time_t s;
   time(&s);
-  cerr << "Complete. Runtime: " << to_string(s - t) << " seconds." << endl;
+  spdlog::info("All done! Runtime: {} seconds", s - t);
 
   return 0;
 }

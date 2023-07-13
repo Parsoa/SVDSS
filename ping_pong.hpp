@@ -26,6 +26,7 @@
 #include <htslib/hts.h>
 #include <htslib/hts_endian.h>
 #include <htslib/sam.h>
+#include <spdlog/spdlog.h>
 
 #include "assembler.hpp"
 #include "config.hpp"

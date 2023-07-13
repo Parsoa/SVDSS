@@ -124,6 +124,7 @@ set_target_properties(PARASAIL PROPERTIES IMPORTED_LOCATION ${PARASAIL_SOURCE_DI
 
 # rapidfuzz-cpp
 ################
+message(STATUS "rapidfuzz-cpp will be built from source")
 FetchContent_Declare(rapidfuzz
   GIT_REPOSITORY https://github.com/maxbachmann/rapidfuzz-cpp.git
   GIT_TAG 5412d5d877518e7754394bdbec76e45c8187c631) # v1.10.4
@@ -131,6 +132,7 @@ FetchContent_MakeAvailable(rapidfuzz)
 
 # interval-tree
 ################
+message(STATUS "interval-tree will be cloned")
 ExternalProject_Add(intervaltree
     GIT_REPOSITORY https://github.com/5cript/interval-tree.git
     GIT_TAG 309b9c725191d4bb1d134f28a8a32ad2f68a8ffa
@@ -145,6 +147,7 @@ SET(INTERVALTREE_INCLUDE_DIR ${INTERVALTREE_SOURCE_DIR}/include/interval-tree)
 
 # ropebwt2
 ##########
+message(STATUS "ropebwt2 will be built from source")
 ExternalProject_Add(ropebwt
     GIT_REPOSITORY https://github.com/lh3/ropebwt2.git
     GIT_TAG bd8dbd3db2e9e3cff74acc2907c0742c9ebbf033
@@ -164,11 +167,19 @@ set_source_files_properties(${ropebwt-src} PROPERTIES GENERATED TRUE)
 add_library(ROPEBWT OBJECT ${ropebwt-src})
 add_dependencies(ROPEBWT ropebwt)
 
+# spdlog
+########
+message(STATUS "spdlog will be built from source")
+FetchContent_Declare(spdlog
+  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+  GIT_TAG 7e635fca68d014934b4af8a1cf874f63989352b7) # v1.12.0
+FetchContent_MakeAvailable(spdlog)
+
 ############################################
 ### final setup (includes and libraries) ###
 ############################################
 
-add_dependencies(SVDSS abpoa parasail rapidfuzz intervaltree ropebwt)
+add_dependencies(SVDSS abpoa parasail rapidfuzz intervaltree ropebwt spdlog)
 if(NOT DEFINED CONDAPREFIX)
   # we need to build them
   add_dependencies(SVDSS deflate htslib)
@@ -181,6 +192,7 @@ target_include_directories(SVDSS
   PRIVATE ${RAPIDFUZZ_INCLUDE_DIR}
   PRIVATE ${INTERVALTREE_INCLUDE_DIR}
   PRIVATE ${ROPEBWT_INCLUDE_DIR}
+  PRIVATE ${SPDLOG_INCLUDE_DIR}
   PRIVATE ${PROJECT_SOURCE_DIR}
 )
 
@@ -207,6 +219,7 @@ target_link_libraries(SVDSS
   PUBLIC ${BINARY_DIR}/lib/libabpoa.a
   PUBLIC PARASAIL
   PUBLIC ROPEBWT
+  PUBLIC spdlog::spdlog
   PUBLIC z
 )
 
