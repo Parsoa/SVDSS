@@ -20,7 +20,6 @@
 #include "chromosomes.hpp"
 #include "config.hpp"
 #include "fastq.hpp"
-#include "lprint.hpp"
 #include "vcf.hpp"
 
 using namespace std;

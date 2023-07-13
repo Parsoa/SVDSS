@@ -30,11 +30,11 @@ void Extender::run(int _threads) {
     }
     clips.insert(clips.begin(), _p_clips[i].begin(), _p_clips[i].end());
   }
-  lprint({"Extension complete.", to_string(clips.size()), " clipped SFS."});
+  cerr << "Extension complete. " << clips.size() << " clipped SFS." << endl;
   // build a separate interval tree for each chromosome
   cluster_no_interval_tree();
   // put all clusters in a single vector
-  lprint({"Flattening interval clusters.."});
+  cerr << "Flattening interval clusters.." << endl;
   map<pair<int, int>, ExtCluster> _ext_clusters;
   for (int i = 0; i < threads; i++) {
     for (const auto &cluster : _p_sfs_clusters[i]) {
@@ -77,12 +77,9 @@ void Extender::run(int _threads) {
     alignments.insert(alignments.begin(), _p_alignments[i].begin(),
                       _p_alignments[i].end());
   }
-  lprint({"Extracted", to_string(svs.size()), "SVs."});
+  cerr << "Extracted " << svs.size() << " SVs." << endl;
   sam_close(bam_file);
   filter_sv_chains();
-  // lprint({"Error stats: ", to_string(skip_1), " can't be mapped, ",
-  // to_string(skip_2), " can't be extended ", to_string(skip_3), " anomalies.",
-  // to_string(skip_4), " clipped."}) ;
 }
 
 pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
@@ -144,7 +141,7 @@ pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
 
 // Parallelize within each chromosome
 void Extender::extend_parallel() {
-  lprint({"Extending superstrings on", to_string(threads), "threads.."});
+  cerr << "Extending superstrings on " << threads << " threads.." << endl;
   int p = 0;
   int b = 0;
   for (int i = 0; i < 2; i++) {
@@ -167,7 +164,6 @@ void Extender::extend_parallel() {
   bool printed = false;
 #pragma omp parallel num_threads(config->threads + 1)
   while (!loaded_last_batch) {
-// lprint({"Beginning batch", to_string(b + 1)});
 #pragma omp single
     {
       for (int i = 0; i < threads; i++) {
@@ -196,7 +192,7 @@ void Extender::extend_parallel() {
       if (s - t == 0) {
         s += 1;
       }
-      cerr << "[I] Processed batch " << std::left << b
+      cerr << "Processed batch " << std::left << b
            << ". Alignments so far: " << std::right << u
            << ". Alignments per second: " << u / (s - t)
            << ". Time: " << std::fixed << s - t << "\r";
@@ -214,7 +210,6 @@ void Extender::extend_parallel() {
       }
     }
   }
-  lprint({"Done."});
 }
 
 bool Extender::load_batch_bam(int threads, int batch_size, int p) {
@@ -248,7 +243,6 @@ bool Extender::load_batch_bam(int threads, int batch_size, int p) {
       if (i + 1 < bam_entries[p][j].size())
         bam_entries[p][j][i + 1] = nullptr;
   }
-  // lprint({"Loaded", to_string(n), "BAM reads.."});
   return n != 0 ? true : false;
 }
 
@@ -281,6 +275,7 @@ void Extender::extend_alignment(bam1_t *aln, int index) {
   for (const SFS &sfs : SFSs->at(qname)) {
     int s = sfs.s;
     int e = sfs.s + sfs.l - 1;
+    int hp_tag = sfs.htag;
     int aln_start = -1;
     int aln_end = -1;
     vector<pair<int, int>> local_alpairs;
@@ -409,7 +404,7 @@ void Extender::extend_alignment(bam1_t *aln, int index) {
       local_extended_sfs.push_back(
           ExtSFS(string(chrom), string(qname), prekmer.second,
                  postkmer.second + kmer_size, prekmer.first,
-                 postkmer.first + kmer_size));
+                 postkmer.first + kmer_size, hp_tag));
     }
   }
   // when two SFSs are close but not overlapping, we may end up with two
@@ -463,8 +458,8 @@ void Extender::cluster_no_interval_tree() {
                               return lhs.e - lhs.s < rhs.e - rhs.s;
                             });
   int dist = (r->e - r->s) * 1.1;
-  lprint({"Maximum extended-SFS length:", to_string(r->e - r->s),
-          "bp. Using separation distance", to_string(dist) + "."});
+  cerr << "Maximum extended-SFS length: " << r->e - r->s
+       << "bp. Using separation distance " << dist << "." << endl;
   // find large gaps
   int prev_i = 0;
   int prev_e = extended_sfs[0].e;
@@ -495,7 +490,7 @@ void Extender::cluster_no_interval_tree() {
   time(&s);
   time_t u;
   bool printed = false;
-  lprint({"Retrieved", to_string(intervals.size()), " intervals."});
+  cerr << "Retrieved " << intervals.size() << " intervals." << endl;
   _p_sfs_clusters.resize(threads);
 #pragma omp parallel for num_threads(threads) schedule(static, 1)
   for (int i = 0; i < intervals.size(); i++) {
@@ -530,7 +525,7 @@ void Extender::cluster_no_interval_tree() {
     if (t == 0) {
       time(&u);
       if (u - s > 30) {
-        cerr << "[I] Processed " << std::left << i
+        cerr << "Processed " << std::left << i
              << " intervals so far. Intervals per second: " << i / (u - f)
              << ". Time: " << u - f << "\r";
         time(&s);
@@ -544,7 +539,7 @@ void Extender::cluster_no_interval_tree() {
 }
 
 void Extender::extract_sfs_sequences() {
-  lprint({"Analyzing", to_string(ext_clusters.size()), "clusters.."});
+  cerr << "Analyzing " << ext_clusters.size() << " clusters.." << endl;
   char *seq[threads];
   uint32_t len[threads];
   bam1_t *_p_aln[threads];
@@ -668,7 +663,7 @@ void Extender::extract_sfs_sequences() {
     if (t == 0) {
       time(&u);
       if (u - s > 30) {
-        cerr << "[I] Processed " << std::left << i
+        cerr << "Processed " << std::left << i
              << " clusters so far. Clusters per second: " << i / (u - f)
              << ". Time: " << u - f << "\r";
         time(&s);
@@ -727,7 +722,7 @@ vector<pair<uint, char>> Extender::parse_cigar(string cigar) {
 }
 
 void Extender::call() {
-  lprint({"Calling SVs from", to_string(clusters.size()), "clusters.."});
+  cerr << "Calling SVs from " << clusters.size() << " clusters.." << endl;
   time_t f;
   time(&f);
   time_t s;
@@ -828,8 +823,9 @@ void Extender::call() {
           if (l > config->min_sv_length) {
             SV sv = SV("INS", c.chrom, rpos,
                        string(chromosome_seqs[chrom] + rpos - 1, 1),
-                       string(chromosome_seqs[chrom] + rpos - 1, 1) + consensus.substr(cpos, l), c.size(), c.cov, nv, score,
-                       false, l, cigar_str);
+                       string(chromosome_seqs[chrom] + rpos - 1, 1) +
+                           consensus.substr(cpos, l),
+                       c.size(), c.cov, nv, score, false, l, cigar_str);
             sv.add_reads(c.get_names());
             _svs.push_back(sv);
             nv++;
@@ -893,7 +889,7 @@ void Extender::call() {
     if (t == 0) {
       time(&u);
       if (u - s > 30) {
-        cerr << "[I] Processed " << std::left << _
+        cerr << "Processed " << std::left << _
              << " clusters so far. Cluster per second: " << _ / (u - f)
              << ". Time: " << u - f << "\r";
         time(&s);
@@ -913,7 +909,7 @@ void Extender::filter_sv_chains() {
   if (svs.size() < 2) {
     return;
   }
-  lprint({to_string(svs.size()), "SVs before chain filtering."});
+  cerr << svs.size() << " SVs before chain filtering." << endl;
   vector<SV> _svs;
   auto &prev = svs[0];
   bool reset = false;
@@ -958,5 +954,5 @@ void Extender::filter_sv_chains() {
   _svs.push_back(prev);
   svs.clear();
   svs.insert(svs.begin(), _svs.begin(), _svs.end());
-  lprint({to_string(svs.size()), "SVs after chain filtering."});
+  cerr << svs.size() << " SVs after chain filtering." << endl;
 }

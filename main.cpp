@@ -21,7 +21,6 @@
 #include "caller.hpp"
 #include "chromosomes.hpp"
 #include "config.hpp"
-#include "lprint.hpp"
 #include "ping_pong.hpp"
 #include "smoother.hpp"
 
@@ -37,12 +36,12 @@ const string version = "v1.0.5";
 void create_workdir() {
   auto c = Configuration::getInstance();
   struct stat info;
-  // lprint({c->workdir}, 0);
+  cerr << c->workdir << endl;
   if (stat(c->workdir.c_str(), &info) != 0) {
-    // lprint({"Working directory does not exist. creating.."}, 0);
+    cerr << "Working directory does not exist. creating.." << endl;
     int check = mkdir(c->workdir.c_str(), 0777);
     if (check != 0) {
-      // lprint({"Failed to create output directory, aborting.."}, 2);
+      cerr << "Failed to create output directory, aborting.." << endl;
       exit(EXIT_FAILURE);
     }
   }
@@ -110,7 +109,7 @@ int main(int argc, char **argv) {
   }
   time_t s;
   time(&s);
-  lprint({"Complete. Runtime:", to_string(s - t) + " seconds."});
+  cerr << "Complete. Runtime: " << to_string(s - t) << " seconds." << endl;
 
   return 0;
 }

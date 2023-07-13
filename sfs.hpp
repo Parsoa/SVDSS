@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+using namespace std;
+
 static const char RCN[128] = {
     0,   0,   0, 0,   0,   0,   0,   0,   0,   0,   //  0
     0,   0,   0, 0,   0,   0,   0,   0,   0,   0,   // 10
@@ -25,47 +27,48 @@ static const char RCN[128] = {
 };
 
 struct SFS {
-  uint s;
-  uint l;
-  uint c;
-  bool isreversed;
+  int s;
+  int l;
+  int htag;
 
   SFS() {
     s = 0;
     l = 0;
-    c = 0;
-    isreversed = false;
+    htag = 0;
   }
 
-  SFS(uint s_, uint l_, uint c_, bool isreversed_) {
+  SFS(int s_, int l_, int htag_) {
     s = s_;
     l = l_;
-    c = c_;
-    isreversed = isreversed_;
+    htag = htag_;
   }
 
-  void reverse(uint p) { s = p - s - l; }
+  // void reverse(int p) { s = p - s - l; }
 };
 
 bool operator<(const SFS &, const SFS &);
 
 struct ExtSFS {
-  std::string chrom;
-  std::string qname;
+  string chrom;
+  string qname;
   // reference positions
   int s;
   int e;
   // query positions
   int qs;
   int qe;
+  // other
+  int htag;
 
-  ExtSFS(const std::string &_chrom, const std::string &_qname, int _s, int _e, int _qs, int _qe) {
+  ExtSFS(const string &_chrom, const string &_qname, int _s, int _e,
+         int _qs, int _qe, int _htag) {
     chrom = _chrom;
     qname = _qname;
     s = _s;
     e = _e;
     qs = _qs;
     qe = _qe;
+    htag = _htag;
   }
 
   bool operator<(const ExtSFS &c) const {
@@ -83,14 +86,14 @@ struct ExtSFS {
 
 class Consensus {
 public:
-  std::string seq;
-  std::string chrom;
-  std::string cigar;
+  string seq;
+  string chrom;
+  string cigar;
   int s;
   int e;
 
-  Consensus(const std::string _seq, const std::string _cigar,
-            const std::string _chrom, int _s, int _e) {
+  Consensus(const string _seq, const string _cigar,
+            const string _chrom, int _s, int _e) {
     seq = _seq;
     cigar = _cigar;
     chrom = _chrom;
@@ -99,6 +102,6 @@ public:
   }
 };
 
-std::map<std::string, std::vector<SFS>> parse_sfsfile(const std::string &, int);
+map<string, vector<SFS>> parse_sfsfile(const string &, int);
 
 #endif

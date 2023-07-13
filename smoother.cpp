@@ -279,7 +279,7 @@ void Smoother::run() {
   bgzf_mt(out_bam_file->fp.bgzf, 8, 1);
   int r = sam_hdr_write(out_bam_file, bam_header);
   if (r < 0) {
-    lprint({"Can't write corrected BAM header, aborting.."}, 2);
+    cerr << "Can't write corrected BAM header, aborting.." << endl;
     return;
   }
   // allocate stuff
@@ -330,7 +330,7 @@ void Smoother::run() {
   }
 
   int b = 0;
-  lprint({"Loading first batch.."});
+  cerr << "Loading first batch.." << endl;
   load_batch_bam(config->threads, batch_size, 1);
   int p = 1;
   time_t t;
@@ -371,7 +371,8 @@ void Smoother::run() {
                                  bam_entries[(p + 2) % modulo][j][k]);
                 reads_written += 1;
                 if (ret < 0) {
-                  lprint({"Can't write corrected BAM record, aborting.."}, 2);
+                  cerr << "Can't write corrected BAM record, aborting.."
+                       << endl;
                   should_terminate = true;
                   break;
                 }
@@ -388,7 +389,7 @@ void Smoother::run() {
       }
     }
     if (should_terminate) {
-      lprint({"Something went wrong, aborting.."}, 2);
+      cerr << "Something went wrong, aborting.." << endl;
       return;
     }
     p += 1;
@@ -402,8 +403,8 @@ void Smoother::run() {
   }
   sam_close(bam_file);
   sam_close(out_bam_file);
-  lprint({"Loaded", to_string(reads_processed), "reads."});
-  lprint({"Wrote", to_string(reads_written), "reads."});
+  cerr << "Loaded " << reads_processed << " reads." << endl;
+  cerr << "Wrote " << reads_written << " reads." << endl;
 }
 
 bool Smoother::load_batch_bam(int threads, int batch_size, int p) {

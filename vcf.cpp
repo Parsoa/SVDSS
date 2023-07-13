@@ -43,6 +43,6 @@ unordered_map<string, vector<vcf_variant_t>> load_vcf_file(string path) {
       n++;
     }
   }
-  lprint({"Loaded", to_string(n), "variants from", path});
+  cerr << "Loaded " << n << " variants from " << path << endl;
   return vcf_variants;
 }

@@ -13,8 +13,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "lprint.hpp"
-
 using namespace std;
 
 // CHECKME: I created the SV class. Maybe we can merge it with this struct

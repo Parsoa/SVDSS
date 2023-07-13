@@ -6,11 +6,8 @@ void Assembler::run() {
   //   int num_batches = c->aggregate_batches;
   //   int tau = -1; // c->cutoff;
 
-  //   lprint({"Assembling high-abundance strings from", to_string(num_batches),
-  //           "batches.."});
   // #pragma omp parallel for num_threads(c->threads)
   //   for (int j = 0; j < num_batches; j++) {
-  //     lprint({"Loading batch", to_string(j) + ".."});
   //     string s_j = std::to_string(j);
   //     string inpath = c->workdir + "/solution_batch_" + s_j + ".sfs";
   //     string outpath = c->workdir + "/solution_batch_" + s_j +
@@ -44,14 +41,14 @@ vector<SFS> Assembler::assemble(vector<SFS> &sfs) {
       if (sfs[j - 1].s + sfs[j - 1].l <= sfs[j].s) {
         // non-overlapping
         uint l = sfs[j - 1].s + sfs[j - 1].l - sfs[i].s;
-        assembled_sfs.push_back(SFS(sfs[i].s, l, 1, sfs[i].isreversed));
+        assembled_sfs.push_back(SFS(sfs[i].s, l, sfs[i].htag));
         i = j;
         break;
       }
     }
     if (j == sfs.size()) {
       uint l = sfs[j - 1].s + sfs[j - 1].l - sfs[i].s;
-      assembled_sfs.push_back(SFS(sfs[i].s, l, 1, sfs[i].isreversed));
+      assembled_sfs.push_back(SFS(sfs[i].s, l, sfs[i].htag));
       i = j;
     }
   }

@@ -6,18 +6,17 @@ using namespace std;
 
 void Caller::run() {
   config = Configuration::getInstance();
-  lprint({"PingPong SV Caller running on", to_string(config->threads),
-          "threads.."});
+  cerr << "SV Caller running on " << config->threads << "threads.." << endl;
   // load reference genome and SFS
   load_chromosomes(config->reference);
-  lprint({"Loaded all chromosomes."});
+  cerr << "Loaded all chromosomes." << endl;
   load_input_sfs();
   // call SVs from extended SFS
   vector<SV> svs;
   Extender extender = Extender(&SFSs);
   extender.run(config->threads);
   svs.insert(svs.begin(), extender.svs.begin(), extender.svs.end());
-  lprint({"Predicted", to_string(svs.size()), "SVs from extended SFS."});
+  cerr << "Predicted " << svs.size() << " SVs from extended SFS." << endl;
   interval_tree_t<int> vartree;
   for (const auto &sv : svs) {
     vartree.insert({sv.s - 1000, sv.e + 1000});
@@ -25,7 +24,7 @@ void Caller::run() {
   std::sort(svs.begin(), svs.end());
   // output POA alignments SAM
   string poa_path = config->workdir + "/poa.sam";
-  lprint({"Outputting POA alignments to", poa_path + ".."});
+  cerr << "Outputting POA alignments to " << poa_path << ".." << endl;
   osam.open(poa_path);
   osam << "@HD\tVN:1.4" << endl;
   for (int i = 0; i < chromosomes.size(); ++i) {
@@ -50,7 +49,8 @@ void Caller::run() {
   osam.close();
   // output SV calls
   string vcf_path = config->workdir + "/svs_poa.vcf";
-  lprint({"Exporting", to_string(svs.size()), "SV calls to", vcf_path + ".."});
+  cerr << "Exporting " << svs.size() << " SV calls to " << vcf_path << ".."
+       << endl;
   ovcf.open(vcf_path);
   print_vcf_header();
   for (const SV &sv : svs) {
@@ -68,10 +68,10 @@ void Caller::run() {
       clipped_svs.insert(svs.begin(), clipper._p_svs[i].begin(),
                          clipper._p_svs[i].end());
     }
-    lprint({"Predicted", to_string(s), "SVs from clipped SFS."});
+    cerr << "Predicted " << s << " SVs from clipped SFS." << endl;
     string vcf_path = config->workdir + "/svs_clipped.vcf";
-    lprint({"Exporting", to_string(clipped_svs.size()), "SV calls to",
-            vcf_path + ".."});
+    cerr << "Exporting " << clipped_svs.size() << " SV calls to " << vcf_path
+         << ".." << endl;
     ovcf.open(vcf_path);
     print_vcf_header();
     for (const SV &sv : clipped_svs) {
@@ -97,17 +97,16 @@ void Caller::load_input_sfs() {
 
   vector<unordered_map<string, vector<SFS>>> _SFSs(num_batches);
   int num_threads = num_batches < threads ? num_batches : threads;
-  lprint({"Loading assmbled SFS.."});
+  cerr << "Loading assmbled SFS.." << endl;
 #pragma omp parallel for num_threads(num_threads)
   for (int j = 0; j < num_batches; j++) {
     string s_j = std::to_string(j);
     string inpath =
         config->workdir + "/solution_batch_" + s_j + ".assembled.sfs";
-    // cout << "[I] Loading SFS from " << inpath << endl ;
     ifstream inf(inpath);
     string line;
     if (inf.is_open()) {
-      string info[4];
+      string info[5]; // FIXME: format changed
       string read_name;
       while (getline(inf, line)) {
         stringstream ssin(line);
@@ -119,23 +118,21 @@ void Caller::load_input_sfs() {
           read_name = info[0];
           _SFSs[j][read_name] = vector<SFS>();
         }
-        _SFSs[j][read_name].push_back(
-            SFS(stoi(info[1]), stoi(info[2]), stoi(info[3]), true));
+        _SFSs[j][read_name].push_back(SFS(stoi(info[1]), stoi(info[2]),
+                                          stoi(info[3])));
       }
     }
   }
   int r = 0;
   int c = 0;
   for (int j = 0; j < num_batches; j++) {
-    // lprint({"Batch", to_string(j), "with", to_string(_SFSs[j].size()),
-    // "strings."});
     r += _SFSs[j].size();
     SFSs.insert(_SFSs[j].begin(), _SFSs[j].end());
     for (auto &read : _SFSs[j]) {
       c += read.second.size();
     }
   }
-  lprint({"Loaded", to_string(c), "SFS strings on", to_string(r), "reads."});
+  cerr << "Loaded " << c << " SFS strings on " << r << " reads." << endl;
 }
 
 void Caller::print_vcf_header() {

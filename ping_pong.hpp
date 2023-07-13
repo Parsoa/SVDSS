@@ -32,7 +32,6 @@
 #include "chromosomes.hpp"
 #include "config.hpp"
 #include "fastq.hpp"
-#include "lprint.hpp"
 #include "sfs.hpp"
 
 using namespace std;
@@ -78,7 +77,7 @@ public:
 private:
   Configuration *config;
 
-  int mode;
+  int bam_mode;
   int current_batch = 0;
   int last_dumped_batch = 0;
   int reads_processed = 0;
@@ -99,14 +98,14 @@ private:
   std::vector<std::vector<std::vector<string>>> read_names;
   std::vector<std::vector<std::vector<bam1_t *>>> bam_entries;
   std::vector<std::vector<std::vector<fastq_entry_t>>> fastq_entries;
-  bool load_batch_bam(int threads, int batch_size, int p);
+  bool load_batch_bam(int batch_size, int p);
   bool load_batch_fastq(int threads, int batch_size, int p);
   batch_type_t process_batch(rld_t *index, int p, int i);
   void ping_pong_search(rld_t *index, uint8_t *seq, int l,
-                        std::vector<sfs_type_t> &solutions, bam1_t *);
+                        std::vector<sfs_type_t> &solutions, int);
   void output_batch(int);
 
-  std::vector<std::vector<batch_type_t>> batches;
+  std::vector<std::vector<batch_type_t>> obatches;
 
   bool check_solution(rld_t *index, std::string S);
   bool backward_search(rld_t *index, const uint8_t *P, int p2);

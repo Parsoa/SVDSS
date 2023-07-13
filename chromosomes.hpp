@@ -11,7 +11,6 @@
 
 #include "config.hpp"
 #include "kseq.h"
-#include "lprint.hpp"
 
 using namespace std;
 

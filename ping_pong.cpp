@@ -1,9 +1,9 @@
 #include "ping_pong.hpp"
 
-std::string interval2str(rldintv_t sai) {
-  return "[" + std::to_string(sai.x[0]) + "," + std::to_string(sai.x[1]) + "," +
-         std::to_string(sai.x[2]) + "]";
-}
+// string interval2str(rldintv_t sai) {
+//   return "[" + to_string(sai.x[0]) + "," + to_string(sai.x[1]) + "," +
+//           to_string(sai.x[2]) + "]";
+// }
 
 static inline int kputsn(const char *p, int l, kstring_t *s) {
   if (s->l + l + 1 >= s->m) {
@@ -28,53 +28,18 @@ void seq_char2nt6(int l, unsigned char *s) {
   }
 }
 
-bool PingPong::check_solution(rld_t *index, std::string S) {
-  int l = S.length();
-  uint8_t *P = (uint8_t *)S.c_str();
-  seq_char2nt6(l, P);
-  bool found_full = backward_search(index, P, l - 1);
-  bool found_prefix = backward_search(index, P, l - 2);
-  bool found_suffix = backward_search(index, P + 1, l - 2);
-  return !found_full & (found_prefix || found_suffix);
-}
-
-fastq_entry_t PingPong::get_solution(fastq_entry_t fqe, int s, int l) {
-  std::string S(fqe.seq, s, l);
-  std::string Q(fqe.qual, s, l);
-  return fastq_entry_t(fqe.head, S, Q, s, l);
-}
-
-bool PingPong::backward_search(rld_t *index, const uint8_t *P, int p2) {
-  rldintv_t sai; // rldintv_t is the struct used to store a SA interval.
-  fm6_set_intv(index, P[p2], sai);
-  while (sai.x[2] != 0) {
-    p2 -= 1;
-    rldintv_t osai[6];
-    rld_extend(index, &sai, osai, 1); // 1: backward, 0: forward
-    sai = osai[P[p2]];
-    if (p2 == 0) {
-      break;
-    }
-  }
-  return sai.x[2] != 0;
-}
-
-// This will be very fast for smoothed reads
-// However non-smoothed reads are going to produce loads of crappy SFS, unless
-// we filter them
+/* Compute SFS strings from P and store them into solutions*/
 void PingPong::ping_pong_search(rld_t *index, uint8_t *P, int l,
-                                std::vector<sfs_type_t> &solutions,
-                                bam1_t *aln) {
-  // cout << bam_get_qname(aln) << endl ;
+                                vector<sfs_type_t> &solutions, int hp_tag) {
   rldintv_t sai;
   int begin = l - 1;
   bool last_jump = false;
   while (begin >= 0) {
-    // Backward search. Find a mismatching sequence. Stop at first mismatch.
+    // Backward search. Stop at first mismatch.
     int bmatches = 0;
     fm6_set_intv(index, P[begin], sai);
-    // DEBUG(cerr << "BS from " << int2char[P[begin]] << " (" << begin << "): "
-    // << interval2str(sai) << endl ;)
+    // cerr << "BS from " << int2char[P[begin]] << " (" << begin << "): " <<
+    // interval2str(sai) << endl;
     bmatches = 0;
     while (sai.x[2] != 0 && begin > 0) {
       begin--;
@@ -83,21 +48,20 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t *P, int l,
           osai[6]; // output SA intervals (one for each symbol between 0 and 5)
       rld_extend(index, &sai, osai, 1);
       sai = osai[P[begin]];
-      // DEBUG(cerr << "- BE with " << int2char[P[begin]] << " (" << begin <<
-      // "): " << interval2str(sai) << endl ;)
     }
-    // last sequence was a match
+    // last checked char (i.e., first of the query) was a match
     if (begin == 0 && sai.x[2] != 0) {
       break;
     }
-    // DEBUG(cerr << "Mismatch " << int2char[P[begin]] << " (" <<  begin << ").
-    // bmatches: " << to_string(bmatches) << endl ;)
+    // cerr << "Mismatch " << int2char[P[begin]] << " (" <<  begin << ").
+    // bmatches: " << to_string(bmatches) << endl;
+
     //  Forward search:
     int end = begin;
     int fmatches = 0;
     fm6_set_intv(index, P[end], sai);
-    // DEBUG(cerr << "FS from " << int2char[P[end]] << " (" << end << "): " <<
-    // interval2str(sai) << endl ;)
+    // cerr << "FS from " << int2char[P[end]] << " (" << end << "): " <<
+    // interval2str(sai) << endl;
     while (sai.x[2] != 0) {
       end++;
       fmatches++;
@@ -112,7 +76,7 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t *P, int l,
     // ", " << end << "]." << endl ;)
     int sfs_len = end - begin + 1;
     int acc_len = end - begin + 1;
-    auto sfs = SFS{begin, sfs_len, 1, true};
+    SFS sfs = SFS{begin, sfs_len, hp_tag};
     solutions.push_back(sfs);
     if (begin == 0) {
       break;
@@ -123,53 +87,71 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t *P, int l,
       begin = end + config->overlap; // overlap < 0
     }
   }
-  // DEBUG(std::this_thread::sleep_for(std::chrono::seconds(2)) ;)
-  // std::this_thread::sleep_for(std::chrono::seconds(1)) ;
 }
 
-bool PingPong::load_batch_bam(int threads, int batch_size, int p) {
-  int i = 0;
-  int n = 0;
-  while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
-    auto alignment = bam_entries[p][n % threads][i];
+/* Load batch from BAM file and store to input entry p. The logic behind is:
+ * fill position i per each thread, then move to position i+1.. */
+bool PingPong::load_batch_bam(int batch_size, int p) {
+  int threads = config->threads;
+  int i = 0; // current position per thread where to load read
+  int nseqs = 0;
+
+  // there was a bug with read_seq_lenghts in v1.0.5 - the same batch is output
+  // twice since we were checking this vector without cleaning it (we have data
+  // from previous batches)
+  // FIXME: there must be a better way for doing this
+  for (int i_ = 0; i_ < read_seq_lengths[p].size(); ++i_)
+    for (int i__ = 0; i__ < read_seq_lengths[p][i_].size(); ++i__)
+      read_seq_lengths[p][i_][i__] = -1;
+
+  int o;
+  while ((o = sam_read1(bam_file, bam_header,
+                        bam_entries[p][nseqs % threads][i])) >= 0) {
+    bam1_t *alignment = bam_entries[p][nseqs % threads][i];
     if (alignment == nullptr) {
+      cerr << "nullptr" << endl;
+      read_seq_lengths[p][nseqs % threads][i] = -1;
       break;
     }
     reads_processed += 1;
     if (alignment->core.flag & BAM_FUNMAP ||
         alignment->core.flag & BAM_FSUPPLEMENTARY ||
-        alignment->core.flag & BAM_FSECONDARY) {
+        alignment->core.flag & BAM_FSECONDARY)
       continue;
-    }
-    if (alignment->core.l_qseq < 100) {
+    if (alignment->core.l_qseq < 100) // CHECKME: why do we need this?
       continue;
-    }
     if (alignment->core.tid < 0) {
+      cerr << "core.tid < 0" << endl;
       continue;
     }
-    uint32_t l = alignment->core.l_qseq; // length of the read
-    if (read_seq_max_lengths[p][n % threads][i] < l) {
-      free(read_seqs[p][n % threads][i]);
-      read_seqs[p][n % threads][i] = (uint8_t *)malloc(sizeof(char) * (l + 1));
-      read_seq_max_lengths[p][n % threads][i] = l;
+
+    uint l = alignment->core.l_qseq; // length of the read
+    // if allocated space for read is not enough, extend it
+    if (read_seq_max_lengths[p][nseqs % threads][i] <
+        l) { // CHECKME: can't we recover this info without storing it? or just
+             // allocate *A LOT* per read
+      free(read_seqs[p][nseqs % threads][i]);
+      read_seqs[p][nseqs % threads][i] =
+          (uint8_t *)malloc(sizeof(char) * (l + 1));
+      read_seq_max_lengths[p][nseqs % threads][i] = l;
     }
-    read_seq_lengths[p][n % threads][i] = l;
+    read_seq_lengths[p][nseqs % threads][i] = l;
     uint8_t *q = bam_get_seq(alignment);
-    for (int _ = 0; _ < l; _++) {
-      read_seqs[p][n % threads][i][_] = seq_nt16_str[bam_seqi(q, _)];
-    }
-    read_seqs[p][n % threads][i][l] = '\0';
-    seq_char2nt6(l, read_seqs[p][n % threads][i]); // convert to integers
-    n += 1;
-    if (n % threads == 0) {
+    for (int _ = 0; _ < l; _++)
+      read_seqs[p][nseqs % threads][i][_] = seq_nt16_str[bam_seqi(q, _)];
+    read_seqs[p][nseqs % threads][i][l] = '\0';
+    seq_char2nt6(l, read_seqs[p][nseqs % threads]
+                             [i]); // convert to integers. CHECKME: can't we do
+                                   // this while looping 2 lines above?
+    nseqs += 1;
+    if (nseqs % threads == 0)
+      // ith position filled for all threads, move to next one
       i += 1;
-    }
-    if (n == batch_size) {
+    if (nseqs == batch_size)
       return true;
-    }
   }
-  // lprint({"Loaded", to_string(n), "BAM reads.."});
-  return n != 0 ? true : false;
+  assert(o == -1);
+  return nseqs != 0;
 }
 
 bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
@@ -210,108 +192,115 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
       return true;
     }
   }
-  // lprint({"Loaded", to_string(n), "FASTQ reads.."});
   return n != 0 ? true : false;
 }
 
-batch_type_t PingPong::process_batch(rld_t *index, int p, int i) {
+/* Process batch loaded in position p for thread*/
+batch_type_t PingPong::process_batch(rld_t *index, int p, int thread) {
   batch_type_t solutions;
   // store read id once for all strings to save space, is it worth it?
-  if (mode == 0) {
-    for (int j = 0; j < read_seqs[p][i].size(); j++) {
-      if (read_seq_lengths[p][i][j] < 0)
+  if (!bam_mode) {
+    for (int j = 0; j < read_seqs[p][thread].size(); j++) {
+      if (read_seq_lengths[p][thread][j] < 0)
         // No need here (since ping_pong_search won't crash is #reads is smaller
         // than batch size), but let's keep this
         break;
-      ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j],
-                       solutions[read_names[p][i][j]], nullptr);
+      ping_pong_search(index, read_seqs[p][thread][j],
+                       read_seq_lengths[p][thread][j],
+                       solutions[read_names[p][thread][j]], 0);
     }
   } else {
-    for (int j = 0; j < read_seqs[p][i].size(); j++) {
-      if (read_seq_lengths[p][i][j] < 0)
+    for (int j = 0; j < read_seqs[p][thread].size(); j++) {
+      if (read_seq_lengths[p][thread][j] < 0)
         // Avoid crash at next line when #alignments is smaller than batch size
         break;
-      char *qname = bam_get_qname(bam_entries[p][i][j]);
-      int xf_t = bam_aux2i(bam_aux_get(bam_entries[p][i][j], "XF"));
+      uint8_t *read_seq = read_seqs[p][thread][j];
+      bam1_t *aln = bam_entries[p][thread][j];
+      char *qname = bam_get_qname(aln);
+      int xf_t = bam_aux2i(bam_aux_get(aln, "XF"));
+      int hp_t = bam_aux_get(aln, "HP") != NULL
+                     ? bam_aux2i(bam_aux_get(aln, "HP"))
+                     : 0;
+
       if (config->putative and xf_t != 0)
         continue;
-      ping_pong_search(index, read_seqs[p][i][j], read_seq_lengths[p][i][j],
-                       solutions[qname], bam_entries[p][i][j]);
+      ping_pong_search(index, read_seqs[p][thread][j],
+                       read_seq_lengths[p][thread][j], solutions[qname], hp_t);
     }
   }
   return solutions;
 }
 
+/* Output batches until batch b. We keep in memory all batches (empty), but some
+ * have been already output (check last_dumped_batch variable)*/
 void PingPong::output_batch(int b) {
   auto c = Configuration::getInstance();
-  string path = c->workdir + "/solution_batch_" +
-                std::to_string(current_batch) +
+  string path = c->workdir + "/solution_batch_" + to_string(current_batch) +
                 (c->assemble ? ".assembled" : "") + ".sfs";
-  // cerr << "Outputting to " << path << ".." << "\r" ;
-  std::ofstream o(path);
-  bool isreversed = config->bam != "";
-  uint64_t n = 0;
+  ofstream of(path);
+  // FIXME: remove last_dumped_batch, just iterate and if batch is empty, skip
+  // it
+  // TODO: can we avoid keeping empty batches in memory?
   for (int i = last_dumped_batch; i < b;
-       i++) {                        // for each of the unmerged batches
-    for (auto &batch : batches[i]) { // for each thread in batch
-      for (auto &read : batch) {     // for each read in thread
+       i++) {                         // for each of the unmerged batches
+    for (auto &batch : obatches[i]) { // for each thread in batch
+      for (auto &read : batch) {      // for each read in thread
+        vector<SFS> assembled_SFSs = read.second;
         if (c->assemble) {
-          Assembler a = Assembler();
-          vector<SFS> assembled_SFSs = a.assemble(read.second);
-          bool is_first = true;
-          for (const SFS &sfs : assembled_SFSs) {
-            o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l
-              << "\t" << sfs.c << "\t" << isreversed << endl;
-            is_first = false;
-          }
-        } else {
-          bool is_first = true;
-          for (auto &sfs : read.second) { // for each sfs in read
-            // optimize file output size by not outputing read name for every
-            // SFS
-            o << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l
-              << "\t" << sfs.c << "\t" << isreversed << endl;
-            is_first = false;
-            n += 1;
-          }
+          // Assembler a = Assembler();
+          assembled_SFSs = Assembler().assemble(read.second);
+        }
+        bool is_first = true;
+        for (const SFS &sfs : assembled_SFSs) {
+          // optimize file output size by not outputing read name for every
+          // SFS
+          of << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l
+             << "\t" << sfs.htag << "\t" << endl;
+          is_first = false;
         }
       }
       batch.clear();
     }
-    batches[i].clear();
+    obatches[i].clear();
   }
   // this is actually the first batch to output next time
   last_dumped_batch = b;
 }
 
+/** Search for specific strings in input .bam/-fq w.r.t. FMD-Index **/
 int PingPong::search() {
   config = Configuration::getInstance();
+
   // parse arguments
-  lprint({"Restoring index.."});
+  cerr << "Restoring index..";
   rld_t *index = rld_restore(config->index.c_str());
-  lprint({"Done."});
+  cerr << "Done." << endl;
   if (config->bam != "") {
-    lprint({"BAM input:", config->bam});
+    cerr << "BAM input: " << config->bam << endl;
     bam_file = hts_open(config->bam.c_str(), "r");
     bam_header = sam_hdr_read(bam_file);
     bgzf_mt(bam_file->fp.bgzf, 8, 1);
-    mode = 1;
+    bam_mode = 1;
   } else if (config->fastq != "") {
-    lprint({"FASTQ input:", config->fastq});
+    cerr << "FASTQ input: " << config->fastq << endl;
     fastq_file = gzopen(config->fastq.c_str(), "r");
     fastq_iterator = kseq_init(fastq_file);
-    mode = 0;
+    bam_mode = 0;
   } else {
-    lprint({"No input file provided, aborting.."}, 2);
+    cerr << "No .bam/.fq file provided, aborting.." << endl;
     exit(1);
   }
   // allocate all necessary stuff
-  int p = 0;
-  int batch_size = (10000 / config->threads) * config->threads;
+  int p = 0; // p can be 0 or 1, used to access the entries/batches currently
+             // analyzed
+  int batch_size =
+      (10000 / config->threads) * config->threads; // TODO: Add 10000 to CLI
   for (int i = 0; i < 2; i++) {
-    bam_entries.push_back(vector<vector<bam1_t *>>(config->threads));
-    fastq_entries.push_back(vector<vector<fastq_entry_t>>(
-        config->threads)); // current and next output
+    // entries vector contains current and next input
+    if (bam_mode)
+      bam_entries.push_back(vector<vector<bam1_t *>>(config->threads));
+    else
+      fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads));
   }
   // pre-allocate read seqs
   for (int i = 0; i < 2; i++) {
@@ -333,26 +322,25 @@ int PingPong::search() {
       }
     }
   }
-  lprint({"Loading first batch.."});
-  if (mode == 0) {
-    load_batch_fastq(config->threads, batch_size, p);
-  } else {
-    for (int i = 0; i < 2; i++) {
-      for (int j = 0; j < config->threads; j++) {
-        for (int k = 0; k < batch_size / config->threads; k++) {
+  if (bam_mode) {
+    for (int i = 0; i < 2; i++)
+      for (int j = 0; j < config->threads; j++)
+        for (int k = 0; k < batch_size / config->threads; k++)
           bam_entries[i][j].push_back(bam_init1());
-        }
-      }
-    }
-    load_batch_bam(config->threads, batch_size, p);
-  }
-  batches.push_back(
-      vector<batch_type_t>(config->threads)); // previous and current output
+    load_batch_bam(batch_size, p);
+  } else
+    load_batch_fastq(config->threads, batch_size, p);
+  obatches.push_back(vector<batch_type_t>(
+      config->threads)); // each loaded entry will produce a batch. An output
+                         // batch is a vector of config->threads batches. We
+                         // keep all output batches in memory (empty if already
+                         // output) but only two input entries
+
   // main loop
-  time_t f;
-  time(&f);
-  int b = 0;
-  uint64_t u = 0;
+  time_t start_time;
+  time_t curr_time;
+  time(&start_time);
+  int n_obatches = 0; // TODO: this can be replaces by .back() and .size()
 
   bool should_load = true;
   bool should_process = true;
@@ -360,104 +348,84 @@ int PingPong::search() {
   bool should_update_current_batch = false;
 
   uint64_t total_sfs = 0;
-  uint64_t total_sfs_output_batch = 0;
-  lprint(
-      {"Extracting SFS strings on", to_string(config->threads), "threads.."});
+  uint64_t sfs_to_output = 0;
+  cerr << "Extracting SFS strings on " << config->threads << " threads.."
+       << endl;
 
-  //#pragma omp parallel num_threads(config->threads + 2)
   while (should_process) {
-    //#pragma omp single
-    {
-      if (!should_load) {
-        should_process = false;
-      }
-      if (loaded_last_batch) {
-        should_load = false;
-      }
-    }
-//#pragma omp for
+    if (!should_load)
+      should_process = false;
+    if (loaded_last_batch)
+      should_load = false;
 #pragma omp parallel for num_threads(config->threads + 2) schedule(static, 1)
     for (int i = 0; i < config->threads + 2; i++) {
       int t = omp_get_thread_num();
       if (t == 0) {
-        // load next batch of entries
+        // first thread load next batch
         if (should_load) {
-          if (mode == 1) {
-            loaded_last_batch =
-                !load_batch_bam(config->threads, batch_size, (p + 1) % 2);
-          } else {
+          if (bam_mode)
+            loaded_last_batch = !load_batch_bam(batch_size, (p + 1) % 2);
+          else
             loaded_last_batch =
                 !load_batch_fastq(config->threads, batch_size, (p + 1) % 2);
-          }
-          // lprint({"Loaded."});
-          batches.push_back(vector<batch_type_t>(
+          obatches.push_back(vector<batch_type_t>(
               config->threads)); // previous and current output
         }
       } else if (t == 1) {
-        if (b >= 1) {
-          // just count how many strings we have
+        // second thread count and output batches (from last one not output yet
+        // to last finished)
+        if (n_obatches > 0) {
           uint64_t c = 0;
-          for (const auto &batch : batches[b - 1]) {
-            for (auto it = batch.begin(); it != batch.end(); it++) {
+          for (const auto &batch : obatches[n_obatches - 1])
+            for (auto it = batch.begin(); it != batch.end(); it++)
               c += it->second.size();
-            }
-          }
           total_sfs += c;
-          total_sfs_output_batch += c;
-          // cerr << "[I] Merged " << c << " new sequences. " << total_sfs << "
-          // total sequences." << endl ; reached memory limit or last pipeline
-          // run
-          if (total_sfs_output_batch >= 10000000 || !should_process) {
-            output_batch(b);
-            total_sfs_output_batch = 0;
+          sfs_to_output += c;
+          if (sfs_to_output >= 10000000 ||
+              !should_process) { // TODO: 10000000 to CLI
+            output_batch(n_obatches);
+            sfs_to_output = 0;
             current_batch += 1;
           }
         }
       } else {
-        if (should_process) {
-          batches[b][t - 2] = process_batch(index, p, t - 2);
-        }
+        // other threads, process the batch
+        if (should_process)
+          obatches[n_obatches][t - 2] = process_batch(index, p, t - 2);
       }
     }
-    //#pragma omp single
-    {
-      if (!should_load) {
-        // lprint({"Processed last batch of inputs."});
-      }
-      if (!should_process) {
-        // break ;
-      }
 
-      p += 1;
-      p %= 2;
-      b += 1;
-      time_t s;
-      time(&s);
-      if (s - f == 0) {
-        s = f + 1;
-      }
-      cerr << "[I] Processed batch " << b << ". Reads so far "
-           << reads_processed
-           << ". Reads per second: " << reads_processed / (s - f)
-           << ". SFS extracted so far: " << total_sfs
-           << ". Batches exported: " << current_batch << ". Time: " << s - f
-           << "\r";
-    }
+    p = (p + 1) % 2;
+    n_obatches += 1;
+    if (curr_time - start_time == 0)
+      ++curr_time;
+    time(&curr_time);
+    cerr << "Processed batch " << n_obatches << ". Reads loaded so far "
+         << reads_processed << ". Reads processed per second: "
+         << reads_processed / (curr_time - start_time)
+         << ". SFS extracted so far: " << total_sfs
+         << ". Batches exported: " << current_batch
+         << ". Time: " << curr_time - start_time << "\r";
   }
   cerr << endl;
-  lprint({"Done."});
+
   // cleanup
-  kseq_destroy(fastq_iterator);
-  gzclose(fastq_file);
+  if (bam_mode) {
+    for (int i = 0; i < 2; i++)
+      for (int j = 0; j < config->threads; j++)
+        for (int k = 0; k < batch_size / config->threads; k++)
+          bam_destroy1(bam_entries[i][j][k]);
+  } else {
+    kseq_destroy(fastq_iterator);
+    gzclose(fastq_file);
+  }
   num_output_batches = current_batch;
-  return u;
+
+  return 0;
 }
 
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
-
-/** Code adapted from ropebwt2 (main_ropebwt2 in main.c) **/
+/** Build FMD-index for input .fa/.fq. Code adapted from ropebwt2 (main_ropebwt2
+ * in main.c) **/
 int PingPong::index() {
   auto c = Configuration::getInstance();
   // hardcoded parameters
@@ -466,7 +434,7 @@ int PingPong::index() {
   int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES,
       so = MR_SO_RCLO;
   int thr_min =
-      100; // switch to single thread when < 100 strings remain in a batch
+      4; // switch to single thread when < 100 strings remain in a batch
 
   // the index
   mrope_t *mr = 0;
@@ -474,9 +442,9 @@ int PingPong::index() {
   bool binary_output = c->binary;
   if (c->append != "") {
     FILE *fp;
-    lprint({"Appending index:", c->append});
+    cerr << "Appending to index: " << c->append << endl;
     if ((fp = fopen(c->append.c_str(), "rb")) == 0) {
-      lprint({"Failed to open file", c->append}, 2);
+      cerr << "Failed to open file " << c->append << endl;
       return 1;
     }
     mr = mr_restore(fp);
@@ -512,7 +480,7 @@ int PingPong::index() {
     }
 
     // Reverse the sequence
-    for (i = 0; i < l >> 1; ++i) {
+    for (i = 0; i < (l >> 1); ++i) {
       int tmp = s[l - 1 - i];
       s[l - 1 - i] = s[i];
       s[i] = tmp;
@@ -522,7 +490,7 @@ int PingPong::index() {
     kputsn((char *)ks->seq.s, ks->seq.l + 1, &buf);
 
     // Add reverse to buffer
-    for (i = 0; i < l >> 1; ++i) {
+    for (i = 0; i < (l >> 1); ++i) {
       int tmp = s[l - 1 - i];
       tmp = (tmp >= 1 && tmp <= 4) ? 5 - tmp : tmp;
       s[l - 1 - i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
@@ -575,38 +543,4 @@ int PingPong::index() {
   mr_destroy(mr);
 
   return 0;
-}
-
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
-
-bool PingPong::query(string q) {
-  config = Configuration::getInstance();
-  rld_t *index = rld_restore(config->index.c_str());
-  // parse arguments
-  lprint({"Restoring index.."});
-  int l = q.length();
-  uint8_t *p = (uint8_t *)q.c_str();
-  seq_char2nt6(l, p);
-  bool found_full = backward_search(index, p, l - 1);
-  bool found_prefix = backward_search(index, p, l - 2);
-  bool found_suffix = backward_search(index, p + 1, l - 2);
-  auto is_sfs = !found_full && (found_prefix || found_suffix);
-  cout << "Exact match: " << (found_full ? "yes" : "no") << endl;
-  cout << "Prefix match: " << (found_prefix ? "yes" : "no") << endl;
-  cout << "Suffix match: " << (found_suffix ? "yes" : "no") << endl;
-  if (!is_sfs) {
-    load_chromosomes(config->reference);
-    char *s = nullptr;
-    for (auto chrom = chromosome_seqs.begin(); chrom != chromosome_seqs.end();
-         chrom++) {
-      s = strstr(chromosome_seqs[chrom->first], q.c_str());
-      if (s != nullptr) {
-        cout << chrom->first << ": Found at "
-             << s - chromosome_seqs[chrom->first] << endl;
-      }
-    }
-  }
-  return is_sfs;
 }

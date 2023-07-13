@@ -133,8 +133,8 @@ int binary_search(const vector<Clip> &clips, int begin, int end,
 }
 
 void Clipper::call(int threads, interval_tree_t<int> &vartree) {
-  lprint({"Predicting SVS from", to_string(clips.size()), "clipped SFS on",
-          to_string(threads), "threads.."});
+  // lprint({"Predicting SVS from", to_string(clips.size()), "clipped SFS on",
+  //         to_string(threads), "threads.."});
   vector<Clip> rclips;
   vector<Clip> lclips;
   for (const Clip &clip : clips) {
@@ -144,9 +144,9 @@ void Clipper::call(int threads, interval_tree_t<int> &vartree) {
       rclips.push_back(clip);
     }
   }
-  lprint({to_string(lclips.size()), "left clips."});
-  lprint({to_string(rclips.size()), "right clips."});
-  lprint({"Preprocessing clipped SFS.."});
+  // lprint({to_string(lclips.size()), "left clips."});
+  // lprint({to_string(rclips.size()), "right clips."});
+  // lprint({"Preprocessing clipped SFS.."});
 #pragma omp parallel for num_threads(2) schedule(static, 1)
   for (int i = 0; i < 2; i++) {
     if (i == 0) {
@@ -165,13 +165,13 @@ void Clipper::call(int threads, interval_tree_t<int> &vartree) {
       std::sort(lclips.begin(), lclips.end());
     }
   }
-  lprint({to_string(lclips.size()), "left clips."});
-  lprint({to_string(rclips.size()), "right clips."});
+  // lprint({to_string(lclips.size()), "left clips."});
+  // lprint({to_string(rclips.size()), "right clips."});
   _p_svs.resize(threads);
   if (lclips.empty() || rclips.empty()) {
     return;
   }
-  lprint({"Predicting insertions.."});
+  // lprint({"Predicting insertions.."});
 #pragma omp parallel for num_threads(threads) schedule(static, 1)
   for (int i = 0; i < lclips.size(); i++) {
     const Clip &lc = lclips[i];
@@ -196,7 +196,7 @@ void Clipper::call(int threads, interval_tree_t<int> &vartree) {
           SV("INS", chrom, s, refbase, "<INS>", w, 0, 0, 0, true, l));
     }
   }
-  lprint({"Predicting deletions.."});
+  // lprint({"Predicting deletions.."});
 #pragma omp parallel for num_threads(threads) schedule(static, 1)
   for (int i = 0; i < rclips.size(); i++) {
     const Clip &rc = rclips[i];

@@ -12,8 +12,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "lprint.hpp"
-
 using namespace std;
 
 struct Locus {

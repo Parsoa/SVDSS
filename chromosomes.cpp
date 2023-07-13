@@ -38,14 +38,14 @@ int get_reference_size(ifstream &fasta_file) {
 }
 
 void load_chromosomes(string path) {
-  lprint({"Loading reference genome from", path + ".."});
+  cerr << "Loading reference genome from " << path << ".." << endl;
   gzFile fp = gzopen(path.c_str(), "r");
   kseq_t *seq = kseq_init(fp);
   int l;
   while ((l = kseq_read(seq)) >= 0) {
     string name(seq->name.s);
     // if (name.find('_') == -1) {
-    lprint({"Extracted", seq->name.s, "with", to_string(l), "bases."});
+    cerr << "Extracted " << seq->name.s << " (" << l << "bp)" << endl;
     for (uint i = 0; i < l; i++) {
       seq->seq.s[i] = toupper(seq->seq.s[i]);
     }
@@ -61,13 +61,13 @@ void load_chromosomes(string path) {
 }
 
 string load_chromosome(string path) {
-  lprint({"Loading chromosome genome from", path, ".."});
+  cerr << "Loading chromosome genome from " << path << ".." << endl;
   gzFile fp = gzopen(path.c_str(), "r");
   kseq_t *seq = kseq_init(fp);
   int l;
   string chrom;
   while ((l = kseq_read(seq)) >= 0) {
-    lprint({"Extracted", seq->name.s, "with", to_string(l), "bases"});
+    cerr << "Extracted " << seq->name.s << " (" << l << "bp)" << endl;
     for (uint i = 0; i < l; i++) {
       seq->seq.s[i] = toupper(seq->seq.s[i]);
     }

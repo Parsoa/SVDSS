@@ -16,7 +16,7 @@ if(DEFINED CONDAPREFIX)
 endif()
 
 project(SVDSS VERSION 1.0.2)
-add_executable(SVDSS assembler.cpp bam.cpp bed_utils.cpp caller.cpp chromosomes.cpp clipper.cpp cluster.cpp config.cpp extender.cpp lprint.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp vcf.cpp main.cpp)
+add_executable(SVDSS assembler.cpp bam.cpp bed_utils.cpp caller.cpp chromosomes.cpp clipper.cpp cluster.cpp config.cpp extender.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp vcf.cpp main.cpp)
 set_target_properties(SVDSS PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 ##########################
