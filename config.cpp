@@ -26,31 +26,38 @@ void Configuration::print_help(const string &mode) const {
 Configuration::Configuration()
     : parser(
           "SVDSS, Structural Variant Discovery from Sample-specific Strings") {
-  parser.add_options()("bed", "", cxxopts::value<std::string>())(
-      "bam", "", cxxopts::value<std::string>())("vcf", "",
-                                                cxxopts::value<std::string>())(
-      "type", "", cxxopts::value<std::string>())("index", "",
-                                                 cxxopts::value<std::string>())(
-      "fastq", "", cxxopts::value<std::string>())(
-      "target", "", cxxopts::value<std::string>())(
-      "sfsbam", "", cxxopts::value<std::string>())(
-      "append", "", cxxopts::value<std::string>())(
-      "workdir", "", cxxopts::value<std::string>())(
-      "reference", "", cxxopts::value<std::string>())("cutoff", "",
-                                                      cxxopts::value<int>())(
-      "coverage", "", cxxopts::value<int>())("t,threads", "",
-                                             cxxopts::value<int>())(
-      "min-sv-length", "", cxxopts::value<int>())("min-cluster-weight", "",
-                                                  cxxopts::value<int>())(
-      "clipped", "", cxxopts::value<bool>()->default_value("false"))(
-      "noassemble", "", cxxopts::value<bool>()->default_value("false"))(
-      "noputative", "", cxxopts::value<bool>()->default_value("false"))(
-      "b,binary", "", cxxopts::value<bool>()->default_value("false"))(
-      "aggregate", "", cxxopts::value<bool>()->default_value("false"))(
-      "selective", "", cxxopts::value<bool>()->default_value("true"))(
-      "version", "Print version information.")("h,help", "Print this help.")(
-      "l", "", cxxopts::value<float>())("acc", "", cxxopts::value<float>())(
-      "verbose", "", cxxopts::value<bool>()->default_value("false"));
+  // clang-format off
+  parser.add_options()
+    ("bed", "", cxxopts::value<std::string>())
+    ("bam", "", cxxopts::value<std::string>())
+    ("vcf", "", cxxopts::value<std::string>())
+    ("type", "", cxxopts::value<std::string>())
+    ("index", "", cxxopts::value<std::string>())
+    ("fastq", "", cxxopts::value<std::string>())
+    ("target", "", cxxopts::value<std::string>())
+    ("sfsbam", "", cxxopts::value<std::string>())
+    ("append", "", cxxopts::value<std::string>())
+    ("workdir", "", cxxopts::value<std::string>())
+    ("reference", "", cxxopts::value<std::string>())
+    ("cutoff", "", cxxopts::value<int>())
+    ("coverage", "", cxxopts::value<int>())
+    ("t,threads", "", cxxopts::value<int>())
+    ("bsize", "", cxxopts::value<int>())
+    ("omax", "", cxxopts::value<int>())
+    ("min-sv-length", "", cxxopts::value<int>())
+    ("min-cluster-weight", "", cxxopts::value<int>())
+    ("clipped", "", cxxopts::value<bool>()->default_value("false"))
+    ("noassemble", "", cxxopts::value<bool>()->default_value("false"))
+    ("noputative", "", cxxopts::value<bool>()->default_value("false"))
+    ("binary", "", cxxopts::value<bool>()->default_value("false"))
+    ("aggregate", "", cxxopts::value<bool>()->default_value("false"))
+    ("selective", "", cxxopts::value<bool>()->default_value("true"))
+    ("version", "Print version information.")
+    ("h,help", "Print this help.")
+    ("l", "", cxxopts::value<float>())
+    ("acc", "", cxxopts::value<float>())
+    ("verbose", "", cxxopts::value<bool>()->default_value("false"));
+  // clang-format on
 }
 
 void Configuration::parse(int argc, char **argv) {
@@ -87,6 +94,12 @@ void Configuration::parse(int argc, char **argv) {
   }
   if (results.count("overlap")) {
     overlap = results["overlap"].as<int>();
+  }
+  if (results.count("bsize")) {
+    batch_size = results["bsize"].as<int>();
+  }
+  if (results.count("omax")) {
+    max_output = results["omax"].as<int>();
   }
   if (results.count("threads")) {
     threads = results["threads"].as<int>();
@@ -126,4 +139,6 @@ void Configuration::parse(int argc, char **argv) {
   version = results["version"].as<bool>();
   verbose = results["verbose"].as<bool>();
   help = results["help"].as<bool>();
+
+  batch_size = (batch_size / threads) * threads;
 }

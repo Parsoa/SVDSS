@@ -10,42 +10,38 @@
 
 using namespace std;
 
-static const char *MAIN_USAGE_MESSAGE =
+// clang-format off
+
+static const char MAIN_USAGE_MESSAGE[] =
     "SVDSS [index|smooth|search|call] --help\n"
     "      -h,--help                          print help message\n"
     "      --version                          print version\n";
 
-static const char *INDEX_USAGE_MESSAGE =
+static const char INDEX_USAGE_MESSAGE[] =
     "SVDSS index [-h] --reference <reference> --index <index>\n"
-    "      -b,--binary                        store the index in binary "
-    "format\n"
+    "      -b,--binary                        store the index in binary format\n"
     "      -a,--append <oldindex>             append to existing index\n";
 
-static const char *SMOOTH_USAGE_MESSAGE =
+static const char SMOOTH_USAGE_MESSAGE[] =
     "SVDSS smooth [-h] --reference <reference> --bam <bam>\n"
-    "      --threads                          number of threads to use "
-    "(default: 4)\n";
+    "      --threads                          number of threads to use (default: 4)\n";
 ;
 
-static const char *SEARCH_USAGE_MESSAGE =
+static const char SEARCH_USAGE_MESSAGE[] =
     "SVDSS search [-h] --index <index> --bam <bam> --workdir <wd>\n"
-    "      --threads                          number of threads to use "
-    "(default: 4)\n"
-    "      --noputative                       when input is smoothed bam, do "
-    "not filter unsmoothed reads (default: putative)\n"
-    "      --noassemble                       do not assemble specific strings "
-    "overlapping on a read (default: assemble)\n";
+    "      --bsize                            batch size (default: 10000)\n"
+    "      -t,--threads                       number of threads to use (default: 4)\n"
+    "      --noputative                       when input is smoothed bam, do not filter unsmoothed reads (default: putative)\n"
+    "      --noassemble                       do not assemble specific strings overlapping on a read (default: assemble)\n";
 
-static const char *CALL_USAGE_MESSAGE =
+static const char CALL_USAGE_MESSAGE[] =
     "SVDSS call [-h] --reference <reference> --bam <bam> --workdir <wd>\n"
-    "      --min-cluster-weight               minimum number of supporting "
-    "superstrings for a call to be reported (default: 2)\n"
-    "      --min-sv-length                    minimum length of reported SVs "
-    "(default: 25)\n"
-    "      --threads                          number of threads to use "
-    "(default: 4)\n"
-    "      --clipped                          calls SVs from clipped SFS "
-    "(EXPERIMENTAL)\n";
+    "      --min-cluster-weight               minimum number of supporting superstrings for a call to be reported (default: 2)\n"
+    "      --min-sv-length                    minimum length of reported SVs (default: 25)\n"
+    "      --threads                          number of threads to use (default: 4)\n"
+    "      --clipped                          calls SVs from clipped SFS (EXPERIMENTAL)\n";
+
+// clang-format on
 
 class Configuration {
 
@@ -62,7 +58,8 @@ public:
   int overlap = -1;
   int threads = 4;
   int coverage = 50;
-  int batch_size = 1000;
+  int batch_size = 10000;
+  int max_output = 10000000;
   int min_sv_length = 25;
   int min_indel_length = 20;
   int min_cluster_weight = 2;
