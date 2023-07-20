@@ -34,9 +34,9 @@ void Assembler::run() {
 vector<SFS> Assembler::assemble(vector<SFS> &sfs) {
   vector<SFS> assembled_sfs;
   sort(sfs.begin(), sfs.end());
-  int i = 0;
+  size_t i = 0;
   while (i < sfs.size()) {
-    uint j;
+    size_t j;
     for (j = i + 1; j < sfs.size(); ++j) {
       if (sfs[j - 1].s + sfs[j - 1].l <= sfs[j].s) {
         // non-overlapping

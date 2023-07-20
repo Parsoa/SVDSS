@@ -60,8 +60,8 @@ struct ExtSFS {
   // other
   int htag;
 
-  ExtSFS(const string &_chrom, const string &_qname, int _s, int _e,
-         int _qs, int _qe, int _htag) {
+  ExtSFS(const string &_chrom, const string &_qname, int _s, int _e, int _qs,
+         int _qe, int _htag) {
     chrom = _chrom;
     qname = _qname;
     s = _s;
@@ -92,8 +92,8 @@ public:
   int s;
   int e;
 
-  Consensus(const string _seq, const string _cigar,
-            const string _chrom, int _s, int _e) {
+  Consensus(const string _seq, const string _cigar, const string _chrom, int _s,
+            int _e) {
     seq = _seq;
     cigar = _cigar;
     chrom = _chrom;

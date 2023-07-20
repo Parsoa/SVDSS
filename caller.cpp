@@ -118,8 +118,8 @@ void Caller::load_input_sfs() {
           read_name = info[0];
           _SFSs[j][read_name] = vector<SFS>();
         }
-        _SFSs[j][read_name].push_back(SFS(stoi(info[1]), stoi(info[2]),
-                                          stoi(info[3])));
+        _SFSs[j][read_name].push_back(
+            SFS(stoi(info[1]), stoi(info[2]), stoi(info[3])));
       }
     }
   }

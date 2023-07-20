@@ -1,7 +1,5 @@
 #include "smoother.hpp"
 
-using namespace std;
-
 // typedef struct bam1_t {
 //     bam1_core_t core; // won't change
 //     uint64_t id;      // won't change
@@ -83,15 +81,14 @@ void rebuild_bam_entry(bam1_t *alignment, char *seq, uint8_t *qual,
   free(aux);
 }
 
-void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
-                           int _i, int _j, int _k) {
+void Smoother::smooth_read(bam1_t *alignment, char *read_seq, int _i, int _j,
+                           int _k) {
   auto cigar_offsets = decode_cigar(alignment);
   int l = 0;
   // try and filter unintenresting reads early on
   bool should_ignore = true;
-  for (auto op : cigar_offsets) {
+  for (auto op : cigar_offsets)
     l += op.first;
-  }
   if (new_read_seq_max_lengths[_i][_j][_k] < l) {
     free(new_read_seqs[_i][_j][_k]);
     free(new_read_quals[_i][_j][_k]);
@@ -102,7 +99,7 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   }
   //
   int n = 0;
-  int m = 0;
+  size_t m = 0;
   int ref_offset = alignment->core.pos;
   int ins_offset = 0;
   int del_offset = 0;
@@ -111,19 +108,15 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   char *new_seq = new_read_seqs[_i][_j][_k];
   uint8_t *qual = bam_get_qual(alignment);
   uint8_t *new_qual = new_read_quals[_i][_j][_k];
-  int pos = alignment->core.pos +
-            1; // this is 0-based, variant coordinates are 1-based
   // Modify current bam1_t* struct
-  auto &core = alignment->core;
   vector<pair<uint32_t, uint32_t>> new_cigar;
   int m_diff = 0;
   double num_match = 0;
   double num_mismatch = 0;
-  char *ref_seq = chromosome_seqs[chrom];
+  char *ref_seq = chromosome_seqs[bam_header->target_name[alignment->core.tid]];
   while (true) {
-    if (m == cigar_offsets.size()) {
+    if (m == cigar_offsets.size())
       break;
-    }
     if (cigar_offsets[m].second == BAM_CMATCH ||
         cigar_offsets[m].second == BAM_CEQUAL ||
         cigar_offsets[m].second == BAM_CDIFF) {
@@ -141,13 +134,12 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
       ref_offset += cigar_offsets[m].first;
       match_offset += cigar_offsets[m].first;
       if (new_cigar.size() >= 1 &&
-          new_cigar[new_cigar.size() - 1].second == BAM_CMATCH) {
+          new_cigar[new_cigar.size() - 1].second == BAM_CMATCH)
         new_cigar[new_cigar.size() - 1].first +=
             cigar_offsets[m].first + m_diff;
-      } else {
+      else
         new_cigar.push_back(
             make_pair(cigar_offsets[m].first + m_diff, BAM_CMATCH));
-      }
       m_diff = 0;
     } else if (cigar_offsets[m].second == BAM_CINS) {
       if (cigar_offsets[m].first <= config->min_indel_length) {
@@ -201,7 +193,7 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   new_seq[n] = '\0';
   new_qual[n] = '\0';
 
-  char *qname = bam_get_qname(alignment);
+  // char *qname = bam_get_qname(alignment);
   // char op = 'M';
   // cerr << qname << " " << strlen(new_seq) << " " << n << endl;
   // for (const auto p : new_cigar) {
@@ -224,13 +216,13 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
   } else if (should_ignore) {
     bam_aux_update_int(alignment, "XF", 2);
   } else {
-    if (strlen(new_seq) != n) {
+    if ((int)strlen(new_seq) != n) {
       // CHECKME: this now should be fixed (read_seqs must not be freed above -
       // only the new ones) cerr << "[W] " << qname << " " << strlen(new_seq) <<
       // "/" << strlen((char*)new_qual) << " " << n << endl;
-      cerr << "[W] this shouldn't happen anymore. If you see this warning, "
-              "please open an issue at https://github.com/Parsoa/SVDSS/issues"
-           << endl;
+      spdlog::warn(
+          "This shouldn't happen anymore. If you see this warning, please "
+          "open an issue at https://github.com/Parsoa/SVDSS/issues");
       bam_aux_update_int(alignment, "XF", 3);
       return;
     }
@@ -241,27 +233,12 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, string chrom,
 
 void Smoother::process_batch(vector<bam1_t *> bam_entries, int p, int i) {
   bam1_t *alignment;
-  for (int b = 0; b < bam_entries.size(); b++) {
+  for (size_t b = 0; b < bam_entries.size(); b++) {
     alignment = bam_entries[b];
-    if (alignment == nullptr) {
+    if (alignment == nullptr)
+      // end of the batch
       break;
-    }
-    if (alignment->core.flag & BAM_FUNMAP ||
-        alignment->core.flag & BAM_FSUPPLEMENTARY ||
-        alignment->core.flag & BAM_FSECONDARY) {
-      continue;
-    }
-    if (alignment->core.l_qseq < 2) {
-      continue;
-    }
-    if (alignment->core.tid < 0) {
-      continue;
-    }
-    string chrom(bam_header->target_name[alignment->core.tid]);
-    if (chromosome_seqs.find(chrom) == chromosome_seqs.end()) {
-      continue;
-    }
-    smooth_read(alignment, read_seqs[p][i][b], chrom, p, i, b);
+    smooth_read(alignment, read_seqs[p][i][b], p, i, b);
   }
 }
 
@@ -270,6 +247,7 @@ void Smoother::run() {
   config = Configuration::getInstance();
 
   load_chromosomes(config->reference);
+
   // parse arguments
   bam_file = hts_open(config->bam.c_str(), "r");
   bam_index = sam_index_load(bam_file, config->bam.c_str());
@@ -277,44 +255,30 @@ void Smoother::run() {
   bgzf_mt(bam_file->fp.bgzf, 8, 1);
   out_bam_file = hts_open("-", "wb");
   bgzf_mt(out_bam_file->fp.bgzf, 8, 1);
-  int r = sam_hdr_write(out_bam_file, bam_header);
-  if (r < 0) {
-    cerr << "Can't write corrected BAM header, aborting.." << endl;
+  if (sam_hdr_write(out_bam_file, bam_header) < 0) {
+    spdlog::critical("Can't write corrected BAM header, aborting..");
     return;
   }
   // allocate stuff
   int modulo = 3;
-  int batch_size = (10000 / config->threads) * config->threads;
   for (int i = 0; i < modulo; i++) {
     // original read sequences
-    read_seqs.push_back(
-        vector<vector<char *>>(config->threads)); // current and next output
+    read_seqs.push_back(vector<vector<char *>>(config->threads));
     // smoothed read sequences
-    new_read_seqs.push_back(
-        vector<vector<char *>>(config->threads)); // current and next output
+    new_read_seqs.push_back(vector<vector<char *>>(config->threads));
     // smoothed read qualities
-    new_read_quals.push_back(
-        vector<vector<uint8_t *>>(config->threads)); // current and next output
-    // CHECKME: why do we need to store two lengths (read_seq_lengths and
-    // read_seq_max_lengths)? When we have to reallocate for a too long read, we
-    // change both of them. So they should always contain the same value
-    // original read lengths
-    read_seq_lengths.push_back(
-        vector<vector<int>>(config->threads)); // current and next output
+    new_read_quals.push_back(vector<vector<uint8_t *>>(config->threads));
     // original read max lengths
-    read_seq_max_lengths.push_back(
-        vector<vector<int>>(config->threads)); // current and next output
+    read_seq_max_lengths.push_back(vector<vector<int>>(config->threads));
     // smoothed read max lengths
-    new_read_seq_max_lengths.push_back(
-        vector<vector<int>>(config->threads)); // current and next output
+    new_read_seq_max_lengths.push_back(vector<vector<int>>(config->threads));
     for (int j = 0; j < config->threads; j++) {
-      for (int k = 0; k < batch_size / config->threads; k++) {
+      for (int k = 0; k < config->batch_size / config->threads; k++) {
         read_seqs[i][j].push_back((char *)malloc(sizeof(char) * (30001)));
         new_read_seqs[i][j].push_back((char *)malloc(sizeof(char) * (30001)));
         new_read_quals[i][j].push_back(
             (uint8_t *)malloc(sizeof(uint8_t) * (30001)));
         //
-        read_seq_lengths[i][j].push_back(30000);
         read_seq_max_lengths[i][j].push_back(30000);
         new_read_seq_max_lengths[i][j].push_back(30000);
       }
@@ -322,42 +286,39 @@ void Smoother::run() {
   }
   for (int i = 0; i < modulo; i++) {
     bam_entries.push_back(vector<vector<bam1_t *>>(config->threads));
-    for (int j = 0; j < config->threads; j++) {
-      for (int k = 0; k < batch_size / config->threads; k++) {
+    for (int j = 0; j < config->threads; j++)
+      for (int k = 0; k < config->batch_size / config->threads; k++)
         bam_entries[i][j].push_back(bam_init1());
-      }
-    }
   }
 
+  spdlog::info("Smoothing alignments on {} threads..", config->threads);
+  time_t start_time;
+  time_t curr_time;
+  time(&start_time);
   int b = 0;
-  cerr << "Loading first batch.." << endl;
-  load_batch_bam(config->threads, batch_size, 1);
   int p = 1;
-  time_t t;
-  time(&t);
+  load_batch_bam(p);
   bool should_load = true;
   bool should_process = true;
   bool should_terminate = false;
   bool loaded_last_batch = false;
   int reads_written = 0;
   while (should_process) {
-    if (!should_load) {
+    if (!should_load)
       should_process = false;
-    }
-    if (loaded_last_batch) {
+    if (loaded_last_batch)
       should_load = false;
-    }
 #pragma omp parallel for num_threads(config->threads + 2)
     for (int i = 0; i < config->threads + 2; i++) {
       if (i == 0) {
-        if (should_load) {
-          loaded_last_batch =
-              !load_batch_bam(config->threads, batch_size, (p + 1) % modulo);
-        }
+        // first thread loads next batch
+        if (should_load)
+          loaded_last_batch = !load_batch_bam((p + 1) % modulo);
       } else if (i == 1) {
+        // second thread output batches
         if (b >= 1) {
           int ret = 0;
-          for (int k = 0; k < batch_size / config->threads; k++) {
+          for (int k = 0; k < config->batch_size / config->threads; k++) {
             for (int j = 0; j < config->threads; j++) {
               if (bam_entries[(p + 2) % modulo][j][k] != nullptr) {
                 if (bam_entries[(p + 2) % modulo][j][k]->core.flag &
@@ -365,92 +326,120 @@ void Smoother::run() {
                     bam_entries[(p + 2) % modulo][j][k]->core.flag &
                         BAM_FSUPPLEMENTARY ||
                     bam_entries[(p + 2) % modulo][j][k]->core.flag &
-                        BAM_FSECONDARY)
+                        BAM_FSECONDARY) {
+                  // CHECKME
+                  spdlog::warn("We have a non primary smoothed alignment. "
+                               "How can we be here?");
                   continue;
+                }
                 ret = sam_write1(out_bam_file, bam_header,
                                  bam_entries[(p + 2) % modulo][j][k]);
                 reads_written += 1;
                 if (ret < 0) {
-                  cerr << "Can't write corrected BAM record, aborting.."
-                       << endl;
+                  spdlog::critical(
+                      "Can't write corrected BAM record, aborting..");
                   should_terminate = true;
                   break;
                 }
-              } else {
+              } else
                 break;
-              }
             }
           }
         }
       } else {
-        if (should_process) {
+        // other threads, process the batch
+        if (should_process)
           process_batch(bam_entries[p][i - 2], p, i - 2);
-        }
       }
     }
-    if (should_terminate) {
-      cerr << "Something went wrong, aborting.." << endl;
+    if (should_terminate)
       return;
-    }
     p += 1;
     p %= modulo;
     b += 1;
-    time_t s;
-    time(&s);
-    if (s - t == 0) {
-      s += 1;
-    }
+
+    time(&curr_time);
+    if (curr_time - start_time == 0)
+      ++curr_time;
+    cerr << "Alignments processed so far: " << reads_processed
+         << ". Alignments processed per second: "
+         << reads_processed / (curr_time - start_time)
+         // << ". Alignments wrote: " << reads_written
+         << ". Time: " << curr_time - start_time << "\r";
   }
   sam_close(bam_file);
   sam_close(out_bam_file);
-  cerr << "Loaded " << reads_processed << " reads." << endl;
-  cerr << "Wrote " << reads_written << " reads." << endl;
+
+  cerr << endl;
 }
 
-bool Smoother::load_batch_bam(int threads, int batch_size, int p) {
-  int n = 0;
-  int i = 0;
-  int m = 0;
-  while (sam_read1(bam_file, bam_header, bam_entries[p][n % threads][i]) >= 0) {
-    auto alignment = bam_entries[p][n % threads][i];
+bool Smoother::load_batch_bam(int p) {
+  int i = 0;     // current position per thread where to load read
+  int nseqs = 0; // loaded seqs
+  while (sam_read1(bam_file, bam_header,
+                   bam_entries[p][nseqs % config->threads][i]) >= 0) {
+    bam1_t *alignment = bam_entries[p][nseqs % config->threads][i];
     if (alignment == nullptr) {
-      break;
+      spdlog::critical("nullptr. Why are we here? Please check");
+      exit(1);
     }
     reads_processed += 1;
-    uint32_t l = alignment->core.l_qseq; // length of the read
-    if (read_seq_max_lengths[p][n % threads][i] < l) {
-      free(read_seqs[p][n % threads][i]);
-      //
-      read_seqs[p][n % threads][i] = (char *)malloc(sizeof(char) * (l + 1));
-      read_seq_max_lengths[p][n % threads][i] = l;
-      m += 1;
+    if (alignment->core.flag & BAM_FUNMAP ||
+        alignment->core.flag & BAM_FSUPPLEMENTARY ||
+        alignment->core.flag & BAM_FSECONDARY)
+      continue;
+    if (alignment->core.l_qseq < 2) {
+      // FIXME: why do we need this?
+      spdlog::warn(
+          "Alignment filtered due to l_qseq. Why are we here? Please check");
+      continue;
     }
-    read_seq_lengths[p][n % threads][i] = l;
+    if (alignment->core.tid < 0) {
+      spdlog::critical("core.tid < 0. Why are we here? Please check");
+      exit(1);
+    }
+    if (chromosome_seqs.find(bam_header->target_name[alignment->core.tid]) ==
+        chromosome_seqs.end()) {
+      if (warned_chromosomes.find(
+              bam_header->target_name[alignment->core.tid]) ==
+          warned_chromosomes.end())
+        spdlog::warn(
+            "Skipping alignment(s) on {} since it is not present in the "
+            "reference",
+            bam_header->target_name[alignment->core.tid]);
+      warned_chromosomes.insert(bam_header->target_name[alignment->core.tid]);
+      continue;
+    }
+
+    int l = alignment->core.l_qseq; // length of the read
+    // if allocated space for read is not enough, reallocate more
+    if (read_seq_max_lengths[p][nseqs % config->threads][i] <
+        l) { // FIXME: can we avoid this just by allocating *A LOT* per read?
+      free(read_seqs[p][nseqs % config->threads][i]);
+      read_seqs[p][nseqs % config->threads][i] =
+          (char *)malloc(sizeof(char) * (l + 1));
+      read_seq_max_lengths[p][nseqs % config->threads][i] = l;
+    }
     uint8_t *q = bam_get_seq(alignment);
-    for (int _ = 0; _ < l; _++) {
-      read_seqs[p][n % threads][i][_] = seq_nt16_str[bam_seqi(q, _)];
-    }
-    read_seqs[p][n % threads][i][l] = '\0';
-    n += 1;
-    if (n % threads == 0) {
+    for (int _ = 0; _ < l; _++)
+      read_seqs[p][nseqs % config->threads][i][_] =
+          seq_nt16_str[bam_seqi(q, _)];
+    read_seqs[p][nseqs % config->threads][i][l] = '\0';
+    nseqs += 1;
+    if (nseqs % config->threads == 0) {
       i += 1;
     }
-    if (n == batch_size) {
-      break;
-    }
+    if (nseqs == config->batch_size)
+      return true;
   }
-  //  last batch was incomplete
-  if (n != batch_size) {
-    for (int j = n % threads; j < threads; j++) {
-      for (int _ = i; _ < batch_size / threads; _++) {
+  // last batch is incomplete
+  if (nseqs != config->batch_size) {
+    for (int j = nseqs % config->threads; j < config->threads; j++)
+      for (int _ = i; _ < config->batch_size / config->threads; _++)
         bam_entries[p][j][_] = nullptr;
-      }
-    }
-    for (int j = 0; j < n % threads; j++) {
-      for (int _ = i + 1; _ < batch_size / threads; _++) {
+    for (int j = 0; j < nseqs % config->threads; j++)
+      for (int _ = i + 1; _ < config->batch_size / config->threads; _++)
         bam_entries[p][j][_] = nullptr;
-      }
-    }
   }
-  return n != 0 ? true : false;
+  return false;
 }

@@ -13,7 +13,7 @@ void load_chromosomes(string path) {
   while ((l = kseq_read(seq)) >= 0) {
     string name(seq->name.s);
     spdlog::debug("Extracted {} ({}bp)", seq->name.s, l);
-    for (uint i = 0; i < l; i++)
+    for (int i = 0; i < l; i++)
       seq->seq.s[i] = toupper(seq->seq.s[i]);
     chromosomes.push_back(seq->name.s);
     char *s = (char *)malloc(sizeof(char) * (l + 1));
