@@ -74,15 +74,13 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t *P, int l,
 /* Load batch from BAM file and store to input entry p. The logic behind is:
  * fill position i per each thread, then move to position i+1.. */
 bool PingPong::load_batch_bam(int p) {
-  int threads = config->threads;
-  int batch_size = config->batch_size;
-  int i = 0; // current position per thread where to load read
-  int nseqs = 0;
+  int i = 0;     // current position per thread where to load read
+  int nseqs = 0; // loaded seqs
 
   int o;
   while ((o = sam_read1(bam_file, bam_header,
-                        bam_entries[p][nseqs % threads][i])) >= 0) {
-    bam1_t *alignment = bam_entries[p][nseqs % threads][i];
+                        bam_entries[p][nseqs % config->threads][i])) >= 0) {
+    bam1_t *alignment = bam_entries[p][nseqs % config->threads][i];
     if (alignment == nullptr) {
       spdlog::critical("nullptr. Why are we here? Please check");
       exit(1);
@@ -92,8 +90,12 @@ bool PingPong::load_batch_bam(int p) {
         alignment->core.flag & BAM_FSUPPLEMENTARY ||
         alignment->core.flag & BAM_FSECONDARY)
       continue;
-    if (alignment->core.l_qseq < 100) // FIXME: why do we need this?
+    if (alignment->core.l_qseq < 100) {
+      // FIXME: why do we need this?
+      spdlog::warn(
+          "Alignment filtered due to l_qseq. Why are we here? Please check");
       continue;
+    }
     if (alignment->core.tid < 0) {
       spdlog::critical("core.tid < 0. Why are we here? Please check");
       exit(1);
@@ -101,42 +103,43 @@ bool PingPong::load_batch_bam(int p) {
 
     uint l = alignment->core.l_qseq; // length of the read
     // if allocated space for read is not enough, extend it
-    if (read_seq_max_lengths[p][nseqs % threads][i] <
+    if (read_seq_max_lengths[p][nseqs % config->threads][i] <
         l) { // FIXME: can't we avoid this? just by allocating *A LOT* per read
-      free(read_seqs[p][nseqs % threads][i]);
-      read_seqs[p][nseqs % threads][i] =
+      free(read_seqs[p][nseqs % config->threads][i]);
+      read_seqs[p][nseqs % config->threads][i] =
           (uint8_t *)malloc(sizeof(char) * (l + 1));
-      read_seq_max_lengths[p][nseqs % threads][i] = l;
+      read_seq_max_lengths[p][nseqs % config->threads][i] = l;
     }
     uint8_t *q = bam_get_seq(alignment);
     for (uint _ = 0; _ < l; _++)
-      read_seqs[p][nseqs % threads][i][_] =
+      read_seqs[p][nseqs % config->threads][i][_] =
           seq_nt16_str[bam_seqi(q, _)] < 128
               ? seq_nt6_table[seq_nt16_str[bam_seqi(q, _)]]
               : 5;
-    read_seqs[p][nseqs % threads][i][l] = '\0';
+    read_seqs[p][nseqs % config->threads][i][l] = '\0';
 
     ++nseqs;
-    if (nseqs % threads == 0)
+    if (nseqs % config->threads == 0)
       // ith position filled for all threads, move to next one
       ++i;
-    if (nseqs == batch_size)
+    if (nseqs == config->batch_size)
       return true;
   }
   assert(o == -1);
 
+  // last batch is incomplete
   // we need to fill with nullptr in order to stop processing (we have
   // alignments from previous batches still loaded)
 
   // clean remaining threads at position i
-  while (nseqs % threads != 0) {
-    bam_entries[p][nseqs % threads][i] = nullptr;
+  while (nseqs % config->threads != 0) {
+    bam_entries[p][nseqs % config->threads][i] = nullptr;
     ++nseqs;
   }
   ++i;
   // clean next position for all threads
-  for (int _ = 0; _ < threads; ++_)
-    bam_entries[p][_ % threads][i] = nullptr;
+  for (int _ = 0; _ < config->threads; ++_)
+    bam_entries[p][_ % config->threads][i] = nullptr;
 
   return false;
 }
@@ -220,9 +223,6 @@ batch_type_t PingPong::process_batch(rld_t *index, int p, int thread) {
  * output), but some have been already output*/
 void PingPong::output_batch(int b) {
   auto c = Configuration::getInstance();
-  string path = c->workdir + "/solution_batch_" + to_string(current_obatch) +
-                (!c->assemble ? ".unassembled" : "") + ".sfs";
-  ofstream of(path);
   // FIXME: can we avoid keeping empty batches in memory? maybe unnecessary fix
   for (int i = 0; i < b; i++) {       // for each of the unmerged batches
     for (auto &batch : obatches[i]) { // for each thread in batch
@@ -236,8 +236,8 @@ void PingPong::output_batch(int b) {
         for (const SFS &sfs : assembled_SFSs) {
           // optimize file output size by not outputting read name for every
           // SFS
-          of << (is_first ? read.first : "*") << "\t" << sfs.s << "\t" << sfs.l
-             << "\t" << sfs.htag << "\t" << endl;
+          cout << (is_first ? read.first : "*") << "\t" << sfs.s << "\t"
+               << sfs.l << "\t" << sfs.htag << "\t" << endl;
           is_first = false;
         }
       }
@@ -355,7 +355,6 @@ int PingPong::search() {
             else
               output_batch(obatches.size() - 1);
             sfs_to_output = 0;
-            current_obatch += 1;
           }
         }
       } else {
@@ -369,6 +368,7 @@ int PingPong::search() {
     if (should_load)
       obatches.push_back(vector<batch_type_t>(config->threads));
 
+    time(&curr_time);
     if (curr_time - start_time == 0)
       ++curr_time;
     time(&curr_time);
@@ -376,7 +376,6 @@ int PingPong::search() {
     cerr << "Reads loaded so far: " << reads_processed
          << ". Reads processed per second: "
          << reads_processed / (curr_time - start_time)
-         << ". Batches exported: " << current_obatch
          << ". Time: " << curr_time - start_time << "\r";
   }
   cerr << endl;

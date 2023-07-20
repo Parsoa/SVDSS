@@ -82,7 +82,6 @@ private:
   Configuration *config;
 
   int bam_mode;
-  int current_obatch = 0;
   int reads_processed = 0;
 
   gzFile fastq_file;
