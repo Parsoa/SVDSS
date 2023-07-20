@@ -1,40 +1,18 @@
-#include <assert.h>
-#include <cstdint>
-#include <cstdlib>
 #include <ctime>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <omp.h>
-#include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <unordered_map>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
-// there may be some issue here. with a different include order
-// (assembler/caller/smoother at the end), compilation fails
-#include "assembler.hpp"
 #include "caller.hpp"
-#include "chromosomes.hpp"
 #include "config.hpp"
 #include "ping_pong.hpp"
 #include "smoother.hpp"
 
 using namespace std;
 
-const string version = "v1.0.5";
-
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
-// ============================================================================= \\
+const string version = "v2.0.0dev";
 
 void create_workdir() {
   auto c = Configuration::getInstance();
@@ -96,9 +74,9 @@ int main(int argc, char **argv) {
     create_workdir();
     auto pingpong = new PingPong();
     pingpong->search();
-  } else if (strcmp(argv[1], "assemble") == 0) {
-    auto assembler = new Assembler();
-    assembler->run();
+    // } else if (strcmp(argv[1], "assemble") == 0) {
+    //   auto assembler = new Assembler();
+    //   assembler->run();
   } else if (strcmp(argv[1], "smooth") == 0) {
     if (c->reference == "" || c->bam == "") {
       c->print_help(argv[1]);
