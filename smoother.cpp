@@ -373,6 +373,8 @@ void Smoother::run() {
   cerr << endl;
 }
 
+/* Load batch from BAM file and store to input entry p. The logic behind is:
+ * fill position i per each thread, then move to position i+1.. */
 bool Smoother::load_batch_bam(int p) {
   int i = 0;     // current position per thread where to load read
   int nseqs = 0; // loaded seqs
@@ -425,14 +427,14 @@ bool Smoother::load_batch_bam(int p) {
       read_seqs[p][nseqs % config->threads][i][_] =
           seq_nt16_str[bam_seqi(q, _)];
     read_seqs[p][nseqs % config->threads][i][l] = '\0';
-    nseqs += 1;
-    if (nseqs % config->threads == 0) {
-      i += 1;
-    }
+    ++nseqs;
+    if (nseqs % config->threads == 0)
+      ++i;
     if (nseqs == config->batch_size)
       return true;
   }
-  // last batch is incomplete
+  // last batch is incomplete since we reached the end of .bam file
+  // TODO: can we do like in ping_pong?
   if (nseqs != config->batch_size) {
     for (int j = nseqs % config->threads; j < config->threads; j++)
       for (int _ = i; _ < config->batch_size / config->threads; _++)

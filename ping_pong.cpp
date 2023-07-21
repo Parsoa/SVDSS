@@ -127,7 +127,7 @@ bool PingPong::load_batch_bam(int p) {
   }
   assert(o == -1);
 
-  // last batch is incomplete
+  // last batch is incomplete since we reached the end of .bam file
   // we need to fill with nullptr in order to stop processing (we have
   // alignments from previous batches still loaded)
 

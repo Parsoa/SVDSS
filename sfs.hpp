@@ -3,10 +3,12 @@
 
 #include <fstream>
 #include <iostream>
-#include <map>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#include <spdlog/spdlog.h>
 
 using namespace std;
 
@@ -72,11 +74,7 @@ struct ExtSFS {
   }
 
   bool operator<(const ExtSFS &c) const {
-    if (chrom == c.chrom) {
-      return s < c.s;
-    } else {
-      return chrom < c.chrom;
-    }
+    return chrom == c.chrom ? s < c.s : chrom < c.chrom;
   }
 
   bool operator==(const ExtSFS &c) const {
@@ -102,6 +100,6 @@ public:
   }
 };
 
-map<string, vector<SFS>> parse_sfsfile(const string &, int);
+unordered_map<string, vector<SFS>> parse_sfsfile(const string &);
 
 #endif

@@ -1,7 +1,5 @@
 #include "cluster.hpp"
 
-using namespace std;
-
 // AaCcGgTtNn ==> 0,1,2,3,4
 unsigned char _char26_table[256] = {
     0, 1,         2, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
@@ -18,7 +16,6 @@ unsigned char _char26_table[256] = {
     4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
 
 string Cluster::poa() {
-  // --- POA
   uint n_seqs = seqs.size();
   abpoa_t *ab = abpoa_init();
   abpoa_para_t *abpt = abpoa_init_para();
@@ -71,12 +68,4 @@ string Cluster::poa() {
   abpoa_free_para(abpt);
 
   return cons;
-}
-
-void Cluster::dump(ofstream &o) const {
-  // o << chrom << " " << s << " " << e << " " << cov << " " << size();
-  for (const string &seq : seqs) {
-    o << " " << seq;
-  }
-  o << endl;
 }

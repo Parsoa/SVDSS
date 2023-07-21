@@ -1,6 +1,7 @@
 #ifndef EXTENDER_HPP
 #define EXTENDER_HPP
 
+#include <ctime>
 #include <fstream>
 #include <omp.h>
 #include <set>
@@ -8,12 +9,13 @@
 #include <string>
 #include <vector>
 
-#include "htslib/hts.h"
-#include "htslib/sam.h"
-#include "interval_tree.hpp"
-#include "parasail.h"
-#include "parasail/matrices/nuc44.h"
-#include "rapidfuzz/fuzz.hpp"
+#include <htslib/hts.h>
+#include <htslib/sam.h>
+// #include <interval_tree.hpp>
+#include <parasail.h>
+#include <parasail/matrices/nuc44.h>
+#include <rapidfuzz/fuzz.hpp>
+#include <spdlog/spdlog.h>
 
 #include "bam.hpp"
 #include "chromosomes.hpp"
@@ -23,25 +25,22 @@
 #include "sfs.hpp"
 #include "sv.hpp"
 
-using namespace lib_interval_tree;
+using namespace std;
+// using namespace lib_interval_tree;
 
 class Extender {
 
 private:
-  // parameters:
-  uint min_w = 4;
-  uint min_d = 15;
-  uint maxw = 100;
-  uint kmer_size = 7;
   // book keeping:
-  uint skip_1 = 0;   // SFS skipped since no first/last base can be placed from
+  uint unplaced = 0; // SFS skipped since no first/last base can be placed from
                      // read alignment (should be rare)
-  uint skip_2 = 0;   // SFS skipped since it couldn't be extended
-  uint skip_3 = 0;   // SFS skipped since reads starts/ends inside a cluster
-  uint skip_4 = 0;   // SFS skipped since reads starts/ends inside a cluster
-  uint extcl = 0;    // number of extended clusters (after clustering)
-  uint small_cl = 0; // number of cluster (before clustering) with low support
-  uint small_extcl =
+  uint s_unplaced = 0;
+  uint e_unplaced = 0;
+  uint unknown = 0;
+  uint unextended = 0;
+  uint small_clusters =
+      0; // number of cluster (before clustering) with low support
+  uint small_extclusters =
       0; // number of extended clusters (after clustering) with low support
 
   Configuration *config;
@@ -50,18 +49,18 @@ private:
   hts_idx_t *bam_index;
   bam_hdr_t *bam_header;
 
-  std::vector<Cluster> clusters;
-  std::vector<ExtCluster> ext_clusters;
-  std::unordered_map<std::string, std::vector<SFS>> *SFSs;
-  std::vector<ExtSFS> extended_sfs;
+  vector<Cluster> clusters;
+  vector<ExtCluster> ext_clusters;
+  unordered_map<string, vector<SFS>> *SFSs;
+  vector<ExtSFS> extended_sfs;
 
   void extend_parallel();
   void extend_alignment(bam1_t *aln, int index);
-  void process_batch(vector<bam1_t *> bam_entries, int);
-  bool load_batch_bam(int threads, int batch_size, int p);
-  std::pair<int, int>
-  get_unique_kmers(const std::vector<std::pair<int, int>> &alpairs,
-                   const uint k, const bool from_end, std::string chrom);
+  void extend_batch(vector<bam1_t *> bam_entries, int);
+  bool load_batch_bam(int p);
+  pair<int, int> get_unique_kmers(const vector<pair<int, int>> &alpairs,
+                                  const uint k, const bool from_end,
+                                  string chrom);
 
   void extract_sfs_sequences();
   void cluster_interval_tree();
@@ -69,30 +68,26 @@ private:
 
   void call();
   void filter_sv_chains();
-  std::vector<std::pair<uint, char>> parse_cigar(std::string);
-  std::vector<Cluster> cluster_by_length(const Cluster &cluster);
+  vector<pair<uint, char>> parse_cigar(string);
+  vector<Cluster> cluster_by_length(const Cluster &cluster);
 
   // parallelize
-  int threads;
-  int batch_size;
-  std::vector<std::vector<SV>> _p_svs;
-  std::vector<std::vector<Clip>> _p_clips;
-  std::vector<std::vector<ExtSFS>> _p_extended_sfs;
-  std::vector<std::vector<Cluster>> _p_clusters;
-  std::vector<std::vector<Consensus>> _p_alignments;
-  std::vector<std::vector<std::vector<bam1_t *>>> bam_entries;
-  std::vector<std::unordered_map<string, interval_tree_t<int>>> _p_tree;
-  std::vector<std::map<std::pair<int, int>, std::vector<ExtSFS>>>
-      _p_sfs_clusters;
+  vector<vector<SV>> _p_svs;
+  vector<vector<Clip>> _p_clips;
+  vector<vector<ExtSFS>> _p_extended_sfs;
+  vector<vector<Cluster>> _p_clusters;
+  vector<vector<Consensus>> _p_alignments;
+  vector<vector<vector<bam1_t *>>> bam_entries;
+  vector<map<pair<int, int>, vector<ExtSFS>>> _p_sfs_clusters;
 
 public:
-  Extender(std::unordered_map<std::string, std::vector<SFS>> *);
+  Extender(unordered_map<string, vector<SFS>> *);
 
-  std::vector<SV> svs;
-  std::vector<Clip> clips;
-  std::vector<Consensus> alignments;
+  vector<SV> svs;
+  vector<Clip> clips;
+  vector<Consensus> alignments;
 
-  void run(int threads);
+  void run();
 };
 
 #endif

@@ -14,26 +14,12 @@ using namespace std;
 
 const string version = "v2.0.0dev";
 
-void create_workdir() {
-  auto c = Configuration::getInstance();
-  struct stat info;
-  if (stat(c->workdir.c_str(), &info) != 0) {
-    int check = mkdir(c->workdir.c_str(), 0777);
-    if (check != 0) {
-      spdlog::critical("Failed to create output directory, aborting..");
-      exit(EXIT_FAILURE);
-    }
-  }
-}
-
 int main(int argc, char **argv) {
   time_t t;
   time(&t);
   spdlog::set_default_logger(spdlog::stderr_color_st("stderr"));
 
   auto c = Configuration::getInstance();
-  // if (opt::verbose)
-  //   spdlog::set_level(spdlog::level::debug);
 
   if (argc == 1) {
     c->print_help("");
@@ -41,6 +27,8 @@ int main(int argc, char **argv) {
   }
 
   c->parse(argc, argv);
+  if (c->verbose)
+    spdlog::set_level(spdlog::level::debug);
 
   if (c->version) {
     cout << "SVDSS, " << version << endl;
@@ -53,7 +41,7 @@ int main(int argc, char **argv) {
   }
 
   if (strcmp(argv[1], "call") == 0) {
-    if (c->reference == "" || c->bam == "" || c->workdir == "") {
+    if (c->reference == "" || c->bam == "" || c->sfs == "") {
       c->print_help(argv[1]);
       exit(EXIT_FAILURE);
     }
@@ -67,11 +55,10 @@ int main(int argc, char **argv) {
     auto pingpong = new PingPong();
     pingpong->index();
   } else if (strcmp(argv[1], "search") == 0) {
-    if (c->index == "" || c->bam == "" || c->workdir == "") {
+    if (c->index == "" || c->bam == "") {
       c->print_help(argv[1]);
       exit(EXIT_FAILURE);
     }
-    create_workdir();
     auto pingpong = new PingPong();
     pingpong->search();
     // } else if (strcmp(argv[1], "assemble") == 0) {
