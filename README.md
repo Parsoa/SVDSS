@@ -68,8 +68,8 @@ Index reference/sample:
     SVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file
 
     Optional arguments:
-        -b, --binary                            output index in binary format. Allows for another index to be appended to this index later.
-        -a, --append /path/to/binary/index      append to existing binary index.
+        --binary                            output index in binary format. Allows for another index to be appended to this index later.
+        --append /path/to/binary/index      append to existing binary index.
 
 Extract SFS from BAM/FASTQ/FASTA files:
     SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
