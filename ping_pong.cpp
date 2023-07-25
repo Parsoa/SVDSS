@@ -222,13 +222,12 @@ batch_type_t PingPong::process_batch(rld_t *index, int p, int thread) {
 /* Output batches until batch b. We keep in memory all batches (empty if already
  * output), but some have been already output*/
 void PingPong::output_batch(int b) {
-  auto c = Configuration::getInstance();
   // FIXME: can we avoid keeping empty batches in memory? maybe unnecessary fix
   for (int i = 0; i < b; i++) {       // for each of the unmerged batches
     for (auto &batch : obatches[i]) { // for each thread in batch
       for (auto &read : batch) {      // for each read in thread
         vector<SFS> assembled_SFSs = read.second;
-        if (c->assemble) {
+        if (config->assemble) {
           // Assembler a = Assembler();
           assembled_SFSs = Assembler().assemble(read.second);
         }
@@ -397,6 +396,8 @@ int PingPong::search() {
 /* Build FMD-index for input .fa/.fq. Code adapted from ropebwt2 (main_ropebwt2
  * in main.c) **/
 int PingPong::index() {
+  config = Configuration::getInstance();
+
   // hardcoded parameters
   uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) +
                1; // batch size for multi-string indexing
