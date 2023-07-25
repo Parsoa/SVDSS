@@ -5,7 +5,7 @@
 // #include <map>
 // #include <omp.h>
 // #include <set>
-// #include <string>
+#include <string>
 // #include <unordered_map>
 #include <vector>
 
@@ -20,26 +20,26 @@ using namespace std;
 // using namespace lib_interval_tree;
 
 struct Clip {
-  //   string name;
-  //   string chrom;
-  //   uint p;
-  //   uint l;
-  //   bool starting;
-  //   uint w;
+  string name;
+  string chrom;
+  uint p;
+  uint l;
+  bool starting;
+  uint w;
 
-  //   Clip() { w = 0; }
+  Clip() { w = 0; }
 
-  //   Clip(string name_, string chrom_, const uint p_, uint l_,
-  //        bool starting_, uint w_ = 0) {
-  //     name = name_;
-  //     chrom = chrom_;
-  //     p = p_;
-  //     l = l_;
-  //     starting = starting_;
-  //     w = w_;
-  //   }
+  Clip(string name_, string chrom_, const uint p_, uint l_, bool starting_,
+       uint w_ = 0) {
+    name = name_;
+    chrom = chrom_;
+    p = p_;
+    l = l_;
+    starting = starting_;
+    w = w_;
+  }
 
-  //   bool operator<(const Clip &c) const { return p < c.p; }
+  bool operator<(const Clip &c) const { return p < c.p; }
 };
 
 class Clipper {

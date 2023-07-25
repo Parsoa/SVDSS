@@ -93,7 +93,7 @@ Clipper::Clipper(const vector<Clip> &_clips) { clips = _clips; }
 //                                             interval_tree_t<int> &vartree) {
 //   vector<Clip> fclips;
 //   for (const Clip &c : clips) {
-//     if (vartree.overlap_find({c.p, c.p + 1}) == std::end(vartree)) {
+//     if (vartree.overlap_find({c.p, c.p + 1}) == end(vartree)) {
 //       fclips.push_back(c);
 //     }
 //   }
@@ -153,14 +153,14 @@ Clipper::Clipper(const vector<Clip> &_clips) { clips = _clips; }
 //       rclips = filter_lowcovered(rclips, 2); // FIXME: hardcoded
 //       rclips = filter_tooclose_clips(rclips, vartree);
 //       rclips = cluster(rclips, 1000); // FIXME: hardcoded
-//       std::sort(rclips.begin(), rclips.end());
+//       sort(rclips.begin(), rclips.end());
 //     } else {
 //       lclips = remove_duplicates(lclips);
 //       lclips = combine(lclips);
 //       lclips = filter_lowcovered(lclips, 2); // FIXME: hardcoded
 //       lclips = filter_tooclose_clips(lclips, vartree);
 //       lclips = cluster(lclips, 1000); // FIXME: hardcoded
-//       std::sort(lclips.begin(), lclips.end());
+//       sort(lclips.begin(), lclips.end());
 //     }
 //   }
 //   // lprint({to_string(lclips.size()), "left clips."});

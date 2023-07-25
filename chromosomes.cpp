@@ -2,6 +2,7 @@
 
 KSEQ_INIT(gzFile, gzread)
 
+// FIXME: avoid this
 vector<string> chromosomes;
 unordered_map<string, char *> chromosome_seqs;
 

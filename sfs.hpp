@@ -82,24 +82,6 @@ struct ExtSFS {
   }
 };
 
-class Consensus {
-public:
-  string seq;
-  string chrom;
-  string cigar;
-  int s;
-  int e;
-
-  Consensus(const string _seq, const string _cigar, const string _chrom, int _s,
-            int _e) {
-    seq = _seq;
-    cigar = _cigar;
-    chrom = _chrom;
-    s = _s;
-    e = _e;
-  }
-};
-
 unordered_map<string, vector<SFS>> parse_sfsfile(const string &);
 
 #endif

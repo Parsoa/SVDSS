@@ -51,9 +51,9 @@ struct CIGAR {
     int b = 0;
     int lc = strlen(cigar);
     for (int i = 0; i < lc; i++) {
-      if (isdigit(cigar[i])) {
+      if (isdigit(cigar[i]))
         continue;
-      } else {
+      else {
         char type = cigar[i];
         cigar[i] = '\0';
         int l = stoi(string(cigar + b));

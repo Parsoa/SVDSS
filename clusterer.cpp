@@ -1,11 +1,11 @@
-#include "extender.hpp"
+#include "clusterer.hpp"
 
-Extender::Extender(unordered_map<string, vector<SFS>> *_SFSs) {
+Clusterer::Clusterer(unordered_map<string, vector<SFS>> *_SFSs) {
   SFSs = _SFSs;
   config = Configuration::getInstance();
 }
 
-void Extender::run() {
+void Clusterer::run() {
   // 0. Open BAM
   bam_file = hts_open(config->bam.c_str(), "r");
   bam_index = sam_index_load(bam_file, config->bam.c_str());
@@ -13,134 +13,47 @@ void Extender::run() {
   bgzf_mt(bam_file->fp.bgzf, 8, 1);
 
   // 1. Place SFSs on reference genome by extracting subalignments from read
-  // alignments
+  // alignments and extending them using unique k-mers
   spdlog::info("Placing SFSs on reference genome");
   _p_clips.resize(config->threads);
   _p_extended_sfs.resize(config->threads);
-  extend_parallel();
+  align_and_extend();
   for (int i = 0; i < config->threads; i++) {
     for (const auto &extsfs : _p_extended_sfs[i])
-      extended_sfs.push_back(extsfs);
+      extended_SFSs.push_back(extsfs);
     clips.insert(clips.begin(), _p_clips[i].begin(), _p_clips[i].end());
   }
   spdlog::info("{}/{}/{} unplaced SFSs. {} erroneus SFSs. {} clipped SFSs.",
                unplaced, s_unplaced, e_unplaced, unknown, clips.size());
 
   // 2. Cluster SFSs by proximity
-  spdlog::info("Clustering {} SFSs..", extended_sfs.size());
-  cluster_no_interval_tree();
-  map<pair<int, int>, ExtCluster> _ext_clusters;
+  spdlog::info("Clustering {} SFSs..", extended_SFSs.size());
+  cluster_by_proximity();
+  map<pair<int, int>, Cluster> _ext_clusters;
   for (int i = 0; i < config->threads; i++)
     for (const auto &cluster : _p_sfs_clusters[i])
-      _ext_clusters.insert(
-          make_pair(cluster.first, ExtCluster(cluster.second)));
-  for (const auto &cluster : _ext_clusters)
-    ext_clusters.push_back(cluster.second);
+      clusters.push_back(Cluster(cluster.second));
 
   // 3. Extend SFSs inside each cluster to force them to start/end at same
   // reference position
-  spdlog::info("Extending {} clusters..", ext_clusters.size());
-  _p_clusters.resize(config->threads);
-  extract_sfs_sequences();
-  for (int i = 0; i < config->threads; i++)
-    clusters.insert(clusters.begin(), _p_clusters[i].begin(),
-                    _p_clusters[i].end());
+  spdlog::info("Extending {} clusters..", clusters.size());
+  fill_clusters();
   spdlog::info(
-      "Filtered {} SFSs.Filtered {} clusters. Filtered {} global clusters.",
-      unextended, small_clusters, small_extclusters);
+      "Filtered {} SFSs. Filtered {} clusters. Filtered {} global clusters.",
+      unextended, small_clusters, small_clusters_2);
 
+  // 4. Store clusters to file
   if (config->clusters.compare("") != 0) {
     spdlog::info("Storing clusters to {}", config->clusters);
-    ofstream clofile;
-    clofile.open(config->clusters);
-    for (const auto &cluster : clusters) {
-      // CHECKME: is ending position (cluster.first.second) inclusive? I'm
-      // assuming yes
-      clofile << cluster.chrom << ":" << cluster.s + 1 << "-" << cluster.e + 1
-              << "\t" << cluster.size();
-      for (size_t i = 0; i < cluster.size(); ++i)
-        clofile << "\t" << cluster.get_name(i) << ":" << cluster.get_seq(i);
-      clofile << endl;
-    }
-    clofile.close();
+    store_clusters();
   }
 
-  // 4. Call SVs
-  spdlog::info("Calling SVs from {} clusters..", clusters.size());
-  _p_svs.resize(config->threads);
-  _p_alignments.resize(config->threads);
-  call();
-  for (int i = 0; i < config->threads; i++) {
-    svs.insert(svs.begin(), _p_svs[i].begin(), _p_svs[i].end());
-    alignments.insert(alignments.begin(), _p_alignments[i].begin(),
-                      _p_alignments[i].end());
-  }
-  filter_sv_chains();
   sam_close(bam_file);
-  spdlog::info("Total SVs: {}", svs.size());
 }
 
-/* Get first/last kmer entirely mapped and with a single occurrence in a
- * subalignment of interest. Return the kmer as the initial pair of positions in
- * the alignment */
-pair<int, int> Extender::get_unique_kmers(const vector<pair<int, int>> &alpairs,
-                                          const uint k, const bool from_end,
-                                          string chrom) {
-  if (alpairs.size() < k)
-    return make_pair(-1, -1);
-
-  // Do kmer counting in region
-  map<string, int> kmers;
-  string kmer_seq;
-  size_t i = 0;
-  while (i < alpairs.size() - k + 1) {
-    bool skip = false;
-    for (size_t j = i; j < i + k; j++) {
-      if (alpairs[j].first == -1 || alpairs[j].second == -1) {
-        // we want clean kmers only - ie placed kmers, no insertions or
-        // deletions
-        skip = true;
-        i = j + 1; // jump to next clean/placed position
-        break;
-      }
-    }
-    if (skip)
-      continue;
-    string kmer(chromosome_seqs[chrom] + alpairs[i].second, k);
-    ++kmers[kmer];
-    ++i;
-  }
-  // Get first/last kmer with single occurrence
-  pair<int, int> last_kmer = make_pair(-1, -1);
-  i = 0;
-  while (i < alpairs.size() - k + 1) {
-    int offset = i;
-    if (from_end)
-      offset = alpairs.size() - k - i;
-    assert(offset >= 0);
-    bool skip = false;
-    for (size_t j = offset; j < offset + k; j++) {
-      if (alpairs[j].first == -1 || alpairs[j].second == -1) {
-        skip = true;
-        i += (j - offset); // jump to next possible start position
-        break;
-      }
-    }
-    if (skip) {
-      ++i;
-      continue;
-    }
-    last_kmer = alpairs[offset];
-    string kmer(chromosome_seqs[chrom] + alpairs[offset].second, k);
-    if (kmers[kmer] == 1)
-      break;
-    ++i;
-  }
-  return last_kmer;
-}
-
-// Parallelize within each chromosome
-void Extender::extend_parallel() {
+/* Extract alignment of SFSs from corresponding read alignment and extend them
+ * using unique k-mers in the w-bp flanking regions */
+void Clusterer::align_and_extend() {
   // Initializing
   for (int i = 0; i < 2; i++) {
     bam_entries.push_back(vector<vector<bam1_t *>>(config->threads));
@@ -151,7 +64,7 @@ void Extender::extend_parallel() {
 
   int p = 0;
   int b = 0;
-  load_batch_bam(p);
+  load_batch(p);
   time_t start_time;
   time_t curr_time;
   time(&start_time);
@@ -168,10 +81,10 @@ void Extender::extend_parallel() {
       if (t == 0) {
         // First thread loads next batch
         if (should_load)
-          should_load = load_batch_bam((p + 1) % 2);
+          should_load = load_batch((p + 1) % 2);
       } else
         // Other threads process batch
-        extend_batch(bam_entries[p][t - 1], t - 1);
+        process_batch(p, t - 1);
     }
     p += 1;
     p %= 2;
@@ -192,7 +105,7 @@ void Extender::extend_parallel() {
 
 /* Load batch from BAM file and store to input entry p. The logic behind is:
  * fill position i per each thread, then move to position i+1.. */
-bool Extender::load_batch_bam(int p) {
+bool Clusterer::load_batch(int p) {
   int i = 0;
   int nseqs = 0;
   while (sam_read1(bam_file, bam_header,
@@ -229,19 +142,19 @@ bool Extender::load_batch_bam(int p) {
   return false;
 }
 
-/* Extend a batch of alignments */
-void Extender::extend_batch(vector<bam1_t *> bam_entries, int index) {
+/* Extend the batch of alignments assigned to thread t */
+void Clusterer::process_batch(int p, int t) {
   bam1_t *aln;
-  for (size_t b = 0; b < bam_entries.size(); b++) {
-    aln = bam_entries[b];
+  for (size_t b = 0; b < bam_entries[p][t].size(); b++) {
+    aln = bam_entries[p][t][b];
     if (aln == nullptr)
       break;
-    extend_alignment(aln, index);
+    extend_alignment(aln, t);
   }
 }
 
 /* Place SFSs on the alignment and extend them using k-mers */
-void Extender::extend_alignment(bam1_t *aln, int index) {
+void Clusterer::extend_alignment(bam1_t *aln, int index) {
   char *qname = bam_get_qname(aln);
   uint32_t *cigar = bam_get_cigar(aln);
   vector<pair<int, int>> alpairs = get_aligned_pairs(aln);
@@ -422,31 +335,90 @@ void Extender::extend_alignment(bam1_t *aln, int index) {
   for (const auto mes : merged_extended_sfs)
     _p_extended_sfs[index].push_back(mes);
 
-  // if (lclip.second > 0)
-  //   _p_clips[index].push_back(
-  //       Clip(qname, chrom, lclip.first, lclip.second, true));
-  // if (rclip.second > 0)
-  //   _p_clips[index].push_back(
-  //       Clip(qname, chrom, rclip.first, rclip.second, false));
+  if (lclip.second > 0)
+    _p_clips[index].push_back(
+        Clip(qname, chrom, lclip.first, lclip.second, true));
+  if (rclip.second > 0)
+    _p_clips[index].push_back(
+        Clip(qname, chrom, rclip.first, rclip.second, false));
 }
 
-void Extender::cluster_no_interval_tree() {
-  sort(extended_sfs.begin(), extended_sfs.end());
-  auto r = max_element(extended_sfs.begin(), extended_sfs.end(),
+/* Get first/last kmer entirely mapped and with a single occurrence in a
+ * subalignment of interest. Return the kmer as the initial pair of positions in
+ * the alignment */
+pair<int, int>
+Clusterer::get_unique_kmers(const vector<pair<int, int>> &alpairs, const uint k,
+                            const bool from_end, string chrom) {
+  if (alpairs.size() < k)
+    return make_pair(-1, -1);
+
+  // Do kmer counting in region
+  map<string, int> kmers;
+  string kmer_seq;
+  size_t i = 0;
+  while (i < alpairs.size() - k + 1) {
+    bool skip = false;
+    for (size_t j = i; j < i + k; j++) {
+      if (alpairs[j].first == -1 || alpairs[j].second == -1) {
+        // we want clean kmers only - ie placed kmers, no insertions or
+        // deletions
+        skip = true;
+        i = j + 1; // jump to next clean/placed position
+        break;
+      }
+    }
+    if (skip)
+      continue;
+    string kmer(chromosome_seqs[chrom] + alpairs[i].second, k);
+    ++kmers[kmer];
+    ++i;
+  }
+  // Get first/last kmer with single occurrence
+  pair<int, int> last_kmer = make_pair(-1, -1);
+  i = 0;
+  while (i < alpairs.size() - k + 1) {
+    int offset = i;
+    if (from_end)
+      offset = alpairs.size() - k - i;
+    assert(offset >= 0);
+    bool skip = false;
+    for (size_t j = offset; j < offset + k; j++) {
+      if (alpairs[j].first == -1 || alpairs[j].second == -1) {
+        skip = true;
+        i += (j - offset); // jump to next possible start position
+        break;
+      }
+    }
+    if (skip) {
+      ++i;
+      continue;
+    }
+    last_kmer = alpairs[offset];
+    string kmer(chromosome_seqs[chrom] + alpairs[offset].second, k);
+    if (kmers[kmer] == 1)
+      break;
+    ++i;
+  }
+  return last_kmer;
+}
+
+void Clusterer::cluster_by_proximity() {
+  sort(extended_SFSs.begin(), extended_SFSs.end());
+  auto r = max_element(extended_SFSs.begin(), extended_SFSs.end(),
                        [](const ExtSFS &lhs, const ExtSFS &rhs) {
                          return lhs.e - lhs.s < rhs.e - rhs.s;
                        });
-  int dist = (r->e - r->s) * 1.1;
+  int dist = (r->e - r->s) * 1.1; // TODO: add to CLI
   spdlog::info(
-      "Maximum extended SFS length: {}bp. Using separation distance {}.",
+      "Maximum extended SFS length: {}bp. Using separation distance: {}bp.",
       r->e - r->s, dist);
-  // find large gaps
+  // Cluster SFSs inside dist-bp windows
   int prev_i = 0;
-  int prev_e = extended_sfs[0].e;
-  string prev_chrom = extended_sfs[0].chrom;
+  int prev_e = extended_SFSs[0].e;
+  string prev_chrom = extended_SFSs[0].chrom;
   vector<pair<int, int>> intervals;
-  for (size_t i = 1; i < extended_sfs.size(); i++) {
-    const auto &sfs = extended_sfs[i];
+  for (size_t i = 1; i < extended_SFSs.size(); i++) {
+    const auto &sfs = extended_SFSs[i];
     // new chromosome
     if (sfs.chrom != prev_chrom) {
       prev_chrom = sfs.chrom;
@@ -462,20 +434,21 @@ void Extender::cluster_no_interval_tree() {
       }
     }
   }
-  intervals.push_back(make_pair(prev_i, extended_sfs.size() - 1));
+  intervals.push_back(make_pair(prev_i, extended_SFSs.size() - 1));
 
-  // cluster each interval independently
-  _p_sfs_clusters.resize(config->threads);
+  // Cluster SFS inside each interval
+  _p_sfs_clusters.resize(
+      config->threads); // vector<map<pair<int, int>, vector<ExtSFS>>>
 #pragma omp parallel for num_threads(config->threads) schedule(static, 1)
   for (size_t i = 0; i < intervals.size(); i++) {
     int t = omp_get_thread_num();
     int j = intervals[i].first;
-    int low = extended_sfs[j].s;
-    int high = extended_sfs[j].e;
+    int low = extended_SFSs[j].s;
+    int high = extended_SFSs[j].e;
     int last_j = j;
     j++;
     for (; j <= intervals[i].second; j++) {
-      const ExtSFS &sfs = extended_sfs[j];
+      const ExtSFS &sfs = extended_SFSs[j];
       if (sfs.s <= high) {
         low = min(low, sfs.s);
         high = max(high, sfs.e);
@@ -483,7 +456,7 @@ void Extender::cluster_no_interval_tree() {
         for (int k = last_j; k < j;
              k++) { // CHECKME: < or <=?
                     // NOTE: <= makes the code waaaay slower
-          _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_sfs[k]);
+          _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_SFSs[k]);
         }
         low = sfs.s;
         high = sfs.e;
@@ -493,13 +466,13 @@ void Extender::cluster_no_interval_tree() {
     for (int k = last_j; k <= intervals[i].second;
          k++) { // CHECKME: it was < but in that way
                 // we were losing an sfs per cluster
-      _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_sfs[k]);
+      _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_SFSs[k]);
     }
   }
 }
 
-/* Assign coverage and read (sub)sequence to each cluster  */
-void Extender::extract_sfs_sequences() {
+// /* Assign coverage and read (sub)sequence to each cluster  */
+void Clusterer::fill_clusters() {
   // Allocate
   char *seq[config->threads];
   uint32_t len[config->threads];
@@ -517,19 +490,19 @@ void Extender::extract_sfs_sequences() {
   }
 
 #pragma omp parallel for num_threads(config->threads) schedule(static, 1)
-  for (size_t i = 0; i < ext_clusters.size(); i++) {
+  for (size_t i = 0; i < clusters.size(); i++) {
     int t = omp_get_thread_num();
-    const auto &cluster = ext_clusters[i];
+    Cluster &cluster = clusters[i];
 
     // Force all extended SFSs to start and end at the same position. Build a
     // "global" cluster
     set<string> reads;
-    int cluster_s = numeric_limits<int>::max();
-    int cluster_e = 0;
-    for (const ExtSFS &esfs : cluster.seqs) {
-      cluster_s = min(cluster_s, esfs.s);
-      cluster_e = max(cluster_e, esfs.e);
-      reads.insert(esfs.qname);
+    int min_s = numeric_limits<int>::max();
+    int max_e = 0;
+    for (const ExtSFS &sfs : cluster.SFSs) {
+      min_s = min(min_s, sfs.s);
+      max_e = max(max_e, sfs.e);
+      reads.insert(sfs.qname);
     }
 
     size_t cluster_size = reads.size();
@@ -538,13 +511,13 @@ void Extender::extract_sfs_sequences() {
       continue;
     }
 
-    Cluster global_cluster = Cluster(cluster.chrom, cluster_s, cluster_e);
+    cluster.set_coordinates(min_s, max_e);
 
     // Iterate over alignments falling in the cluster region to: (i) get total
     // number of reads and (ii) get SFS sequence, one per read
     uint cov = 0;
     string region =
-        cluster.chrom + ":" + to_string(cluster_s) + "-" + to_string(cluster_e);
+        cluster.chrom + ":" + to_string(min_s) + "-" + to_string(max_e);
     hts_itr_t *itr =
         sam_itr_querys(_p_bam_index[t], _p_bam_header[t], region.c_str());
     while (sam_itr_next(_p_bam_file[t], itr, _p_aln[t]) > 0) {
@@ -557,6 +530,7 @@ void Extender::extract_sfs_sequences() {
 
       char *qname = bam_get_qname(aln);
       if (reads.find(qname) == reads.end())
+        // we do not have a SFS on this read at this locus
         continue;
 
       // If we have a SFS on this read, load the read sequence
@@ -582,7 +556,7 @@ void Extender::extract_sfs_sequences() {
         int r = alpairs[i].second;
         if (q == -1 || r == -1)
           continue;
-        if (r <= cluster_s) {
+        if (r <= min_s) {
           qs = q;
           break;
         }
@@ -593,7 +567,7 @@ void Extender::extract_sfs_sequences() {
         int r = alpairs[i].second;
         if (q == -1 || r == -1)
           continue;
-        if (r >= cluster_e) {
+        if (r >= max_e) {
           qe = q;
           break;
         }
@@ -605,14 +579,13 @@ void Extender::extract_sfs_sequences() {
         ++unextended;
       } else {
         string _seq(seq[t], qs, qe - qs + 1);
-        global_cluster.add(qname, _seq);
+        cluster.add_seq(qname, _seq);
       }
     }
-    if (global_cluster.size() >= config->min_cluster_weight) {
-      global_cluster.set_cov(cov);
-      _p_clusters[t].push_back(global_cluster);
-    } else
-      ++small_extclusters;
+    if (cluster.size() >= config->min_cluster_weight)
+      cluster.set_cov(cov);
+    else
+      ++small_clusters_2;
   }
 
   // clean
@@ -624,187 +597,18 @@ void Extender::extract_sfs_sequences() {
   }
 }
 
-/* Split cluster in subclusters */
-vector<Cluster> Extender::cluster_by_length(const Cluster &cluster) {
-  vector<Cluster> clusters_by_len;
-  for (uint c = 0; c < cluster.size(); ++c) {
-    const string &name = cluster.get_name(c);
-    const string &seq = cluster.get_seq(c);
-    size_t i;
-    for (i = 0; i < clusters_by_len.size(); i++) {
-      float cl = clusters_by_len[i].get_len();
-      float sl = seq.size();
-      if (min(cl, sl) / max(cl, sl) >= config->min_ratio)
-        break;
-    }
-    if (i == clusters_by_len.size()) {
-      clusters_by_len.push_back(
-          Cluster(cluster.chrom, cluster.s, cluster.e, cluster.cov));
-    }
-    clusters_by_len[i].add(name, seq);
+/* Store clusters to file */
+void Clusterer::store_clusters() {
+  ofstream clofile;
+  clofile.open(config->clusters);
+  for (const auto &cluster : clusters) {
+    // CHECKME: is ending position (cluster.first.second) inclusive? I'm
+    // assuming yes
+    clofile << cluster.chrom << ":" << cluster.s + 1 << "-" << cluster.e + 1
+            << "\t" << cluster.size();
+    for (size_t i = 0; i < cluster.size(); ++i)
+      clofile << "\t" << cluster.get_name(i) << ":" << cluster.get_seq(i);
+    clofile << endl;
   }
-  return clusters_by_len;
-}
-
-/* Convert a CIGAR string into a vector of pairs */
-vector<pair<uint, char>> Extender::parse_cigar(string cigar) {
-  // TODO: we already have a parse_cigar in bam.hpp
-  vector<pair<uint, char>> cigar_pairs;
-  regex r("([0-9]+)([MIDNSHPX=])");
-  regex_iterator<string::iterator> rit(cigar.begin(), cigar.end(), r);
-  regex_iterator<string::iterator> rend;
-  while (rit != rend) {
-    int l = stoi(rit->str().substr(0, rit->str().size() - 1));
-    char op = rit->str().substr(rit->str().size() - 1, 1)[0];
-    cigar_pairs.push_back(make_pair(l, op));
-    ++rit;
-  }
-  return cigar_pairs;
-}
-
-/* Call SVs by POA+realignment */
-void Extender::call() {
-#pragma omp parallel for num_threads(config->threads) schedule(static, 1)
-  for (size_t i = 0; i < clusters.size(); i++) {
-    int t = omp_get_thread_num();
-    const Cluster &cluster = clusters[i];
-    string chrom = cluster.chrom;
-    const auto &clusters_by_len = cluster_by_length(cluster);
-
-    // Sorting clusters by #sequences to get first 2 most weighted clusters
-    int i_max1 = -1;
-    int i_max2 = -1;
-    uint v_max1 = 0;
-    uint v_max2 = 0;
-    for (uint i = 0; i < clusters_by_len.size(); ++i) {
-      if (clusters_by_len[i].size() > v_max1) {
-        v_max2 = v_max1;
-        i_max2 = i_max1;
-        v_max1 = clusters_by_len[i].size();
-        i_max1 = i;
-      } else if (clusters_by_len[i].size() > v_max2) {
-        v_max2 = clusters_by_len[i].size();
-        i_max2 = i;
-      }
-    }
-    vector<int> maxs({i_max1, i_max2});
-    // Genotyping the two most-weighted clusters
-    for (const int i : maxs) {
-      if (i == -1) {
-        continue;
-      }
-      Cluster c = clusters_by_len[i];
-      if (c.size() < config->min_cluster_weight)
-        continue;
-
-      vector<SV> _svs;
-
-      string ref = string(chromosome_seqs[chrom] + c.s, c.e - c.s + 1);
-      string consensus = c.poa();
-      parasail_result_t *result = NULL;
-      result = parasail_nw_trace_striped_16(consensus.c_str(), consensus.size(),
-                                            ref.c_str(), ref.size(), 10, 1,
-                                            &parasail_nuc44);
-      parasail_cigar_t *cigar =
-          parasail_result_get_cigar(result, consensus.c_str(), consensus.size(),
-                                    ref.c_str(), ref.size(), NULL);
-      string cigar_str = parasail_cigar_decode(cigar);
-      int score = result->score;
-      parasail_cigar_free(cigar);
-      parasail_result_free(result);
-      _p_alignments[t].push_back(
-          Consensus(consensus, cigar_str, chrom, c.s, c.e));
-      // -- Extracting SVs
-      uint rpos = c.s; // position on reference
-      uint cpos = 0;   // position on consensus
-      auto cigar_pairs = parse_cigar(cigar_str);
-      int nv = 0;
-      for (const auto cigar_pair : cigar_pairs) {
-        uint l = cigar_pair.first;
-        char op = cigar_pair.second;
-        if (op == '=' || op == 'M') {
-          rpos += l;
-          cpos += l;
-        } else if (op == 'I') {
-          if (l > config->min_sv_length) {
-            SV sv = SV("INS", c.chrom, rpos,
-                       string(chromosome_seqs[chrom] + rpos - 1, 1),
-                       string(chromosome_seqs[chrom] + rpos - 1, 1) +
-                           consensus.substr(cpos, l),
-                       c.size(), c.cov, nv, score, false, l, cigar_str);
-            sv.add_reads(c.get_names());
-            _svs.push_back(sv);
-            nv++;
-          }
-          cpos += l;
-        } else if (op == 'D') {
-          if (l > config->min_sv_length) {
-            SV sv = SV("DEL", c.chrom, rpos,
-                       string(chromosome_seqs[chrom] + rpos - 1, l),
-                       string(chromosome_seqs[chrom] + rpos - 1, 1), c.size(),
-                       c.cov, nv, score, false, l, cigar_str);
-            sv.add_reads(c.get_names());
-            _svs.push_back(sv);
-            nv++;
-          }
-          rpos += l;
-        }
-      }
-      for (size_t v = 0; v < _svs.size(); v++)
-        _svs[v].ngaps = nv;
-      for (const SV &sv : _svs)
-        _p_svs[t].push_back(sv);
-    }
-  }
-}
-
-/* Merge close and similar SVs */
-void Extender::filter_sv_chains() {
-  if (svs.size() < 2)
-    return;
-  sort(svs.begin(), svs.end());
-  spdlog::info("{} SVs before chain filtering.", svs.size());
-  vector<SV> _svs;
-  auto &prev = svs[0];
-  bool reset = false;
-  for (size_t i = 1; i < svs.size(); i++) {
-    if (reset) {
-      reset = false;
-      prev = svs[i];
-      continue;
-    }
-    auto &sv = svs[i];
-    if (sv.chrom == prev.chrom && sv.s - prev.e < 2 * sv.l &&
-        prev.type == sv.type) {
-      //  check for sequence similarity
-      double w_r =
-          min((double)sv.w, (double)prev.w) / max((double)sv.w, (double)prev.w);
-      double l_r =
-          min((double)sv.l, (double)prev.l) / max((double)sv.l, (double)prev.l);
-      int d = sv.s - prev.s;
-      if (d < 100 && w_r >= 0.9 &&
-          l_r >= config->min_ratio) { // FIXME: hardcoded + use different ratio
-                                      // here. min_ratio was for clusters
-        double sim;
-        if (sv.type == "DEL")
-          sim = rapidfuzz::fuzz::ratio(sv.refall, prev.refall);
-        else
-          sim = rapidfuzz::fuzz::ratio(sv.altall, prev.altall);
-        if (sim > 70) {
-          if (sv.w > prev.w) {
-            _svs.push_back(sv);
-          } else {
-            _svs.push_back(prev);
-          }
-          reset = true;
-          continue;
-        }
-      }
-    }
-    _svs.push_back(prev);
-    prev = sv;
-  }
-  _svs.push_back(prev);
-  svs.clear();
-  svs.insert(svs.begin(), _svs.begin(), _svs.end());
+  clofile.close();
 }

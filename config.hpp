@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "bed_utils.hpp"
 #include "cxxopts.hpp"
 
 using namespace std;

@@ -2,6 +2,8 @@
 
 bool operator<(const SFS &x, const SFS &y) { return x.s < y.s; }
 
+// TODO: if we split the .sfs into more files, we can load it using more threads
+// (but for SVs having a single file shouldn't be the bottleneck)
 unordered_map<string, vector<SFS>> parse_sfsfile(const string &sfs_path) {
   spdlog::info("Loading SFSs from {}..", sfs_path);
   unordered_map<string, vector<SFS>> SFSs;
