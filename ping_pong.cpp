@@ -13,8 +13,8 @@ void seq_char2nt6(int l, unsigned char *s) {
 }
 
 /* Compute SFS strings from P and store them into solutions*/
-void PingPong::ping_pong_search(rld_t *index, uint8_t *P, int l,
-                                vector<sfs_type_t> &solutions, int hp_tag) {
+void PingPong::ping_pong_search(rld_t *index, const string &qname, uint8_t *P,
+                                int l, vector<SFS> &solutions, int hp_tag) {
   rldintv_t sai;
   int begin = l - 1;
   while (begin >= 0) {
@@ -58,16 +58,14 @@ void PingPong::ping_pong_search(rld_t *index, uint8_t *P, int l,
     // fmatches: " << fmatches << endl ;) DEBUG(cerr << "Adding [" << begin <<
     // ", " << end << "]." << endl ;)
     int sfs_len = end - begin + 1;
-    SFS sfs = SFS{begin, sfs_len, hp_tag};
+    SFS sfs(qname, begin, sfs_len, hp_tag);
     solutions.push_back(sfs);
-    if (begin == 0) {
+    if (begin == 0)
       break;
-    }
-    if (config->overlap == 0) { // Relaxed
+    if (config->overlap == 0) // Relaxed
       begin -= 1;
-    } else {
+    else
       begin = end + config->overlap; // overlap < 0
-    }
   }
 }
 
@@ -191,7 +189,7 @@ batch_type_t PingPong::process_batch(rld_t *index, int p, int thread) {
   if (!bam_mode) {
     for (uint j = 0; j < read_seqs[p][thread].size(); j++) {
       ping_pong_search(
-          index, read_seqs[p][thread][j],
+          index, read_names[p][thread][j], read_seqs[p][thread][j],
           strlen(
               (char *)read_seqs[p][thread]
                                [j]), // FIXME: this may be inefficient. We were
@@ -212,7 +210,7 @@ batch_type_t PingPong::process_batch(rld_t *index, int p, int thread) {
                      : 0;
       if (config->putative and xf_t != 0)
         continue;
-      ping_pong_search(index, read_seqs[p][thread][j], aln->core.l_qseq,
+      ping_pong_search(index, qname, read_seqs[p][thread][j], aln->core.l_qseq,
                        solutions[qname], hp_t);
     }
   }
@@ -235,7 +233,7 @@ void PingPong::output_batch(int b) {
         for (const SFS &sfs : assembled_SFSs) {
           // optimize file output size by not outputting read name for every
           // SFS
-          cout << (is_first ? read.first : "*") << "\t" << sfs.s << "\t"
+          cout << (is_first ? read.first : "*") << "\t" << sfs.qs << "\t"
                << sfs.l << "\t" << sfs.htag << "\t" << endl;
           is_first = false;
         }

@@ -67,8 +67,7 @@ static inline int kputsn(const char *p, int l, kstring_t *s) {
   return l;
 }
 
-typedef SFS sfs_type_t;
-typedef map<string, vector<sfs_type_t>> batch_type_t;
+typedef map<string, vector<SFS>> batch_type_t;
 
 static const vector<string> int2char({"$", "A", "C", "G", "T", "N"});
 
@@ -95,11 +94,11 @@ private:
   vector<vector<vector<string>>> read_names;
   vector<vector<vector<bam1_t *>>> bam_entries;
   vector<vector<vector<fastq_entry_t>>> fastq_entries;
-  bool load_batch_bam(int p);
-  bool load_batch_fastq(int threads, int batch_size, int p);
-  batch_type_t process_batch(rld_t *index, int p, int i);
-  void ping_pong_search(rld_t *index, uint8_t *seq, int l,
-                        vector<sfs_type_t> &solutions, int hp);
+  bool load_batch_bam(int);
+  bool load_batch_fastq(int, int, int);
+  batch_type_t process_batch(rld_t *, int, int);
+  void ping_pong_search(rld_t *, const string &, uint8_t *, int, vector<SFS> &,
+                        int);
   void output_batch(int);
 
   vector<vector<batch_type_t>> obatches;

@@ -1,7 +1,5 @@
 #include "sfs.hpp"
 
-bool operator<(const SFS &x, const SFS &y) { return x.s < y.s; }
-
 // TODO: if we split the .sfs into more files, we can load it using more threads
 // (but for SVs having a single file shouldn't be the bottleneck)
 unordered_map<string, vector<SFS>> parse_sfsfile(const string &sfs_path) {
@@ -22,9 +20,8 @@ unordered_map<string, vector<SFS>> parse_sfsfile(const string &sfs_path) {
         read_name = info[0];
         SFSs[read_name] = vector<SFS>();
       }
-      // TODO
       SFSs[read_name].push_back(
-          SFS(stoi(info[1]), stoi(info[2]), stoi(info[3])));
+          SFS(read_name, stoi(info[1]), stoi(info[2]), stoi(info[3])));
       ++total;
     }
   }

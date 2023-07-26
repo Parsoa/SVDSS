@@ -29,10 +29,10 @@ public:
   string reads;
 
   SV();
-  SV(const string type_, const string &chrom_, uint s_,
-     const string &refall_, const string &altall_, const uint w_,
-     const uint cov_, const int ngaps_, const int score_,
-     bool imprecise_ = false, uint l_ = 0, string cigar_ = ".");
+  SV(const string type_, const string &chrom_, uint s_, const string &refall_,
+     const string &altall_, const uint w_, const uint cov_, const int ngaps_,
+     const int score_, bool imprecise_ = false, uint l_ = 0,
+     string cigar_ = ".");
   void add_reads(const vector<string> &reads_);
   void genotype();
 

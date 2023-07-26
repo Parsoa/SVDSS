@@ -26,13 +26,13 @@ struct Cluster {
   int s;
   int e;
   int cov;
-  vector<ExtSFS> SFSs;
+  vector<SFS> SFSs;
   vector<string> names;
   vector<string> seqs;
 
   Cluster(){};
 
-  Cluster(const vector<ExtSFS> &_SFSs) {
+  Cluster(const vector<SFS> &_SFSs) {
     SFSs = _SFSs;
     chrom = _SFSs[0].chrom;
   }
@@ -78,7 +78,7 @@ class Clusterer {
 private:
   Configuration *config;
   unordered_map<string, vector<SFS>> *SFSs;
-  vector<ExtSFS> extended_SFSs;
+  vector<SFS> extended_SFSs;
   samFile *bam_file;
   hts_idx_t *bam_index;
   bam_hdr_t *bam_header;
@@ -107,9 +107,9 @@ private:
 
   // parallelize
   vector<vector<Clip>> _p_clips;
-  vector<vector<ExtSFS>> _p_extended_sfs;
+  vector<vector<SFS>> _p_extended_sfs;
   vector<vector<vector<bam1_t *>>> bam_entries;
-  vector<map<pair<int, int>, vector<ExtSFS>>> _p_sfs_clusters;
+  vector<map<pair<int, int>, vector<SFS>>> _p_sfs_clusters;
 
 public:
   Clusterer(unordered_map<string, vector<SFS>> *);

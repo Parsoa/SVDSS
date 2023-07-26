@@ -29,56 +29,52 @@ static const char RCN[128] = {
 };
 
 struct SFS {
-  int s;
-  int l;
-  int htag;
-
-  SFS() {
-    s = 0;
-    l = 0;
-    htag = 0;
-  }
-
-  SFS(int s_, int l_, int htag_) {
-    s = s_;
-    l = l_;
-    htag = htag_;
-  }
-
-  // void reverse(int p) { s = p - s - l; }
-};
-
-bool operator<(const SFS &, const SFS &);
-
-struct ExtSFS {
   string chrom;
   string qname;
-  // reference positions
-  int s;
-  int e;
-  // query positions
+  // reference and query positions, length
+  int rs;
+  int re;
   int qs;
   int qe;
+  int l;
   // other
   int htag;
 
-  ExtSFS(const string &_chrom, const string &_qname, int _s, int _e, int _qs,
-         int _qe, int _htag) {
-    chrom = _chrom;
+  SFS(const string &_qname, int _qs, int _l, int _htag) {
+    chrom = "";
     qname = _qname;
-    s = _s;
-    e = _e;
     qs = _qs;
-    qe = _qe;
+    qe = _qs + _l;
+    l = _l;
     htag = _htag;
   }
 
-  bool operator<(const ExtSFS &c) const {
-    return chrom == c.chrom ? s < c.s : chrom < c.chrom;
+  SFS(const string &_chrom, const string &_qname, int _rs, int _re, int _qs,
+      int _qe, int _htag) {
+    chrom = _chrom;
+    qname = _qname;
+    rs = _rs;
+    re = _re;
+    qs = _qs;
+    qe = _qe;
+    l = qe - qs + 1;
+    htag = _htag;
   }
 
-  bool operator==(const ExtSFS &c) const {
-    return chrom == c.chrom and s == c.s and e == c.e;
+  // void reverse(int p) { s = p - s - l; }
+
+  bool operator<(const SFS &c) const {
+    // FIXME: bad trick to manage both cases we can have (in assembler, we have
+    // to check for query positions and we are sure we do not have a chromosome
+    // there. On caller, where we have the chrom, for reference positions)
+    if (chrom == "" || c.chrom == "")
+      return qs < c.qs;
+    else
+      return chrom == c.chrom ? rs < c.rs : chrom < c.chrom;
+  }
+
+  bool operator==(const SFS &c) const {
+    return chrom == c.chrom and rs == c.rs and re == c.re;
   }
 };
 

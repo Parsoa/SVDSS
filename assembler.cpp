@@ -38,17 +38,17 @@ vector<SFS> Assembler::assemble(vector<SFS> &sfs) {
   while (i < sfs.size()) {
     size_t j;
     for (j = i + 1; j < sfs.size(); ++j) {
-      if (sfs[j - 1].s + sfs[j - 1].l <= sfs[j].s) {
+      if (sfs[j - 1].qs + sfs[j - 1].l <= sfs[j].qs) {
         // non-overlapping
-        uint l = sfs[j - 1].s + sfs[j - 1].l - sfs[i].s;
-        assembled_sfs.push_back(SFS(sfs[i].s, l, sfs[i].htag));
+        uint l = sfs[j - 1].qs + sfs[j - 1].l - sfs[i].qs;
+        assembled_sfs.push_back(SFS(sfs[i].qname, sfs[i].qs, l, sfs[i].htag));
         i = j;
         break;
       }
     }
     if (j == sfs.size()) {
-      uint l = sfs[j - 1].s + sfs[j - 1].l - sfs[i].s;
-      assembled_sfs.push_back(SFS(sfs[i].s, l, sfs[i].htag));
+      uint l = sfs[j - 1].qs + sfs[j - 1].l - sfs[i].qs;
+      assembled_sfs.push_back(SFS(sfs[i].qname, sfs[i].qs, l, sfs[i].htag));
       i = j;
     }
   }

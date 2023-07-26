@@ -168,10 +168,10 @@ void Clusterer::extend_alignment(bam1_t *aln, int index) {
   pair<uint, uint> lclip = make_pair(0, 0);
   pair<uint, uint> rclip = make_pair(0, 0);
   int last_pos = 0;
-  vector<ExtSFS> local_extended_sfs;
+  vector<SFS> local_extended_sfs;
   for (const SFS &sfs : SFSs->at(qname)) {
-    int s = sfs.s;
-    int e = sfs.s + sfs.l - 1;
+    int s = sfs.qs;
+    int e = sfs.qs + sfs.l - 1;
     int hp_tag = sfs.htag;
     int aln_start = -1;
     int aln_end = -1;
@@ -297,33 +297,33 @@ void Clusterer::extend_alignment(bam1_t *aln, int index) {
     }
     // FIXME: understand why this is happening (chr16 on full giab genome)
     if ((uint)prekmer.second > postkmer.second + config->ksize) {
-      spdlog::warn("Error on {}. SFS starting at {} (length {})", qname, sfs.s,
+      spdlog::warn("Error on {}. SFS starting at {} (length {})", qname, sfs.qs,
                    sfs.l);
     } else {
       local_extended_sfs.push_back(
-          ExtSFS(string(chrom), string(qname), prekmer.second,
-                 postkmer.second + config->ksize, prekmer.first,
-                 postkmer.first + config->ksize, hp_tag));
+          SFS(string(chrom), string(qname), prekmer.second,
+              postkmer.second + config->ksize, prekmer.first,
+              postkmer.first + config->ksize, hp_tag));
     }
   }
   // When two SFSs are close but not overlapping, we may end up with two
   // overlapping extended SFSs. We need to merge SFSs two by two until we don't
   // need to merge anything
-  vector<ExtSFS> merged_extended_sfs;
+  vector<SFS> merged_extended_sfs;
   for (size_t i = 0; i < local_extended_sfs.size(); ++i) {
     size_t j;
     for (j = 0; j < merged_extended_sfs.size(); ++j) {
-      if ((local_extended_sfs.at(i).s <= merged_extended_sfs.at(j).s &&
-           merged_extended_sfs.at(j).s <= local_extended_sfs.at(i).e) ||
-          (merged_extended_sfs.at(j).s <= local_extended_sfs.at(i).s &&
-           local_extended_sfs.at(i).s <= merged_extended_sfs.at(j).e))
+      if ((local_extended_sfs.at(i).rs <= merged_extended_sfs.at(j).rs &&
+           merged_extended_sfs.at(j).rs <= local_extended_sfs.at(i).re) ||
+          (merged_extended_sfs.at(j).rs <= local_extended_sfs.at(i).rs &&
+           local_extended_sfs.at(i).rs <= merged_extended_sfs.at(j).re))
         break;
     }
     if (j < merged_extended_sfs.size()) {
-      merged_extended_sfs[j].s =
-          min(merged_extended_sfs.at(j).s, local_extended_sfs.at(i).s);
-      merged_extended_sfs[j].e =
-          max(merged_extended_sfs.at(j).e, local_extended_sfs.at(i).e);
+      merged_extended_sfs[j].rs =
+          min(merged_extended_sfs.at(j).rs, local_extended_sfs.at(i).rs);
+      merged_extended_sfs[j].re =
+          max(merged_extended_sfs.at(j).re, local_extended_sfs.at(i).re);
       merged_extended_sfs[j].qs =
           min(merged_extended_sfs.at(j).qs, local_extended_sfs.at(i).qs);
       merged_extended_sfs[j].qe =
@@ -405,16 +405,16 @@ Clusterer::get_unique_kmers(const vector<pair<int, int>> &alpairs, const uint k,
 void Clusterer::cluster_by_proximity() {
   sort(extended_SFSs.begin(), extended_SFSs.end());
   auto r = max_element(extended_SFSs.begin(), extended_SFSs.end(),
-                       [](const ExtSFS &lhs, const ExtSFS &rhs) {
-                         return lhs.e - lhs.s < rhs.e - rhs.s;
+                       [](const SFS &lhs, const SFS &rhs) {
+                         return lhs.re - lhs.rs < rhs.re - rhs.rs;
                        });
-  int dist = (r->e - r->s) * 1.1; // TODO: add to CLI
+  int dist = (r->re - r->rs) * 1.1; // TODO: add to CLI
   spdlog::info(
       "Maximum extended SFS length: {}bp. Using separation distance: {}bp.",
-      r->e - r->s, dist);
+      r->re - r->rs, dist);
   // Cluster SFSs inside dist-bp windows
   int prev_i = 0;
-  int prev_e = extended_SFSs[0].e;
+  int prev_e = extended_SFSs[0].re;
   string prev_chrom = extended_SFSs[0].chrom;
   vector<pair<int, int>> intervals;
   for (size_t i = 1; i < extended_SFSs.size(); i++) {
@@ -424,12 +424,12 @@ void Clusterer::cluster_by_proximity() {
       prev_chrom = sfs.chrom;
       intervals.push_back(make_pair(prev_i, i - 1));
       prev_i = i;
-      prev_e = sfs.e;
+      prev_e = sfs.re;
       continue;
     } else {
-      if (sfs.s - prev_e > dist) {
+      if (sfs.rs - prev_e > dist) {
         intervals.push_back(make_pair(prev_i, i - 1));
-        prev_e = sfs.e;
+        prev_e = sfs.re;
         prev_i = i;
       }
     }
@@ -438,28 +438,28 @@ void Clusterer::cluster_by_proximity() {
 
   // Cluster SFS inside each interval
   _p_sfs_clusters.resize(
-      config->threads); // vector<map<pair<int, int>, vector<ExtSFS>>>
+      config->threads); // vector<map<pair<int, int>, vector<SFS>>>
 #pragma omp parallel for num_threads(config->threads) schedule(static, 1)
   for (size_t i = 0; i < intervals.size(); i++) {
     int t = omp_get_thread_num();
     int j = intervals[i].first;
-    int low = extended_SFSs[j].s;
-    int high = extended_SFSs[j].e;
+    int low = extended_SFSs[j].rs;
+    int high = extended_SFSs[j].re;
     int last_j = j;
     j++;
     for (; j <= intervals[i].second; j++) {
-      const ExtSFS &sfs = extended_SFSs[j];
-      if (sfs.s <= high) {
-        low = min(low, sfs.s);
-        high = max(high, sfs.e);
+      const SFS &sfs = extended_SFSs[j];
+      if (sfs.rs <= high) {
+        low = min(low, sfs.rs);
+        high = max(high, sfs.re);
       } else {
         for (int k = last_j; k < j;
              k++) { // CHECKME: < or <=?
                     // NOTE: <= makes the code waaaay slower
           _p_sfs_clusters[t][make_pair(low, high)].push_back(extended_SFSs[k]);
         }
-        low = sfs.s;
-        high = sfs.e;
+        low = sfs.rs;
+        high = sfs.re;
         last_j = j;
       }
     }
@@ -499,9 +499,9 @@ void Clusterer::fill_clusters() {
     set<string> reads;
     int min_s = numeric_limits<int>::max();
     int max_e = 0;
-    for (const ExtSFS &sfs : cluster.SFSs) {
-      min_s = min(min_s, sfs.s);
-      max_e = max(max_e, sfs.e);
+    for (const SFS &sfs : cluster.SFSs) {
+      min_s = min(min_s, sfs.rs);
+      max_e = max(max_e, sfs.re);
       reads.insert(sfs.qname);
     }
 
