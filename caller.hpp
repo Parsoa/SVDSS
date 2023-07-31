@@ -84,10 +84,12 @@ private:
   vector<Consensus> alignments;
 
   void pcall(const vector<Cluster> &);
+  void clean_dups();
   void filter_sv_chains();
   void write_vcf();
   void write_sam();
 
+  vector<Cluster> split_cluster_by_len(const Cluster &);
   vector<Cluster> split_cluster(const Cluster &);
   string run_poa(const vector<string> &);
 

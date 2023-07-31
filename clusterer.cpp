@@ -579,7 +579,10 @@ void Clusterer::fill_clusters() {
         ++unextended;
       } else {
         string _seq(seq[t], qs, qe - qs + 1);
-        cluster.add_seq(qname, _seq);
+        int hp_t = bam_aux_get(aln, "HP") != NULL
+                       ? bam_aux2i(bam_aux_get(aln, "HP"))
+                       : 0;
+        cluster.add_subread(qname, _seq, hp_t);
       }
     }
     if (cluster.size() >= config->min_cluster_weight)

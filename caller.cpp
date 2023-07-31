@@ -20,6 +20,8 @@ void Caller::run() {
     alignments.insert(alignments.begin(), _p_alignments[i].begin(),
                       _p_alignments[i].end());
   }
+  sort(svs.begin(), svs.end());
+  clean_dups();
   spdlog::info("{} SVs before chain filtering.", svs.size());
   filter_sv_chains();
   spdlog::info("Writing {} SVs.", svs.size());
@@ -73,16 +75,15 @@ void Caller::write_sam() {
   osam.close();
 }
 
-/* Split cluster in subclusters */
-vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
+// /* Split cluster in subclusters based on length */
+vector<Cluster> Caller::split_cluster_by_len(const Cluster &cluster) {
   vector<Cluster> subclusters;
   for (uint c = 0; c < cluster.size(); ++c) {
-    const string &name = cluster.get_name(c);
-    const string &seq = cluster.get_seq(c);
+    const SubRead &sr = cluster.get_subread(c);
     size_t i;
     for (i = 0; i < subclusters.size(); i++) {
       float cl = subclusters[i].get_len();
-      float sl = seq.size();
+      float sl = sr.size();
       if (min(cl, sl) / max(cl, sl) >= config->min_ratio)
         break;
     }
@@ -90,9 +91,135 @@ vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
       subclusters.push_back(
           Cluster(cluster.chrom, cluster.s, cluster.e, cluster.cov));
     }
-    subclusters[i].add_seq(name, seq);
+    subclusters[i].add_subread(sr);
   }
   return subclusters;
+}
+
+/* Split cluster in subclusters */
+vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
+  // Step 1: split cluster by haplotype tag
+  Cluster cluster_0(cluster.chrom, cluster.s, cluster.e, cluster.cov);
+  Cluster cluster_1(cluster.chrom, cluster.s, cluster.e, cluster.cov);
+  Cluster cluster_2(cluster.chrom, cluster.s, cluster.e, cluster.cov);
+  for (const SubRead &sr : cluster.subreads) {
+    if (sr.htag == 0)
+      cluster_0.add_subread(sr);
+    else if (sr.htag == 1)
+      cluster_1.add_subread(sr);
+    else if (sr.htag == 2)
+      cluster_2.add_subread(sr);
+  }
+
+  assert(cluster_1.size() != 0 || cluster_2.size() != 0 ||
+         cluster_0.size() != 0);
+
+  vector<Cluster> out_subclusters;
+  if (cluster_1.size() == 0 && cluster_2.size() == 0) {
+    // no alignment is tagged, use length
+    vector<Cluster> subclusters = split_cluster_by_len(cluster_0);
+    int i_max1 = -1, i_max2 = -1;
+    uint v_max1 = 0, v_max2 = 0;
+    for (uint i = 0; i < subclusters.size(); ++i) {
+      if (subclusters[i].size() > v_max1) {
+        v_max2 = v_max1;
+        i_max2 = i_max1;
+        v_max1 = subclusters[i].size();
+        i_max1 = i;
+      } else if (subclusters[i].size() > v_max2) {
+        v_max2 = subclusters[i].size();
+        i_max2 = i;
+      }
+    }
+    if (i_max1 != -1)
+      out_subclusters.push_back(subclusters[i_max1]);
+    if (i_max2 != -1)
+      out_subclusters.push_back(subclusters[i_max2]);
+  } else {
+    int both = (cluster_1.size() > 0 ? 1 : 0) + (cluster_2.size() > 0 ? 2 : 0);
+    vector<Cluster> subclusters_1 = split_cluster_by_len(cluster_1);
+    vector<Cluster> subclusters_2 = split_cluster_by_len(cluster_2);
+    Cluster new_cluster(cluster.chrom, cluster.s, cluster.e, cluster.cov);
+
+    for (uint c = 0; c < cluster_0.size(); ++c) {
+      const SubRead &sr = cluster_0.get_subread(c);
+      float sl = sr.size();
+
+      int best_1 = -1;
+      int best_ratio_1 = -1;
+      for (uint i = 0; i < subclusters_1.size(); i++) {
+        float cl = subclusters_1[i].get_len();
+        float r = min(cl, sl) / max(cl, sl);
+        if (r >= config->min_ratio && r > best_ratio_1) {
+          best_1 = i;
+          best_ratio_1 = r;
+        }
+      }
+      int best_2 = -1;
+      int best_ratio_2 = -1;
+      for (uint i = 0; i < subclusters_2.size(); i++) {
+        float cl = subclusters_2[i].get_len();
+        float r = min(cl, sl) / max(cl, sl);
+        if (r >= config->min_ratio && r > best_ratio_2) {
+          best_2 = i;
+          best_ratio_2 = r;
+        }
+      }
+
+      if (both == 1) {
+        assert(best_2 == -1);
+        if (best_1 == -1)
+          new_cluster.add_subread(sr);
+        else
+          subclusters_1[best_1].add_subread(sr);
+      } else if (both == 2) {
+        assert(best_1 == -1);
+        if (best_2 == -1)
+          new_cluster.add_subread(sr);
+        else
+          subclusters_2[best_2].add_subread(sr);
+      } else {
+        if (best_1 != -1 && best_ratio_1 > best_ratio_2)
+          subclusters_1[best_1].add_subread(sr);
+        else if (best_2 != -1 && best_ratio_2 > best_ratio_1)
+          subclusters_2[best_2].add_subread(sr);
+        else {
+        }
+      }
+    }
+    vector<Cluster> new_subclusters = split_cluster_by_len(new_cluster);
+    uint v_max = 0;
+    int i_max = -1;
+    for (uint i = 0; i < subclusters_1.size(); ++i) {
+      if (subclusters_1[i].size() > v_max) {
+        v_max = subclusters_1[i].size();
+        i_max = i;
+      }
+    }
+    if (i_max != -1)
+      out_subclusters.push_back(subclusters_1[i_max]);
+    v_max = 0, i_max = -1;
+    for (uint i = 0; i < subclusters_2.size(); ++i) {
+      if (subclusters_2[i].size() > v_max) {
+        v_max = subclusters_2[i].size();
+        i_max = i;
+      }
+    }
+    if (i_max != -1)
+      out_subclusters.push_back(subclusters_2[i_max]);
+    v_max = 0, i_max = -1;
+    for (uint i = 0; i < new_subclusters.size(); ++i) {
+      if (new_subclusters[i].size() > v_max) {
+        v_max = new_subclusters[i].size();
+        i_max = i;
+      }
+    }
+    if (i_max != -1)
+      out_subclusters.push_back(new_subclusters[i_max]);
+  }
+
+  assert(out_subclusters.size() > 0 && out_subclusters.size() <= 2);
+  return out_subclusters;
 }
 
 string Caller::run_poa(const vector<string> &seqs) {
@@ -150,38 +277,20 @@ void Caller::pcall(const vector<Cluster> &clusters) {
   for (size_t i = 0; i < clusters.size(); i++) {
     int t = omp_get_thread_num();
     const Cluster &cluster = clusters[i];
+    if (cluster.size() < config->min_cluster_weight)
+      continue;
     string chrom = cluster.chrom;
-    const auto &subclusters = split_cluster(cluster);
+    const vector<Cluster> &subclusters = split_cluster(cluster);
 
-    // Sorting clusters by #sequences to get first 2 most weighted clusters
-    int i_max1 = -1;
-    int i_max2 = -1;
-    uint v_max1 = 0;
-    uint v_max2 = 0;
-    for (uint i = 0; i < subclusters.size(); ++i) {
-      if (subclusters[i].size() > v_max1) {
-        v_max2 = v_max1;
-        i_max2 = i_max1;
-        v_max1 = subclusters[i].size();
-        i_max1 = i;
-      } else if (subclusters[i].size() > v_max2) {
-        v_max2 = subclusters[i].size();
-        i_max2 = i;
-      }
-    }
-    vector<int> maxs({i_max1, i_max2});
-    // Calling from the two most-weighted clusters
-    for (const int i : maxs) {
-      if (i == -1)
-        continue;
-      Cluster cl = subclusters[i];
-      if (cl.size() < config->min_cluster_weight)
-        continue;
+    // Calling from one or two clusters
+    for (const Cluster &cl : subclusters) {
+      // if (cl.size() < config->min_cluster_weight)
+      //   continue;
 
       vector<SV> _svs;
 
       string ref = string(chromosome_seqs[chrom] + cl.s, cl.e - cl.s + 1);
-      string consensus = run_poa(cl.seqs);
+      string consensus = run_poa(cl.get_seqs());
       parasail_result_t *result = NULL;
       result = parasail_nw_trace_striped_16(consensus.c_str(), consensus.size(),
                                             ref.c_str(), ref.size(), 10, 1,
@@ -240,11 +349,30 @@ void Caller::pcall(const vector<Cluster> &clusters) {
   }
 }
 
+/* Clean same SV reported twice */
+void Caller::clean_dups() {
+  vector<SV> _svs;
+  string last_chrom = "";
+  int last_pos = -1;
+  string last_refall = "";
+  string last_altall = "";
+  for (size_t i = 0; i < svs.size(); i++) {
+    if (last_chrom != svs[i].chrom || last_pos != svs[i].s ||
+        last_refall != svs[i].refall || last_altall != svs[i].altall)
+      _svs.push_back(svs[i]);
+    last_chrom = svs[i].chrom;
+    last_pos = svs[i].s;
+    last_refall = svs[i].refall;
+    last_altall = svs[i].altall;
+  }
+  svs.clear();
+  svs.insert(svs.begin(), _svs.begin(), _svs.end());
+}
+
 /* Merge close and similar SVs */
 void Caller::filter_sv_chains() {
   if (svs.size() < 2)
     return;
-  sort(svs.begin(), svs.end());
 
   vector<SV> _svs;
   auto &prev = svs[0];

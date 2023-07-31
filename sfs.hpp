@@ -38,7 +38,7 @@ struct SFS {
   int qe;
   int l;
   // other
-  int htag;
+  int htag; // 0: no tag; 1: hap1; 2: hap2
 
   SFS(const string &_qname, int _qs, int _l, int _htag) {
     chrom = "";

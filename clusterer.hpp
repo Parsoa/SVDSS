@@ -21,14 +21,27 @@
 
 using namespace std;
 
+struct SubRead {
+  string name;
+  string seq;
+  int htag; // 0: no tag; 1: hap1; 2: hap2
+
+  SubRead(const string &_name, const string &_seq, const int _htag) {
+    name = _name;
+    seq = _seq;
+    htag = _htag;
+  }
+
+  uint size() const { return seq.size(); }
+};
+
 struct Cluster {
   string chrom;
   int s;
   int e;
   int cov;
   vector<SFS> SFSs;
-  vector<string> names;
-  vector<string> seqs;
+  vector<SubRead> subreads;
 
   Cluster(){};
 
@@ -51,26 +64,47 @@ struct Cluster {
 
   void set_cov(uint cov_) { cov = cov_; }
 
-  void add_seq(const string &name, const string &seq) {
-    names.push_back(name);
-    seqs.push_back(seq);
+  void add_subread(const string &name, const string &seq, int htag) {
+    subreads.push_back(SubRead(name, seq, htag));
   }
+  void add_subread(const SubRead &sr) { subreads.push_back(sr); }
 
   int get_len() const {
     uint l = 0;
     uint n = 0;
-    for (const string &seq : seqs) {
+    for (const auto &sr : subreads) {
       ++n;
-      l += seq.size();
+      l += sr.size();
     }
     return l / n;
   }
 
-  string get_name(const int i) const { return names.at(i); }
-  vector<string> get_names() const { return names; }
-  string get_seq(const int i) const { return seqs.at(i); }
+  SubRead get_subread(const int i) const { return subreads.at(i); }
+  vector<string> get_names() const {
+    vector<string> names;
+    for (const SubRead &sr : subreads)
+      names.push_back(sr.name);
+    return names;
+  }
+  vector<string> get_seqs() const {
+    vector<string> seqs;
+    for (const SubRead &sr : subreads)
+      seqs.push_back(sr.seq);
+    return seqs;
+  }
+  string get_name(const int i) const { return subreads.at(i).name; }
+  string get_seq(const int i) const { return subreads.at(i).seq; }
+  SFS get_sfs(const int i) const { return SFSs.at(i); }
 
-  uint size() const { return seqs.size(); }
+  uint size() const { return subreads.size(); }
+
+  void print() const {
+    cerr << chrom << ":" << s << "-" << e << " " << size() << "/" << cov
+         << endl;
+    for (const SubRead &sr : subreads)
+      cerr << sr.name << " " << sr.size() << " " << sr.htag << " " << sr.seq
+           << endl;
+  }
 };
 
 class Clusterer {
