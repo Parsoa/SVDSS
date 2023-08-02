@@ -65,7 +65,7 @@ void Caller::run() {
     int s = 0;
     for (int i = 0; i < config->threads; i++) {
       s += clipper._p_svs[i].size();
-      clipped_svs.insert(svs.begin(), clipper._p_svs[i].begin(),
+      clipped_svs.insert(clipped_svs.begin(), clipper._p_svs[i].begin(),
                          clipper._p_svs[i].end());
     }
     lprint({"Predicted", to_string(s), "SVs from clipped SFS."});
