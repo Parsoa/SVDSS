@@ -69,7 +69,7 @@ public:
   bool assemble = true;
   bool putative = true;
   int overlap = -1;
-  int max_output = 10000000;
+  int max_output = 100000;
   // call
   uint flank = 100;
   uint ksize = 7;

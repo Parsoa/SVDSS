@@ -402,7 +402,7 @@ int PingPong::index() {
   int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES,
       so = MR_SO_RCLO;
   int thr_min =
-      4; // switch to single thread when < 100 strings remain in a batch
+      100; // switch to single thread when < 100 strings remain in a batch
 
   // the index
   mrope_t *mr = 0;
