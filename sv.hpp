@@ -19,7 +19,10 @@ public:
   string refall;
   string altall;
   uint w;
-  uint cov;
+  int cov;
+  int cov0;
+  int cov1;
+  int cov2;
   int l = 0;
   int ngaps;
   int score;
@@ -35,6 +38,8 @@ public:
      string cigar_ = ".");
   void add_reads(const vector<string> &reads_);
   void genotype();
+
+  void set_cov(int, int, int, int);
 
   bool operator<(const SV &c) const {
     if (chrom < c.chrom) {

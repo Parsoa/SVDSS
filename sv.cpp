@@ -44,6 +44,11 @@ void SV::genotype() {
     // if (p <= 0.1)
     //     gt = "0/0";
   }
+void SV::set_cov(int _cov, int _cov0, int _cov1, int _cov2) {
+  cov = _cov;
+  cov0 = _cov0;
+  cov1 = _cov1;
+  cov2 = _cov2;
 }
 
 ostream &operator<<(ostream &os, const SV &sv) {
@@ -60,6 +65,9 @@ ostream &operator<<(ostream &os, const SV &sv) {
      << "END=" << sv.e << ";"
      << "WEIGHT=" << sv.w << ";"
      << "COV=" << sv.cov << ";"
+     << "COV0=" << sv.cov0 << ";"
+     << "COV1=" << sv.cov1 << ";"
+     << "COV2=" << sv.cov2 << ";"
      << "AS=" << sv.score << ";"
      << "NV=" << sv.ngaps << ";"
      << "CIGAR=" << sv.cigar << ";"

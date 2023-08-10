@@ -39,22 +39,41 @@ struct Cluster {
   string chrom;
   int s;
   int e;
-  int cov;
+  int cov, cov0, cov1, cov2;
   vector<SFS> SFSs;
   vector<SubRead> subreads;
 
-  Cluster(){};
+  Cluster() { cov = 0; };
+
+  Cluster(const Cluster &c) {
+    chrom = c.chrom;
+    s = c.s;
+    e = c.e;
+    cov = c.cov;
+    cov0 = c.cov0;
+    cov1 = c.cov1;
+    cov2 = c.cov2;
+    SFSs = c.SFSs;
+  };
 
   Cluster(const vector<SFS> &_SFSs) {
     SFSs = _SFSs;
     chrom = _SFSs[0].chrom;
   }
 
-  Cluster(const string &_chrom, uint _s, uint _e, uint _cov = 0) {
+  Cluster(const string &_chrom, uint _s, uint _e, int _cov, int _cov0,
+          int _cov1, int _cov2) {
     chrom = _chrom;
     s = _s;
     e = _e;
     cov = _cov;
+    cov0 = _cov0;
+    cov1 = _cov1;
+    cov2 = _cov2;
+  }
+
+  void clear() {
+    SFSs.clear();
   }
 
   void set_coordinates(int _s, int _e) {
@@ -62,7 +81,12 @@ struct Cluster {
     e = _e;
   }
 
-  void set_cov(uint cov_) { cov = cov_; }
+  void set_cov(vector<int> coverages) {
+    cov0 = coverages[0];
+    cov1 = coverages[1];
+    cov2 = coverages[2];
+    cov = cov0 + cov1 + cov2;
+  }
 
   void add_subread(const string &name, const string &seq, int htag) {
     subreads.push_back(SubRead(name, seq, htag));

@@ -88,8 +88,9 @@ vector<Cluster> Caller::split_cluster_by_len(const Cluster &cluster) {
         break;
     }
     if (i == subclusters.size()) {
-      subclusters.push_back(
-          Cluster(cluster.chrom, cluster.s, cluster.e, cluster.cov));
+      subclusters.push_back(Cluster(cluster.chrom, cluster.s, cluster.e,
+                                    cluster.cov, cluster.cov0, cluster.cov1,
+                                    cluster.cov2));
     }
     subclusters[i].add_subread(sr);
   }
@@ -99,9 +100,12 @@ vector<Cluster> Caller::split_cluster_by_len(const Cluster &cluster) {
 /* Split cluster in subclusters */
 vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
   // Step 1: split cluster by haplotype tag
-  Cluster cluster_0(cluster.chrom, cluster.s, cluster.e, cluster.cov);
-  Cluster cluster_1(cluster.chrom, cluster.s, cluster.e, cluster.cov);
-  Cluster cluster_2(cluster.chrom, cluster.s, cluster.e, cluster.cov);
+  Cluster cluster_0 = cluster;
+  cluster_0.clear();
+  Cluster cluster_1 = cluster;
+  cluster_1.clear();
+  Cluster cluster_2 = cluster;
+  cluster_2.clear();
   for (const SubRead &sr : cluster.subreads) {
     if (sr.htag == 0)
       cluster_0.add_subread(sr);
@@ -110,6 +114,16 @@ vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
     else if (sr.htag == 2)
       cluster_2.add_subread(sr);
   }
+  cluster_0.cov1 = -1;
+  cluster_0.cov2 = -1;
+  cluster_1.cov0 = -1;
+  cluster_1.cov2 = -1;
+  cluster_2.cov0 = -1;
+  cluster_2.cov1 = -1;
+
+  assert(cluster_0.size() <= cluster_0.cov0 &&
+         cluster_1.size() <= cluster_1.cov1 &&
+         cluster_2.size() <= cluster_2.cov2);
 
   assert(cluster_1.size() != 0 || cluster_2.size() != 0 ||
          cluster_0.size() != 0);
@@ -139,12 +153,14 @@ vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
     int both = (cluster_1.size() > 0 ? 1 : 0) + (cluster_2.size() > 0 ? 2 : 0);
     vector<Cluster> subclusters_1 = split_cluster_by_len(cluster_1);
     vector<Cluster> subclusters_2 = split_cluster_by_len(cluster_2);
-    Cluster new_cluster(cluster.chrom, cluster.s, cluster.e, cluster.cov);
+    Cluster new_cluster(cluster.chrom, cluster.s, cluster.e, cluster.cov,
+                        cluster.cov0, -1, -1);
 
     for (uint c = 0; c < cluster_0.size(); ++c) {
       const SubRead &sr = cluster_0.get_subread(c);
       float sl = sr.size();
 
+      // check if we have to put this subread in 1 or 2
       int best_1 = -1;
       int best_ratio_1 = -1;
       for (uint i = 0; i < subclusters_1.size(); i++) {
@@ -170,24 +186,34 @@ vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
         assert(best_2 == -1);
         if (best_1 == -1)
           new_cluster.add_subread(sr);
-        else
+        else {
           subclusters_1[best_1].add_subread(sr);
+          ++subclusters_1[best_1].cov1;
+          --new_cluster.cov0;
+        }
       } else if (both == 2) {
         assert(best_1 == -1);
         if (best_2 == -1)
           new_cluster.add_subread(sr);
-        else
-          subclusters_2[best_2].add_subread(sr);
-      } else {
-        if (best_1 != -1 && best_ratio_1 > best_ratio_2)
-          subclusters_1[best_1].add_subread(sr);
-        else if (best_2 != -1 && best_ratio_2 > best_ratio_1)
-          subclusters_2[best_2].add_subread(sr);
         else {
+          subclusters_2[best_2].add_subread(sr);
+          ++subclusters_2[best_2].cov2;
+          --new_cluster.cov0;
+        }
+      } else {
+        if (best_1 != -1 && best_ratio_1 > best_ratio_2) {
+          subclusters_1[best_1].add_subread(sr);
+          ++subclusters_1[best_1].cov1;
+          --new_cluster.cov0;
+        } else if (best_2 != -1 && best_ratio_2 > best_ratio_1) {
+          subclusters_2[best_2].add_subread(sr);
+          ++subclusters_2[best_2].cov2;
+          --new_cluster.cov0;
+        } else {
         }
       }
     }
-    vector<Cluster> new_subclusters = split_cluster_by_len(new_cluster);
+
     uint v_max = 0;
     int i_max = -1;
     for (uint i = 0; i < subclusters_1.size(); ++i) {
@@ -207,15 +233,24 @@ vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
     }
     if (i_max != -1)
       out_subclusters.push_back(subclusters_2[i_max]);
-    v_max = 0, i_max = -1;
-    for (uint i = 0; i < new_subclusters.size(); ++i) {
-      if (new_subclusters[i].size() > v_max) {
-        v_max = new_subclusters[i].size();
-        i_max = i;
+
+    if (both != 3) {
+      vector<Cluster> new_subclusters = split_cluster_by_len(new_cluster);
+      v_max = 0, i_max = -1;
+      for (uint i = 0; i < new_subclusters.size(); ++i) {
+        if (new_subclusters[i].size() > v_max) {
+          v_max = new_subclusters[i].size();
+          i_max = i;
+        }
+      }
+      if (i_max != -1) {
+        if (both == 1)
+          new_subclusters[i_max].cov1 = -1;
+        else
+          new_subclusters[i_max].cov2 = -1;
+        out_subclusters.push_back(new_subclusters[i_max]);
       }
     }
-    if (i_max != -1)
-      out_subclusters.push_back(new_subclusters[i_max]);
   }
 
   assert(out_subclusters.size() > 0 && out_subclusters.size() <= 2);
@@ -341,8 +376,10 @@ void Caller::pcall(const vector<Cluster> &clusters) {
           rpos += l;
         }
       }
-      for (size_t v = 0; v < _svs.size(); v++)
+      for (size_t v = 0; v < _svs.size(); v++) {
         _svs[v].ngaps = nv;
+        _svs[v].set_cov(cl.cov, cl.cov0, cl.cov1, cl.cov2);
+      }
       for (const SV &sv : _svs)
         _p_svs[t].push_back(sv);
     }
@@ -452,6 +489,18 @@ void Caller::print_vcf_header() {
   cout << "##INFO=<ID=COV,Number=1,Type=Integer,Description=\"Total "
           "number of "
           "alignments covering this locus\">"
+       << endl;
+  cout << "##INFO=<ID=COV0,Number=1,Type=Integer,Description=\"Total "
+          "number of "
+          "alignments covering this locus (no HP)\">"
+       << endl;
+  cout << "##INFO=<ID=COV1,Number=1,Type=Integer,Description=\"Total "
+          "number of "
+          "alignments covering this locus (HP=1)\">"
+       << endl;
+  cout << "##INFO=<ID=COV2,Number=1,Type=Integer,Description=\"Total "
+          "number of "
+          "alignments covering this locus (HP=2)\">"
        << endl;
   cout << "##INFO=<ID=AS,Number=1,Type=Integer,Description=\"Alignment "
           "score\">"
