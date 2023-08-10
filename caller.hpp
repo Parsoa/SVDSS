@@ -16,6 +16,7 @@
 #include "chromosomes.hpp"
 #include "clipper.hpp"
 #include "clusterer.hpp"
+#include "genotyper.hpp"
 #include "config.hpp"
 #include "sfs.hpp"
 #include "sv.hpp"

@@ -516,6 +516,7 @@ void Clusterer::fill_clusters() {
     // Iterate over alignments falling in the cluster region to: (i) get total
     // number of reads and (ii) get SFS sequence, one per read
     vector<int> coverages(3, 0);
+    vector<tuple<int, int>> locus_reads;
 
     string region =
         cluster.chrom + ":" + to_string(min_s) + "-" + to_string(max_e);
@@ -532,10 +533,12 @@ void Clusterer::fill_clusters() {
       ++coverages[hp_t]; // FIXME: this cov takes into account also reads
                          // starting or ending inside the cluster (maybe we
                          // should skip those?)
+      locus_reads.push_back(make_tuple(0, hp_t == 0 ? 3 : hp_t));
       char *qname = bam_get_qname(aln);
       if (reads.find(qname) == reads.end())
         // we do not have a SFS on this read at this locus
         continue;
+      get<0>(locus_reads.back()) = 1;
 
       // If we have a SFS on this read, load the read sequence
       uint32_t l = aln->core.l_qseq;
@@ -588,6 +591,7 @@ void Clusterer::fill_clusters() {
     }
     if (cluster.size() >= config->min_cluster_weight) {
       cluster.set_cov(coverages);
+      cluster.set_reads(locus_reads);
     } else
       ++small_clusters_2;
   }

@@ -27,9 +27,11 @@ public:
   int ngaps;
   int score;
   string gt;
+  int gtq;
   bool imprecise;
   string cigar;
   string reads;
+  string rvec;
 
   SV();
   SV(const string type_, const string &chrom_, uint s_, const string &refall_,
@@ -37,9 +39,10 @@ public:
      const int score_, bool imprecise_ = false, uint l_ = 0,
      string cigar_ = ".");
   void add_reads(const vector<string> &reads_);
-  void genotype();
 
   void set_cov(int, int, int, int);
+  void set_rvec(const vector<tuple<int, int>> &);
+  void set_gt(const string &, int);
 
   bool operator<(const SV &c) const {
     if (chrom < c.chrom) {

@@ -41,6 +41,7 @@ struct Cluster {
   int e;
   int cov, cov0, cov1, cov2;
   vector<SFS> SFSs;
+  vector<tuple<int,int>> reads;
   vector<SubRead> subreads;
 
   Cluster() { cov = 0; };
@@ -54,6 +55,7 @@ struct Cluster {
     cov1 = c.cov1;
     cov2 = c.cov2;
     SFSs = c.SFSs;
+    subreads = c.subreads;
   };
 
   Cluster(const vector<SFS> &_SFSs) {
@@ -74,11 +76,16 @@ struct Cluster {
 
   void clear() {
     SFSs.clear();
+    subreads.clear();
   }
 
   void set_coordinates(int _s, int _e) {
     s = _s;
     e = _e;
+  }
+
+  void set_reads(const vector<tuple<int,int>> &_reads) {
+    reads = _reads;
   }
 
   void set_cov(vector<int> coverages) {

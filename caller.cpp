@@ -308,6 +308,8 @@ string Caller::run_poa(const vector<string> &seqs) {
 
 /* Call SVs by POA+realignment */
 void Caller::pcall(const vector<Cluster> &clusters) {
+  // vector<Genotyper> genotypers(config->threads);
+  vector<string> gt_strings = {"0/0", "0/1", "1/0", "1/1"};
 #pragma omp parallel for num_threads(config->threads) schedule(static, 1)
   for (size_t i = 0; i < clusters.size(); i++) {
     int t = omp_get_thread_num();
@@ -315,6 +317,25 @@ void Caller::pcall(const vector<Cluster> &clusters) {
     if (cluster.size() < config->min_cluster_weight)
       continue;
     string chrom = cluster.chrom;
+
+    // genotypers.at(t).posterior_sv_genotype_give_reads(cluster.reads);
+    // vector<double> gts = genotypers.at(t).get_posterior_sv_genotype();
+    Genotyper gtyper;
+    gtyper.posterior_sv_genotype_give_reads(cluster.reads);
+    vector<double> gts = gtyper.get_posterior_sv_genotype();
+    auto max_gt = max_element(gts.begin(), gts.end());
+    double gtq = *max_gt;
+    if (gtq < 0 || gtq > 1) {
+      cerr << chrom << ":" << cluster.s << "-" << cluster.e << endl;
+      for (const auto &tpl : cluster.reads)
+        cerr << get<0>(tpl) << ":" << get<1>(tpl) << " ";
+      cerr << endl;
+      for (int i = 0; i < 4; ++i)
+        cerr << gt_strings[i] << " - " << gts[i] << endl;
+    }
+    string gt = gt_strings[distance(gts.begin(), max_gt)];
+    // if (gt.compare("0/0") == 0)
+    //   continue;
     const vector<Cluster> &subclusters = split_cluster(cluster);
 
     // Calling from one or two clusters
@@ -378,7 +399,9 @@ void Caller::pcall(const vector<Cluster> &clusters) {
       }
       for (size_t v = 0; v < _svs.size(); v++) {
         _svs[v].ngaps = nv;
+        _svs[v].set_gt(gt, max(0, (int)(gtq * 100)));
         _svs[v].set_cov(cl.cov, cl.cov0, cl.cov1, cl.cov2);
+        _svs[v].set_rvec(cluster.reads);
       }
       for (const SV &sv : _svs)
         _p_svs[t].push_back(sv);
@@ -518,7 +541,13 @@ void Caller::print_vcf_header() {
   cout << "##INFO=<ID=READS,Number=.,Type=String,Description=\"Reads "
           "identifiers supporting the call\">"
        << endl;
+  cout << "##INFO=<ID=RVEC,Number=.,Type=String,Description=\"Reads vector "
+          "used by genotyper\">"
+       << endl;
   cout << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">"
+       << endl;
+  cout << "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype "
+          "quality\">"
        << endl;
   cout << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tDEFAULT"
        << endl;
