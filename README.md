@@ -3,6 +3,8 @@
 
 # SVDSS2: Structural Variant Discovery from Sample-specific Strings
 
+**Note: for SVDSS (v1), please refer to [v1.0.5-fix](https://github.com/Parsoa/SVDSS/releases/tag/v1.0.5-fix) and [6fa89f0](https://github.com/Parsoa/SVDSS/tree/6fa89f0a4f8ec03ab87c3eb8a3288a6b82214767).**
+
 SVDSS is a novel method for discovery of structural variants in accurate long reads (e.g PacBio HiFi) using sample-specific strings (SFS).
 
 SFS are the shortest substrings that are unique to one genome, called target, w.r.t another genome, called reference. Here our method utilizes SFS for coarse-grained identification (anchoring) of potential SV sites and performs local partial-order-assembly (POA) of clusters of SFS from such sites to produce accurate SV predictions. We refer to [our manuscript on SFS](https://doi.org/10.1093/bioadv/vbab005) for more details regarding the concept of SFS.
