@@ -34,26 +34,23 @@ void Caller::run() {
   }
 
   if (config->clipped) {
-    spdlog::critical(
-        "Imprecise SVs from clipped alignments not currently supported");
-    // interval_tree_t<int> vartree;
-    // for (const auto &sv : svs)
-    //   vartree.insert({sv.s - 1000, sv.e + 1000});
-    // vector<SV> clipped_svs;
-    // Clipper clipper(extender.clips);
-    // clipper.call(config->threads, vartree);
-    // int s = 0;
-    // for (int i = 0; i < config->threads; i++) {
-    //   s += clipper._p_svs[i].size();
-    //   clipped_svs.insert(svs.begin(), clipper._p_svs[i].begin(),
-    //                      clipper._p_svs[i].end());
-    // }
-    // cerr << "Predicted " << s << " SVs from clipped SFS." << endl;
-    // string vcf_path = config->workdir + "/svs_clipped.vcf";
-    // cerr << "Exporting " << clipped_svs.size() << " SV calls to " << vcf_path
-    //      << ".." << endl;
-    // for (const SV &sv : clipped_svs)
-    //   cout << sv << endl;
+    spdlog::warn(
+        "Calling imprecise SVs from clipped alignments is experimental");
+    interval_tree_t<int> vartree;
+    for (const auto &sv : svs)
+      vartree.insert({sv.s - 1000, sv.e + 1000});
+    vector<SV> clipped_svs;
+    Clipper clipper(C.clips);
+    clipper.call(config->threads, vartree);
+    int s = 0;
+    for (int i = 0; i < config->threads; i++) {
+      s += clipper._p_svs[i].size();
+      clipped_svs.insert(clipped_svs.begin(), clipper._p_svs[i].begin(),
+                         clipper._p_svs[i].end());
+    }
+    spdlog::info("Predicted {} SVs from clipped alignments", s);
+    for (const SV &sv : clipped_svs)
+      cout << sv << endl;
   }
 }
 
