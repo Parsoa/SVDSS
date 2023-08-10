@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
     auto pingpong = new PingPong();
     pingpong->index();
   } else if (strcmp(argv[1], "search") == 0) {
-    if (c->index == "" || c->bam == "") {
+    if (c->index == "" || (c->fastq == "" && c->bam == "")) {
       c->print_help(argv[1]);
       exit(EXIT_FAILURE);
     }

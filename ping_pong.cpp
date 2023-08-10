@@ -257,7 +257,7 @@ int PingPong::search() {
     bgzf_mt(bam_file->fp.bgzf, 8, 1);
     bam_mode = 1;
   } else if (config->fastq != "") {
-    spdlog::warn("FASTQ mode is not optimized");
+    spdlog::warn("FASTQ mode is not optimized (higher running times and larger SFSs set)");
     fastq_file = gzopen(config->fastq.c_str(), "r");
     fastq_iterator = kseq_init(fastq_file);
     bam_mode = 0;
@@ -370,10 +370,10 @@ int PingPong::search() {
       ++curr_time;
     time(&curr_time);
 
-    cerr << "Reads loaded so far: " << reads_processed
-         << ". Reads processed per second: "
-         << reads_processed / (curr_time - start_time)
-         << ". Time: " << curr_time - start_time << "\r";
+    // cerr << "Reads loaded so far: " << reads_processed
+    //      << ". Reads processed per second: "
+    //      << reads_processed / (curr_time - start_time)
+    cerr << "Time: " << curr_time - start_time << "\r";
   }
   cerr << endl;
 
