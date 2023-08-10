@@ -1,6 +1,7 @@
 #ifndef CLIPPER_HPP
 #define CLIPPER_HPP
 
+#include <algorithm>
 #include <map>
 #include <omp.h>
 #include <set>
@@ -13,12 +14,14 @@
 #include "interval_tree.hpp"
 
 #include "chromosomes.hpp"
-#include "lprint.hpp"
 #include "sv.hpp"
 
+using namespace std;
+using namespace lib_interval_tree;
+
 struct Clip {
-  std::string name;
-  std::string chrom;
+  string name;
+  string chrom;
   uint p;
   uint l;
   bool starting;
@@ -26,8 +29,8 @@ struct Clip {
 
   Clip() { w = 0; }
 
-  Clip(std::string name_, std::string chrom_, const uint p_, uint l_,
-       bool starting_, uint w_ = 0) {
+  Clip(string name_, string chrom_, const uint p_, uint l_, bool starting_,
+       uint w_ = 0) {
     name = name_;
     chrom = chrom_;
     p = p_;
@@ -42,19 +45,19 @@ struct Clip {
 class Clipper {
 
 private:
-  std::vector<Clip> clips;
-  std::vector<Clip> remove_duplicates(const std::vector<Clip> &);
-  std::vector<Clip> combine(const std::vector<Clip> &);
-  std::vector<Clip> filter_lowcovered(const std::vector<Clip> &, const uint);
-  std::vector<Clip> cluster(const std::vector<Clip> &, uint);
-  std::vector<Clip>
-  filter_tooclose_clips(const std::vector<Clip> &,
-                        lib_interval_tree::interval_tree_t<int> &);
+  vector<Clip> clips;
+  vector<Clip> remove_duplicates(const vector<Clip> &);
+  vector<Clip> combine(const vector<Clip> &);
+  vector<Clip> filter_lowcovered(const vector<Clip> &, const uint);
+  vector<Clip> cluster(const vector<Clip> &, uint);
+  vector<Clip> filter_tooclose_clips(const vector<Clip> &,
+                                     lib_interval_tree::interval_tree_t<int>
+                                     &);
 
 public:
-  std::vector<std::vector<SV>> _p_svs;
+  vector<vector<SV>> _p_svs;
 
-  Clipper(const std::vector<Clip> &);
+  Clipper(const vector<Clip> &);
   void call(int threads, lib_interval_tree::interval_tree_t<int> &);
 };
 

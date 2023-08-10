@@ -6,25 +6,27 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <zlib.h>
+
+#include <kseq.h>
 
 #ifdef __GNUC__
 #pragma GCC system_header
 #endif
 
-#include "kseq.h"
-#include <zlib.h>
-
 KSEQ_INIT(gzFile, gzread)
 
+using namespace std;
+
 struct fastq_entry_t {
-  std::string head;
-  std::string seq;
-  std::string qual;
+  string head;
+  string seq;
+  string qual;
   uint start;
   uint len;
   // constructor
-  fastq_entry_t(const std::string &h, const std::string &s,
-                const std::string &q, const uint st = 0, const uint l = 0)
+  fastq_entry_t(const string &h, const string &s, const string &q,
+                const uint st = 0, const uint l = 0)
       : head(h), seq(s), qual(q) {
     len = l;
     start = st;
@@ -34,8 +36,8 @@ struct fastq_entry_t {
 
 namespace std {
 template <> struct hash<fastq_entry_t> {
-  std::size_t operator()(const fastq_entry_t &k) const {
-    return std::hash<std::string>()(k.seq);
+  size_t operator()(const fastq_entry_t &k) const {
+    return hash<string>()(k.seq);
   }
 };
 } // namespace std

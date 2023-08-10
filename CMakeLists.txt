@@ -15,9 +15,10 @@ if(DEFINED CONDAPREFIX)
   message(STATUS "Using conda: ${CONDA_INCLUDE}")
 endif()
 
-project(SVDSS VERSION 1.0.2)
-add_executable(SVDSS assembler.cpp bam.cpp bed_utils.cpp caller.cpp chromosomes.cpp clipper.cpp cluster.cpp config.cpp extender.cpp lprint.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp vcf.cpp main.cpp)
+project(SVDSS VERSION 2.0.0)
+add_executable(SVDSS assembler.cpp bam.cpp caller.cpp chromosomes.cpp clipper.cpp clusterer.cpp config.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp genotyper.cpp main.cpp)
 set_target_properties(SVDSS PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}")
+target_compile_options(SVDSS PRIVATE -Wall -Wextra)
 
 ##########################
 ### setup dependencies ###
@@ -94,7 +95,7 @@ else ()
 endif ()
 ExternalProject_Add(abpoa
   GIT_REPOSITORY https://github.com/yangao07/abPOA.git
-  GIT_TAG 16c64e5163cbd0502792ca20f1069fe40c929b0d # v1.41
+  GIT_TAG 16c64e5163cbd0502792ca20f1069fe40c929b0d # v1.4.1
   PATCH_COMMAND ${PATCH_CMD}
   INSTALL_COMMAND ""
 )
@@ -124,6 +125,7 @@ set_target_properties(PARASAIL PROPERTIES IMPORTED_LOCATION ${PARASAIL_SOURCE_DI
 
 # rapidfuzz-cpp
 ################
+message(STATUS "rapidfuzz-cpp will be built from source")
 FetchContent_Declare(rapidfuzz
   GIT_REPOSITORY https://github.com/maxbachmann/rapidfuzz-cpp.git
   GIT_TAG 5412d5d877518e7754394bdbec76e45c8187c631) # v1.10.4
@@ -131,6 +133,7 @@ FetchContent_MakeAvailable(rapidfuzz)
 
 # interval-tree
 ################
+message(STATUS "interval-tree will be cloned")
 ExternalProject_Add(intervaltree
     GIT_REPOSITORY https://github.com/5cript/interval-tree.git
     GIT_TAG 309b9c725191d4bb1d134f28a8a32ad2f68a8ffa
@@ -145,11 +148,13 @@ SET(INTERVALTREE_INCLUDE_DIR ${INTERVALTREE_SOURCE_DIR}/include/interval-tree)
 
 # ropebwt2
 ##########
+message(STATUS "ropebwt2 will be built from source")
 ExternalProject_Add(ropebwt
     GIT_REPOSITORY https://github.com/lh3/ropebwt2.git
     GIT_TAG bd8dbd3db2e9e3cff74acc2907c0742c9ebbf033
     UPDATE_COMMAND ""
     BUILD_IN_SOURCE 1
+    PATCH_COMMAND bash ${CMAKE_SOURCE_DIR}/patches/patch_ropebwt.sh <SOURCE_DIR>/mrope.c # I haven't been able to run sed here.. I could use my branch btw
     CONFIGURE_COMMAND ""
     BUILD_COMMAND make
       "CC=${CMAKE_C_COMPILER}"
@@ -164,11 +169,19 @@ set_source_files_properties(${ropebwt-src} PROPERTIES GENERATED TRUE)
 add_library(ROPEBWT OBJECT ${ropebwt-src})
 add_dependencies(ROPEBWT ropebwt)
 
+# spdlog
+########
+message(STATUS "spdlog will be built from source")
+FetchContent_Declare(spdlog
+  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+  GIT_TAG 7e635fca68d014934b4af8a1cf874f63989352b7) # v1.12.0
+FetchContent_MakeAvailable(spdlog)
+
 ############################################
 ### final setup (includes and libraries) ###
 ############################################
 
-add_dependencies(SVDSS abpoa parasail rapidfuzz intervaltree ropebwt)
+add_dependencies(SVDSS abpoa parasail rapidfuzz intervaltree ropebwt spdlog)
 if(NOT DEFINED CONDAPREFIX)
   # we need to build them
   add_dependencies(SVDSS deflate htslib)
@@ -181,6 +194,7 @@ target_include_directories(SVDSS
   PRIVATE ${RAPIDFUZZ_INCLUDE_DIR}
   PRIVATE ${INTERVALTREE_INCLUDE_DIR}
   PRIVATE ${ROPEBWT_INCLUDE_DIR}
+  PRIVATE ${SPDLOG_INCLUDE_DIR}
   PRIVATE ${PROJECT_SOURCE_DIR}
 )
 
@@ -207,6 +221,7 @@ target_link_libraries(SVDSS
   PUBLIC ${BINARY_DIR}/lib/libabpoa.a
   PUBLIC PARASAIL
   PUBLIC ROPEBWT
+  PUBLIC spdlog::spdlog
   PUBLIC z
 )
 

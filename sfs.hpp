@@ -3,10 +3,14 @@
 
 #include <fstream>
 #include <iostream>
-#include <map>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#include <spdlog/spdlog.h>
+
+using namespace std;
 
 static const char RCN[128] = {
     0,   0,   0, 0,   0,   0,   0,   0,   0,   0,   //  0
@@ -25,80 +29,55 @@ static const char RCN[128] = {
 };
 
 struct SFS {
-  uint s;
-  uint l;
-  uint c;
-  bool isreversed;
-
-  SFS() {
-    s = 0;
-    l = 0;
-    c = 0;
-    isreversed = false;
-  }
-
-  SFS(uint s_, uint l_, uint c_, bool isreversed_) {
-    s = s_;
-    l = l_;
-    c = c_;
-    isreversed = isreversed_;
-  }
-
-  void reverse(uint p) { s = p - s - l; }
-};
-
-bool operator<(const SFS &, const SFS &);
-
-struct ExtSFS {
-  std::string chrom;
-  std::string qname;
-  // reference positions
-  int s;
-  int e;
-  // query positions
+  string chrom;
+  string qname;
+  // reference and query positions, length
+  int rs;
+  int re;
   int qs;
   int qe;
+  int l;
+  // other
+  int htag; // 0: no tag; 1: hap1; 2: hap2
 
-  ExtSFS(const std::string &_chrom, const std::string &_qname, int _s, int _e, int _qs, int _qe) {
+  SFS(const string &_qname, int _qs, int _l, int _htag) {
+    chrom = "";
+    qname = _qname;
+    qs = _qs;
+    qe = _qs + _l;
+    l = _l;
+    htag = _htag;
+  }
+
+  SFS(const string &_chrom, const string &_qname, int _rs, int _re, int _qs,
+      int _qe, int _htag) {
     chrom = _chrom;
     qname = _qname;
-    s = _s;
-    e = _e;
+    rs = _rs;
+    re = _re;
     qs = _qs;
     qe = _qe;
+    l = qe - qs + 1;
+    htag = _htag;
   }
 
-  bool operator<(const ExtSFS &c) const {
-    if (chrom == c.chrom) {
-      return s < c.s;
-    } else {
-      return chrom < c.chrom;
-    }
+  // void reverse(int p) { s = p - s - l; }
+
+  bool operator<(const SFS &c) const {
+    // FIXME: bad trick to manage both cases we can have (in assembler, we have
+    // to check for query positions and we are sure we do not have a chromosome
+    // there. On caller, where we have the chrom, for reference positions)
+    if (chrom == "" || c.chrom == "")
+      return qs < c.qs;
+    else
+      return chrom == c.chrom ? rs < c.rs : chrom < c.chrom;
   }
 
-  bool operator==(const ExtSFS &c) const {
-    return chrom == c.chrom and s == c.s and e == c.e;
-  }
-};
-
-class Consensus {
-public:
-  std::string seq;
-  std::string chrom;
-  std::string cigar;
-  int s;
-  int e;
-
-  Consensus(const std::string _seq, const std::string _cigar,
-            const std::string _chrom, int _s, int _e) {
-    seq = _seq;
-    cigar = _cigar;
-    chrom = _chrom;
-    s = _s;
-    e = _e;
+  bool operator==(const SFS &c) const {
+    return chrom == c.chrom and rs == c.rs and re == c.re;
   }
 };
 
-std::map<std::string, std::vector<SFS>> parse_sfsfile(const std::string &, int);
+unordered_map<string, vector<SFS>> parse_sfsfile(const string &);
 
 #endif

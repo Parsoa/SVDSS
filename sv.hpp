@@ -11,30 +11,38 @@ using namespace std;
 
 class SV {
 public:
-  std::string type;
-  std::string chrom;
-  std::string idx;
+  string type;
+  string chrom;
+  string idx;
   int s;
   int e;
-  std::string refall;
-  std::string altall;
+  string refall;
+  string altall;
   uint w;
-  uint cov;
+  int cov;
+  int cov0;
+  int cov1;
+  int cov2;
   int l = 0;
   int ngaps;
   int score;
-  std::string gt;
+  string gt;
+  int gtq;
   bool imprecise;
   string cigar;
   string reads;
+  string rvec;
 
   SV();
-  SV(const std::string type_, const std::string &chrom_, uint s_,
-     const std::string &refall_, const std::string &altall_, const uint w_,
-     const uint cov_, const int ngaps_, const int score_,
-     bool imprecise_ = false, uint l_ = 0, string cigar_ = ".");
+  SV(const string type_, const string &chrom_, uint s_, const string &refall_,
+     const string &altall_, const uint w_, const uint cov_, const int ngaps_,
+     const int score_, bool imprecise_ = false, uint l_ = 0,
+     string cigar_ = ".");
   void add_reads(const vector<string> &reads_);
-  void genotype();
+
+  void set_cov(int, int, int, int);
+  void set_rvec(const vector<tuple<int, int>> &);
+  void set_gt(const string &, int);
 
   bool operator<(const SV &c) const {
     if (chrom < c.chrom) {
@@ -50,7 +58,7 @@ public:
     return chrom == c.chrom and s == c.s and e == c.e and type == c.type;
   }
 
-  friend std::ostream &operator<<(std::ostream &os, const SV &sv);
+  friend ostream &operator<<(ostream &os, const SV &sv);
 };
 
 #endif

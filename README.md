@@ -1,7 +1,9 @@
 ![C/C++ CI](https://github.com/Parsoa/SVDSS/workflows/C/C++%20CI/badge.svg)
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/svdss/badges/version.svg)](https://anaconda.org/bioconda/svdss)
 
-# SVDSS: Structural Variant Discovery from Sample-specific Strings
+# SVDSS2: Structural Variant Discovery from Sample-specific Strings
+
+**Note: for SVDSS (v1), please refer to [v1.0.5-fix](https://github.com/Parsoa/SVDSS/releases/tag/v1.0.5-fix) and [6fa89f0](https://github.com/Parsoa/SVDSS/tree/6fa89f0a4f8ec03ab87c3eb8a3288a6b82214767).**
 
 SVDSS is a novel method for discovery of structural variants in accurate long reads (e.g PacBio HiFi) using sample-specific strings (SFS).
 
@@ -39,6 +41,7 @@ The following libraries are needed to build and run SVDSS but they are automatic
 * [parasail](https://github.com/jeffdaily/parasail) for local alignment of POA consensus.
 * [rapidfuzz](https://github.com/maxbachmann/rapidfuzz-cpp) for string similarity computation.
 * [interval-tree](https://github.com/5cript/interval-tree) for variant overlap detection and clustering.
+* [spdlog](https://github.com/gabime/spdlog) for logging.
 
 To download and install SVDSS (should take ~10 minutes):
 ```bash
@@ -64,37 +67,22 @@ This will create the environment `svdss` that includes `SVDSS` and its runtime d
 Please refer to or use [Snakefile](Snakefile)/[run-svdss.sh](tests/run-svdss.sh).
 
 ```
-Index reference/sample:
-    SVDSS index --fastq/--fasta /path/to/genome/file --index /path/to/output/index/file
+Index reference:
+    SVDSS index --reference /path/to/genome/file --index /path/to/output/index/file
 
-    Optional arguments:
-        --binary                            output index in binary format. Allows for another index to be appended to this index later.
-        --append /path/to/binary/index      append to existing binary index.
+Smooth sample:
+    SVDSS smooth --reference /path/to/reference/genome/fasta --bam /path/to/input/bam/file > smoothed.bam
 
 Extract SFS from BAM/FASTQ/FASTA files:
-    SVDSS search --index /path/to/index --fastq/--bam /path/to/input --workdir /output/directory
-
-    Optional arguments:
-        --assemble                              automatically runs SVDSS assemble on output
-
-Assemble SFS into superstrings:
-    SVDSS assemble --workdir /path/to/.sfs/files --batches /number/of/SFS/batches
-
-Reconstruct sample:
-    SVDSS smooth --workdir /output/file/direcotry --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
+    SVDSS search --index /path/to/index --bam smoothed.bam > specifics.txt
 
 Call SVs:
-    SVDSS call --workdir /path/to/assembled/.sfs/files --bam /path/to/input/bam/file --reference /path/to/reference/genome/fasta
-
-    Optional arguments:
-        --clipped                               calls SVs from clipped SFS.
-        --min-cluster-weight                    minimum number of supporting superstrings for a call to be reported.
-        --min-sv-length                         minimum length of reported SVs. Default is 25. Values < 25 are ignored.
+    SVDSS call --reference /path/to/reference/genome/fasta --bam smoothed.bam --sfs specifics.txt > calls.vcf
 
 General options:
-    --threads                                   sets number of threads, default 4.
-    --version                                   print version information.
-    --help                                      print this help message.
+    --threads                       sets number of threads (default: 4)
+    --version                       print version information
+    --help                          print help message
 ```
 
 ## Detailed Usage Guide
@@ -110,10 +98,6 @@ In the guide below we assume we are using the reference genome file `GRCh38.fa` 
 
 Note that you can reuse the index from step 1 for any number of samples genotyped against the same reference genome.
 
-Figure below shows the full pipeline of commands that needs to be run:
-
-![SVDSS's pipeline](docs/Pipeline.png)
-
 We will now explain each step in more detail:
 
 ### Index reference genome
@@ -121,54 +105,43 @@ We will now explain each step in more detail:
 Build the FMD index of the reference genome:
 
 ```
-SVDSS index --fastq GRCh38.fa --index GRCh38.bwt
+SVDSS index --reference GRCh38.fa --index GRCh38.fmd
 ```
 
 The `--index` option specifies the output file name.
 
 ### Smoothing the target sample
 
-Smoothing removes  nearly all SNPs, small indels and sequencing errors from reads. This results in smaller number of SFS being extracted and increases the relevance of extracted SFS to SV discovery significantly. To smooth the sample run: 
+Smoothing removes nearly all SNPs, small indels and sequencing errors from reads. This results in smaller number of SFS being extracted and increases the relevance of extracted SFS to SV discovery significantly. To smooth the sample run:
 
 ```
-SVDSS smooth --bam sample.bam --workdir $PWD --reference GRCh38.fa --threads 16
+SVDSS smooth --reference GRCh38.fa --bam sample.bam --threads 16 > smoothed.bam
 ```
 
-This produces a file named `smoothed.selective.bam`. This file is sorted in the same order as the input file, however it needs to be indexed again with `samtools index`. The command also produces two files `smoothed_reads.txt` and `ignored_reads.txt` in `workdir` that contains the ids of reads that were smoothed and ids of reads that didn't have any large (> 20bp) indels in their alignemnts. This information is used by the next step.
+This writes to stdout the smoothed bam. This file is sorted in the same order as the input file, however it needs to be indexed again with `samtools index`.
 
 ### Extract SFS from target sample
 
 To extract SFS run:
 
 ```
-SVDSS search --index GRCh38.bwt --bam smoothed.selective.bam --workdir $PWD
+SVDSS search --index GRCh38.fmd --bam smoothed.bam > specifics.txt
 ```
 
-This step produces a number of `solution_batch_<i>.sfs` files. These files include the coordinates of SFS relative to the reads they were extracted from.
+This writes to stdout the list of specific strings. The output includes the coordinates of SFS relative to the reads they were extracted from.
 
-### Assemble SFS into superstrings
-
-To reduce redundancy, overlapping SFS on each reads are merged. Simply run:
-
-```
-SVDSS assemble --workdir $PWD --batches N
-```
-
-Here `N` is the number of files produces by the previous step. Each `.sfs` file will be processed independently and output as a `solution_batch_<i>.assembled.sfs` file.
-
-You can combine SFS extraction and assembly by passing `--assemble` to `SVDSS search`. This will automatically run the assembler.
 
 ### Call SVs
 
-We are now ready to call SVs. Run (note that the input `.bam` must be sorted and indexed using `samtools` before running this):
+We are now ready to call SVs. Run (note that the input `.bam` must be the same used in the search step and must be indexed using `samtools`):
 
 ```
-SVDSS call --reference GRCh38.fasta --bam smoothed.selective.bam --workdir $PWD --batches N
+SVDSS call --reference GRCh38.fasta --bam smoothed.bam --sfs specifics.txt --threads 16 > calls.vcf
 ```
 
 You can filter the reported SVs by passing the `--min-sv-length` and `--min-cluster-weight` options. These options control the minimum length and minimum number of supporting superstrings for the reported SVs. Higher values for `--min-cluster-weight` will increase precision at the cost of reducing recall. For a diploid 30x coverage sample, `--min-cluster-weight 2` produced the best results in our experiments. For a haploid 30x sample, instead, `--min-cluster-weight 4` produced the best results.
 
-This commands output two files: `svs_poa.vcf` that includes the SV calls and `poa.sam` which includes alignments of POA contigs to the reference genome (these POA consensus are used to call SVs).
+This commands output the calls to stdout. Additionally, you can output the alignments of POA contigs against the reference genome (these POA consensus are used to call SVs) using the `--poa` option.
 
 ### Snakemake workflow
 
@@ -204,13 +177,13 @@ bash run-svdss.sh ./SVDSS_linux_x86-64 input/22.fa input/22.bam svdss-output
 
 ### Authors
 
-SVDSS was developed by Luca Denti and Parsoa Khorsand.
+SVDSS is developed by Luca Denti, Parsoa Khorsand, and Thomas Krannich.
 
-For inquiries on this software please open an [issue](https://github.com/Parsoa/SVDSS/issues) or contact either [Parsoa Khorsand](https://github.com/parsoa) or [Luca Denti](https://github.com/ldenti/).
+For inquiries on this software please open an [issue](https://github.com/Parsoa/SVDSS/issues).
 
 ### Citation
 
-SVDSS is now published in [Nature Methods](https://doi.org/10.1038/s41592-022-01674-1).
+SVDSS is published in [Nature Methods](https://doi.org/10.1038/s41592-022-01674-1).
 
 ##### Experiments
 Instructions on how to reproduce the experiments described in the manuscript can be found [here](https://github.com/ldenti/SVDSS-experiments) (also provided as submodule of this repository).

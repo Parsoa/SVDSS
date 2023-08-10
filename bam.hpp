@@ -16,13 +16,15 @@
 #include <htslib/hts_endian.h>
 #include <htslib/sam.h>
 
+using namespace std;
+
 extern uint32_t cigar_len_mask;
 extern uint32_t cigar_type_mask;
 
 // CHECKME: I changed this struct but I didn't check if I broke something in
 // realignment
 struct CIGAR {
-  std::vector<std::pair<uint, char>> ops;
+  vector<pair<uint, char>> ops;
   int mismatches;
   uint ngaps;
   uint start;
@@ -34,7 +36,7 @@ struct CIGAR {
     score = -1;
   }
 
-  CIGAR(std::vector<std::pair<uint, char>> ops_, int score_, uint start_ = 0) {
+  CIGAR(vector<pair<uint, char>> ops_, int score_, uint start_ = 0) {
     mismatches = -1;
     score = score_;
     ops = ops_;
@@ -47,14 +49,15 @@ struct CIGAR {
 
   void parse_cigar(char *cigar) {
     int b = 0;
-    for (int i = 0; i < strlen(cigar); i++) {
-      if (isdigit(cigar[i])) {
+    int lc = strlen(cigar);
+    for (int i = 0; i < lc; i++) {
+      if (isdigit(cigar[i]))
         continue;
-      } else {
+      else {
         char type = cigar[i];
         cigar[i] = '\0';
-        int l = std::stoi(std::string(cigar + b));
-        ops.push_back(std::make_pair(l, type));
+        int l = stoi(string(cigar + b));
+        ops.push_back(make_pair(l, type));
         cigar[i] = type;
         b = i + 1;
       }
@@ -75,7 +78,7 @@ struct CIGAR {
   void add(int l, char op, int e) {
     mismatches += e;
     if (ops.empty() || ops.back().second != op) {
-      ops.push_back(std::make_pair(l, op));
+      ops.push_back(make_pair(l, op));
     } else {
       ops.back().first += l;
     }
@@ -83,14 +86,14 @@ struct CIGAR {
 
   void add_front(int l) {
     ops.front().first += l;
-    ops.insert(ops.begin(), std::make_pair(1, 'M'));
+    ops.insert(ops.begin(), make_pair(1, 'M'));
   }
 
   void print() {
     for (uint i = 0; i < ops.size(); ++i) {
-      std::cout << ops[i].first << ops[i].second;
+      cout << ops[i].first << ops[i].second;
     }
-    std::cout << std::endl;
+    cout << endl;
   }
 
   void fixclips() {
@@ -115,26 +118,24 @@ struct CIGAR {
     }
   }
 
-  const std::pair<uint, char> &operator[](std::size_t i) const {
-    return ops[i];
-  }
+  const pair<uint, char> &operator[](size_t i) const { return ops[i]; }
 
   uint size() const { return ops.size(); }
 
-  std::string to_str() const {
-    std::string cigar_str;
+  string to_str() const {
+    string cigar_str;
     for (const auto &op : ops) {
-      cigar_str += std::to_string(op.first) + op.second;
+      cigar_str += to_string(op.first) + op.second;
     }
     return cigar_str;
   }
 };
 
-std::string print_cigar_symbol(int type);
-std::vector<std::pair<uint32_t, uint32_t>> decode_cigar(bam1_t *read);
-uint8_t *encode_cigar(std::vector<std::pair<uint32_t, uint32_t>> cigar);
+string print_cigar_symbol(int type);
+vector<pair<int, int>> decode_cigar(bam1_t *read);
+uint8_t *encode_cigar(vector<pair<uint32_t, uint32_t>> cigar);
 uint8_t *encode_bam_seq(char *seq);
 char reverse_complement_base(char base);
-std::vector<std::pair<int, int>> get_aligned_pairs(bam1_t *alignment);
+vector<pair<int, int>> get_aligned_pairs(bam1_t *alignment);
 
 #endif

@@ -1,9 +1,4 @@
-#include <algorithm>
-
 #include "clipper.hpp"
-
-using namespace std;
-using namespace lib_interval_tree;
 
 Clipper::Clipper(const vector<Clip> &_clips) { clips = _clips; }
 
@@ -41,14 +36,16 @@ vector<Clip> Clipper::combine(const vector<Clip> &clips) {
           max_l = c.l;
         }
       }
-      Clip clip = Clip("", chrom, it->first, max_l, it->second.front().starting,
+      Clip clip = Clip("", chrom, it->first, max_l,
+      it->second.front().starting,
                        it->second.size());
       _p_combined_clips[t].push_back(clip);
     }
   }
   vector<Clip> combined_clips;
   for (int i = 0; i < threads; i++) {
-    combined_clips.insert(combined_clips.begin(), _p_combined_clips[i].begin(),
+    combined_clips.insert(combined_clips.begin(),
+    _p_combined_clips[i].begin(),
                           _p_combined_clips[i].end());
   }
   return combined_clips;
@@ -96,7 +93,7 @@ vector<Clip> Clipper::filter_tooclose_clips(const vector<Clip> &clips,
                                             interval_tree_t<int> &vartree) {
   vector<Clip> fclips;
   for (const Clip &c : clips) {
-    if (vartree.overlap_find({c.p, c.p + 1}) == std::end(vartree)) {
+    if (vartree.overlap_find({c.p, c.p + 1}) == end(vartree)) {
       fclips.push_back(c);
     }
   }
@@ -133,8 +130,7 @@ int binary_search(const vector<Clip> &clips, int begin, int end,
 }
 
 void Clipper::call(int threads, interval_tree_t<int> &vartree) {
-  lprint({"Predicting SVS from", to_string(clips.size()), "clipped SFS on",
-          to_string(threads), "threads.."});
+  // lprint({"Predicting SVS from", to_string(clips.size()), "clipped SFS on", to_string(threads), "threads.."});
   vector<Clip> rclips;
   vector<Clip> lclips;
   for (const Clip &clip : clips) {
@@ -144,9 +140,9 @@ void Clipper::call(int threads, interval_tree_t<int> &vartree) {
       rclips.push_back(clip);
     }
   }
-  lprint({to_string(lclips.size()), "left clips."});
-  lprint({to_string(rclips.size()), "right clips."});
-  lprint({"Preprocessing clipped SFS.."});
+  // lprint({to_string(lclips.size()), "left clips."});
+  // lprint({to_string(rclips.size()), "right clips."});
+  // lprint({"Preprocessing clipped SFS.."});
 #pragma omp parallel for num_threads(2) schedule(static, 1)
   for (int i = 0; i < 2; i++) {
     if (i == 0) {
@@ -155,23 +151,23 @@ void Clipper::call(int threads, interval_tree_t<int> &vartree) {
       rclips = filter_lowcovered(rclips, 2); // FIXME: hardcoded
       rclips = filter_tooclose_clips(rclips, vartree);
       rclips = cluster(rclips, 1000); // FIXME: hardcoded
-      std::sort(rclips.begin(), rclips.end());
+      sort(rclips.begin(), rclips.end());
     } else {
       lclips = remove_duplicates(lclips);
       lclips = combine(lclips);
       lclips = filter_lowcovered(lclips, 2); // FIXME: hardcoded
       lclips = filter_tooclose_clips(lclips, vartree);
       lclips = cluster(lclips, 1000); // FIXME: hardcoded
-      std::sort(lclips.begin(), lclips.end());
+      sort(lclips.begin(), lclips.end());
     }
   }
-  lprint({to_string(lclips.size()), "left clips."});
-  lprint({to_string(rclips.size()), "right clips."});
+  // lprint({to_string(lclips.size()), "left clips."});
+  // lprint({to_string(rclips.size()), "right clips."});
   _p_svs.resize(threads);
   if (lclips.empty() || rclips.empty()) {
     return;
   }
-  lprint({"Predicting insertions.."});
+  // lprint({"Predicting insertions.."});
 #pragma omp parallel for num_threads(threads) schedule(static, 1)
   for (int i = 0; i < lclips.size(); i++) {
     const Clip &lc = lclips[i];
@@ -196,7 +192,7 @@ void Clipper::call(int threads, interval_tree_t<int> &vartree) {
           SV("INS", chrom, s, refbase, "<INS>", w, 0, 0, 0, true, l));
     }
   }
-  lprint({"Predicting deletions.."});
+  // lprint({"Predicting deletions.."});
 #pragma omp parallel for num_threads(threads) schedule(static, 1)
   for (int i = 0; i < rclips.size(); i++) {
     const Clip &rc = rclips[i];

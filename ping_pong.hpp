@@ -15,36 +15,25 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <zlib.h>
 
-#include "mrope.h"
-#include "rld0.h"
-#include "rle.h"
+#include <mrope.h>
+#include <rld0.h>
+#include <rle.h>
 
-#include "htslib/hfile.h"
-#include "htslib/hts_endian.h"
 #include <htslib/bgzf.h>
 #include <htslib/hfile.h>
 #include <htslib/hts.h>
+#include <htslib/hts_endian.h>
 #include <htslib/sam.h>
-#include <zlib.h>
+#include <spdlog/spdlog.h>
 
 #include "assembler.hpp"
-#include "bam.hpp"
-#include "chromosomes.hpp"
 #include "config.hpp"
 #include "fastq.hpp"
-#include "lprint.hpp"
 #include "sfs.hpp"
 
 using namespace std;
-
-#ifdef DEBUG_MODE
-#define DEBUG(x) x
-#define NEBUG(x)
-#else
-#define DEBUG(x)
-#define NEBUG(x) x
-#endif
 
 #define fm6_comp(a) ((a) >= 1 && (a) <= 4 ? 5 - (a) : (a))
 
@@ -62,57 +51,57 @@ static unsigned char seq_nt6_table[128] = {
     5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 5, 2, 5, 5, 5, 3, 5, 5, 5, 5, 5, 5,
     5, 5, 5, 5, 5, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
-typedef SFS sfs_type_t;
-typedef std::map<std::string, std::vector<sfs_type_t>> batch_type_t;
+static inline int kputsn(const char *p, int l, kstring_t *s) {
+  if (s->l + l + 1 >= s->m) {
+    char *tmp;
+    s->m = s->l + l + 2;
+    kroundup32(s->m);
+    if ((tmp = (char *)realloc(s->s, s->m)))
+      s->s = tmp;
+    else
+      return EOF;
+  }
+  memcpy(s->s + s->l, p, l);
+  s->l += l;
+  s->s[s->l] = 0;
+  return l;
+}
 
-static const std::vector<std::string> int2char({"$", "A", "C", "G", "T", "N"});
+typedef map<string, vector<SFS>> batch_type_t;
+
+static const vector<string> int2char({"$", "A", "C", "G", "T", "N"});
 
 class PingPong {
 
 public:
   int index();
   int search();
-  bool query(std::string);
-
-  int num_output_batches;
 
 private:
   Configuration *config;
 
-  int mode;
-  int current_batch = 0;
-  int last_dumped_batch = 0;
+  int bam_mode;
   int reads_processed = 0;
-  int non_x_reads = 0;
 
   gzFile fastq_file;
   kseq_t *fastq_iterator;
   samFile *bam_file;
   bam_hdr_t *bam_header;
 
-  unordered_map<string, bool> smoothed_reads;
-  unordered_map<string, bool> ignored_reads;
-  void load_smoothed_read_ids();
-
-  std::vector<std::vector<std::vector<int>>> read_seq_lengths;
-  std::vector<std::vector<std::vector<int>>> read_seq_max_lengths;
-  std::vector<std::vector<std::vector<uint8_t *>>> read_seqs;
-  std::vector<std::vector<std::vector<string>>> read_names;
-  std::vector<std::vector<std::vector<bam1_t *>>> bam_entries;
-  std::vector<std::vector<std::vector<fastq_entry_t>>> fastq_entries;
-  bool load_batch_bam(int threads, int batch_size, int p);
-  bool load_batch_fastq(int threads, int batch_size, int p);
-  batch_type_t process_batch(rld_t *index, int p, int i);
-  void ping_pong_search(rld_t *index, uint8_t *seq, int l,
-                        std::vector<sfs_type_t> &solutions, bool is_smoothed,
-                        bam1_t *);
+  vector<vector<vector<int>>> read_seq_lengths;
+  vector<vector<vector<int>>> read_seq_max_lengths;
+  vector<vector<vector<uint8_t *>>> read_seqs;
+  vector<vector<vector<string>>> read_names;
+  vector<vector<vector<bam1_t *>>> bam_entries;
+  vector<vector<vector<fastq_entry_t>>> fastq_entries;
+  bool load_batch_bam(int);
+  bool load_batch_fastq(int, int, int);
+  batch_type_t process_batch(rld_t *, int, int);
+  void ping_pong_search(rld_t *, const string &, uint8_t *, int, vector<SFS> &,
+                        int);
   void output_batch(int);
 
-  std::vector<std::vector<batch_type_t>> batches;
-
-  bool check_solution(rld_t *index, std::string S);
-  bool backward_search(rld_t *index, const uint8_t *P, int p2);
-  fastq_entry_t get_solution(fastq_entry_t fqe, int s, int l);
+  vector<vector<batch_type_t>> obatches;
 };
 
 #endif

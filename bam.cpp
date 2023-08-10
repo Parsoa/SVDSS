@@ -1,7 +1,5 @@
 #include "bam.hpp"
 
-using namespace std;
-
 uint32_t cigar_len_mask = 0xFFFFFFF0;
 uint32_t cigar_type_mask = 0xF;
 
@@ -24,12 +22,11 @@ string print_cigar_symbol(int type) {
   return "X";
 }
 
-vector<pair<uint32_t, uint32_t>> decode_cigar(bam1_t *read) {
+vector<pair<int, int>> decode_cigar(bam1_t *read) {
   // get CIGAR
-  vector<pair<uint32_t, uint32_t>> cigar_offsets;
+  vector<pair<int, int>> cigar_offsets;
   uint32_t *cigar = bam_get_cigar(read);
-  int offset = 0;
-  for (int i = 0; i < read->core.n_cigar; i++) {
+  for (size_t i = 0; i < read->core.n_cigar; i++) {
     uint32_t type = cigar[i] & cigar_type_mask;
     uint32_t length = cigar[i] >> 4;
     cigar_offsets.push_back(make_pair(length, type));
@@ -39,7 +36,7 @@ vector<pair<uint32_t, uint32_t>> decode_cigar(bam1_t *read) {
 
 uint8_t *encode_cigar(vector<pair<uint32_t, uint32_t>> cigar) {
   uint32_t *cigar_bytes = (uint32_t *)malloc(sizeof(uint32_t) * cigar.size());
-  for (int i = 0; i < cigar.size(); i++) {
+  for (size_t i = 0; i < cigar.size(); i++) {
     cigar_bytes[i] =
         (cigar[i].first << 4) | (cigar[i].second & cigar_type_mask);
   }
@@ -97,7 +94,7 @@ vector<pair<int, int>> get_aligned_pairs(bam1_t *alignment) {
   uint ref_pos = alignment->core.pos;
   uint read_pos = 0;
   auto cigar_offsets = decode_cigar(alignment);
-  int m = 0;
+  size_t m = 0;
   while (true) {
     if (m == cigar_offsets.size()) {
       break;
@@ -112,7 +109,7 @@ vector<pair<int, int>> get_aligned_pairs(bam1_t *alignment) {
       ref_pos += cigar_offsets[m].first;
     } else if (cigar_offsets[m].second == BAM_CINS or
                cigar_offsets[m].second == BAM_CSOFT_CLIP) {
-      for (uint i = 0; i < cigar_offsets[m].first; ++i) {
+      for (int i = 0; i < cigar_offsets[m].first; ++i) {
         result.push_back(make_pair(read_pos, -1));
         read_pos++;
       }

@@ -23,7 +23,7 @@ SV::SV(const string type_, const string &chrom_, uint s_, const string &refall_,
   idx = type + "_" + chrom + ":" + to_string(s) + "-" + to_string(e);
   idx += "_" + to_string(abs(l));
   gt = "./.";
-  genotype();
+  rvec = "";
 }
 
 void SV::add_reads(const vector<string> &names) {
@@ -32,18 +32,22 @@ void SV::add_reads(const vector<string> &names) {
   reads.pop_back();
 }
 
-void SV::genotype() {
-  if (imprecise) {
-    gt = "./.";
-  } else {
-    float p = float(w) / float(cov);
-    if (p >= 0.9)
-      gt = "1/1";
-    else
-      gt = "0/1";
-    // if (p <= 0.1)
-    //     gt = "0/0";
-  }
+void SV::set_cov(int _cov, int _cov0, int _cov1, int _cov2) {
+  cov = _cov;
+  cov0 = _cov0;
+  cov1 = _cov1;
+  cov2 = _cov2;
+}
+
+void SV::set_rvec(const vector<tuple<int, int>> &reads) {
+  for (const auto &r : reads)
+    rvec += to_string(get<0>(r)) + ":" + to_string(get<1>(r)) + "-";
+  rvec.pop_back();
+}
+
+void SV::set_gt(const string &_gt, int _gtq) {
+  gt = _gt;
+  gtq = _gtq;
 }
 
 ostream &operator<<(ostream &os, const SV &sv) {
@@ -60,13 +64,17 @@ ostream &operator<<(ostream &os, const SV &sv) {
      << "END=" << sv.e << ";"
      << "WEIGHT=" << sv.w << ";"
      << "COV=" << sv.cov << ";"
+     << "COV0=" << sv.cov0 << ";"
+     << "COV1=" << sv.cov1 << ";"
+     << "COV2=" << sv.cov2 << ";"
      << "AS=" << sv.score << ";"
      << "NV=" << sv.ngaps << ";"
      << "CIGAR=" << sv.cigar << ";"
+     << "RVEC=" << sv.rvec << ";"
      << "READS=" << sv.reads
      << (sv.imprecise ? ";IMPRECISE\t" : "\t")
      // -
-     << "GT"
-     << "\t" << sv.gt;
+     << "GT:GQ"
+     << "\t" << sv.gt << ":" << sv.gtq;
   return os;
 }
