@@ -17,29 +17,33 @@ static const char MAIN_USAGE_MESSAGE[] =
   "      --version                        print version\n";
 
 static const char INDEX_USAGE_MESSAGE[] =
-  "SVDSS index [-h] --reference <reference> --index <index>\n"
+  "SVDSS index --reference <reference> --index <index>\n"
   "      --binary                         store the index in binary format\n"
-  "      --append <oldindex>              append to existing index\n";
+  "      --append <oldindex>              append to existing index\n"
+  "      --help                           print help message\n";
 
 static const char SMOOTH_USAGE_MESSAGE[] =
-  "SVDSS smooth [-h] --reference <reference> --bam <bam>\n"
-  "      --threads <INT>                  number of threads to use (default: 4)\n";
+  "SVDSS smooth --reference <reference> --bam <bam>\n"
+  "      --threads <INT>                  number of threads to use (default: 4)\n"
+  "      --help                           print help message\n";
 
 static const char SEARCH_USAGE_MESSAGE[] =
-  "SVDSS search [-h] --index <index> --bam <bam>\n"
+  "SVDSS search --index <index> [--bam <bam>|--fastq <fastq>]\n"
   "      --bsize <INT>                    batch size (default: 10000)\n"
-  "      --threads <INT>                  number of threads to use (default: 4)\n"
   "      --noputative                     when input is smoothed bam, do not filter unsmoothed reads (default: putative)\n"
-  "      --noassemble                     do not assemble specific strings overlapping on a read (default: assemble)\n";
+  "      --noassemble                     do not assemble specific strings overlapping on a read (default: assemble)\n"
+  "      --threads <INT>                  number of threads to use (default: 4)\n"
+  "      --help                           print help message\n";
 
 static const char CALL_USAGE_MESSAGE[] =
-  "SVDSS call [-h] --reference <reference> --bam <bam> --sfs <sfs>\n"
-  "      --poa <FILE>                     store POA in .sam format to this file (default: "", i.e., do not store)\n"
-  "      --clusters <FILE>                store clusters to this file (default: "", i.e., do not store)\n"
+  "SVDSS call --reference <reference> --bam <bam> --sfs <sfs>\n"
+  "      --poa <FILE>                     store POA in .sam format to this file (default: do not store)\n"
+  "      --clusters <FILE>                store clusters to this file (default: do not store)\n"
   "      --min-cluster-weight <INT>       minimum number of supporting superstrings for a call to be reported (default: 2)\n"
   "      --min-sv-length <INT>            minimum length of reported SVs (default: 25)\n"
-  "      --threads <INT>                  number of threads to use (default: 4)\n";
-// "      --clipped                          calls SVs from clipped SFS (UNSUPPORTED)\n";
+  "      --clipped                        calls SVs from clipped SFS (EXPERIMENTAL)\n"
+  "      --threads <INT>                  number of threads to use (default: 4)\n"
+  "      --help                           print help message\n";
 
 // clang-format on
 
