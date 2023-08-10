@@ -162,7 +162,7 @@ wget https://zenodo.org/record/6563662/files/svdss-data.tar.gz
 mkdir -p input
 tar xvfz svdss-data.tar.gz -C input
 # Download SVDSS binary
-wget https://github.com/Parsoa/SVDSS/releases/download/v1.0.5/SVDSS_linux_x86-64
+wget https://github.com/Parsoa/SVDSS/releases/download/v2.0.0-alpha.1/SVDSS_linux_x86-64
 chmod +x SVDSS_linux_x86-64
 
 # Download snakemake workflow and run it
