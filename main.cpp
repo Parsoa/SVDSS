@@ -12,7 +12,7 @@
 
 using namespace std;
 
-const string version = "v2.0.0dev";
+const string version = "v2.0.0-alpha.1";
 
 int main(int argc, char **argv) {
   time_t t;
