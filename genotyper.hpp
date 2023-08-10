@@ -8,12 +8,12 @@
 #include <cmath>
 
 
-typedef std::tuple<int, int> variant;
-typedef std::tuple<int, int> read;
-typedef int allele;
+typedef std::tuple<int, int> variant_t;
+typedef std::tuple<int, int> read_t;
+typedef int allele_t;
 
-static variant make_variant(int a, int b){return std::make_tuple(a, b);}
-static read make_read(int a, int b){return std::make_tuple(a, b);}
+static variant_t make_variant(int a, int b){return std::make_tuple(a, b);}
+static read_t make_read(int a, int b){return std::make_tuple(a, b);}
 
 // Define a class "Genotyper" that will be used to compute the genotype of Structural Variants
 // the class has the following private member functions:
@@ -30,22 +30,22 @@ static read make_read(int a, int b){return std::make_tuple(a, b);}
 class Genotyper{
 private:
     //
-    double prob_sfs_sv(int sfs_length, int sfs, allele a);
+    double prob_sfs_sv(int sfs_length, int sfs, allele_t a);
     // 
     double priorHap(int hap, int h);
     // 
-    double prior_genotype(variant v);
+    double prior_genotype(variant_t v);
     //
-    double likelihood_read_give_gen_hap(int s, int hap, allele a);
+    double likelihood_read_give_gen_hap(int s, int hap, allele_t a);
     // 
-    double likelihood_read_give_genotype(read r, variant v);
+    double likelihood_read_give_genotype(read_t r, variant_t v);
     //
-    double likelihood_allreads_give_genotype(std::vector<read> r_vec, variant v );
+    double likelihood_allreads_give_genotype(std::vector<read_t> r_vec, variant_t v );
 
 public:
     Genotyper();
     //
-    int posterior_sv_genotype_give_reads(std::vector<read> r_vec);
+    int posterior_sv_genotype_give_reads(std::vector<read_t> r_vec);
     //
     std::vector<double> get_posterior_sv_genotype();
 

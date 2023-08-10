@@ -7,7 +7,7 @@ Genotyper::Genotyper(){
 }
 
 
-double Genotyper::prob_sfs_sv(int sfs_length, int sfs, allele a){
+double Genotyper::prob_sfs_sv(int sfs_length, int sfs, allele_t a){
 
     (void)(sfs_length); // suppress unused parameter warning
 
@@ -53,7 +53,7 @@ double Genotyper::priorHap(int hap, int h){
 }
 
 
-double Genotyper::prior_genotype(variant v){
+double Genotyper::prior_genotype(variant_t v){
 
     if (v == make_variant(0, 0)){
         return 0.5;
@@ -73,7 +73,7 @@ double Genotyper::prior_genotype(variant v){
 }
 
 
-double Genotyper::likelihood_read_give_gen_hap(int s, int hap, allele a){
+double Genotyper::likelihood_read_give_gen_hap(int s, int hap, allele_t a){
 
     (void)(hap); // suppress unused parameter warning
 
@@ -81,7 +81,7 @@ double Genotyper::likelihood_read_give_gen_hap(int s, int hap, allele a){
 }
 
 
-double Genotyper::likelihood_read_give_genotype(read r, variant v){
+double Genotyper::likelihood_read_give_genotype(read_t r, variant_t v){
 
     int hap1 = 1;
     int hap2 = 2;
@@ -93,7 +93,7 @@ double Genotyper::likelihood_read_give_genotype(read r, variant v){
 }
 
 
-double Genotyper::likelihood_allreads_give_genotype(std::vector<read> r_vec, variant v ){
+double Genotyper::likelihood_allreads_give_genotype(std::vector<read_t> r_vec, variant_t v ){
 
     double log_posterior_prob = 0.0;
 
@@ -114,7 +114,7 @@ double Genotyper::likelihood_allreads_give_genotype(std::vector<read> r_vec, var
  *        - the second integer is the predicted allele (haplo?)tag of the read (1 for haplotype 1, 2 for haplotype 2, 3 for NOTAG)    
  * @return int 0 if success
  */
-int Genotyper::posterior_sv_genotype_give_reads(std::vector<read> r_vec){
+int Genotyper::posterior_sv_genotype_give_reads(std::vector<read_t> r_vec){
 
     int i=0;
     int total = 0;
