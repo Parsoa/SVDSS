@@ -117,7 +117,7 @@ double Genotyper::likelihood_allreads_give_genotype(std::vector<read_t> r_vec, v
 int Genotyper::posterior_sv_genotype_give_reads(std::vector<read_t> r_vec){
 
     int i=0;
-    int total = 0;
+    double total = 0;
 
     std::vector<std::tuple<int,int> > g = {std::make_tuple(0, 0), std::make_tuple(0, 1), std::make_tuple(1, 0), std::make_tuple(1, 1)};
 
