@@ -15,7 +15,7 @@ if(DEFINED CONDAPREFIX)
   message(STATUS "Using conda: ${CONDA_INCLUDE}")
 endif()
 
-project(SVDSS VERSION 1.0.2)
+project(SVDSS VERSION 2.0.0)
 add_executable(SVDSS assembler.cpp bam.cpp caller.cpp chromosomes.cpp clipper.cpp clusterer.cpp config.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp genotyper.cpp main.cpp)
 set_target_properties(SVDSS PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}")
 target_compile_options(SVDSS PRIVATE -Wall -Wextra)
@@ -95,7 +95,7 @@ else ()
 endif ()
 ExternalProject_Add(abpoa
   GIT_REPOSITORY https://github.com/yangao07/abPOA.git
-  GIT_TAG 16c64e5163cbd0502792ca20f1069fe40c929b0d # v1.41
+  GIT_TAG 16c64e5163cbd0502792ca20f1069fe40c929b0d # v1.4.1
   PATCH_COMMAND ${PATCH_CMD}
   INSTALL_COMMAND ""
 )
@@ -154,6 +154,7 @@ ExternalProject_Add(ropebwt
     GIT_TAG bd8dbd3db2e9e3cff74acc2907c0742c9ebbf033
     UPDATE_COMMAND ""
     BUILD_IN_SOURCE 1
+    PATCH_COMMAND bash ${CMAKE_SOURCE_DIR}/patches/patch_ropebwt.sh <SOURCE_DIR>/mrope.c # I haven't been able to run sed here.. I could use my branch btw
     CONFIGURE_COMMAND ""
     BUILD_COMMAND make
       "CC=${CMAKE_C_COMPILER}"

@@ -396,6 +396,8 @@ int PingPong::search() {
 int PingPong::index() {
   config = Configuration::getInstance();
 
+  spdlog::info("Indexing..");
+
   // hardcoded parameters
   uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) +
                1; // batch size for multi-string indexing
