@@ -120,6 +120,8 @@ bool Clusterer::load_batch(int p) {
       spdlog::warn("Non primary alignment.. Is bam file smoothed?");
       continue;
     }
+    if (aln->core.qual < config->min_mapq)
+      continue;
     char *qname = bam_get_qname(aln);
     if (SFSs->find(qname) == SFSs->end())
       continue;
@@ -526,6 +528,8 @@ void Clusterer::fill_clusters() {
       bam1_t *aln = _p_aln[t];
       if (aln->core.flag & BAM_FUNMAP || aln->core.flag & BAM_FSUPPLEMENTARY ||
           aln->core.flag & BAM_FSECONDARY)
+        continue;
+      if (aln->core.qual < config->min_mapq)
         continue;
       int hp_t = bam_aux_get(aln, "HP") != NULL
                      ? bam_aux2i(bam_aux_get(aln, "HP"))

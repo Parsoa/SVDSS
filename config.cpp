@@ -40,6 +40,7 @@ Configuration::Configuration()
     ("bsize", "", cxxopts::value<int>())
     ("omax", "", cxxopts::value<int>())
     ("min-sv-length", "", cxxopts::value<int>())
+    ("min-mapq", "", cxxopts::value<int>())
     ("min-cluster-weight", "", cxxopts::value<int>())
     ("clipped", "", cxxopts::value<bool>()->default_value("false"))
     ("noref", "", cxxopts::value<bool>()->default_value("false"))
@@ -84,6 +85,8 @@ void Configuration::parse(int argc, char **argv) {
     min_sv_length = max(25, results["min-sv-length"].as<int>());
   if (results.count("min-cluster-weight"))
     min_cluster_weight = results["min-cluster-weight"].as<int>();
+  if (results.count("min-mapq"))
+    min_mapq = results["min-mapq"].as<int>();
   if (results.count("l"))
     min_ratio = results["l"].as<float>();
   if (results.count("acc"))
