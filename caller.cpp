@@ -331,8 +331,8 @@ void Caller::pcall(const vector<Cluster> &clusters) {
         cerr << gt_strings[i] << " - " << gts[i] << endl;
     }
     string gt = gt_strings[distance(gts.begin(), max_gt)];
-    // if (gt.compare("0/0") == 0)
-    //   continue;
+    if (config->noref && gt.compare("0/0") == 0)
+      continue;
     const vector<Cluster> &subclusters = split_cluster(cluster);
 
     // Calling from one or two clusters

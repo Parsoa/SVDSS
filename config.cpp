@@ -42,6 +42,7 @@ Configuration::Configuration()
     ("min-sv-length", "", cxxopts::value<int>())
     ("min-cluster-weight", "", cxxopts::value<int>())
     ("clipped", "", cxxopts::value<bool>()->default_value("false"))
+    ("noref", "", cxxopts::value<bool>()->default_value("false"))
     ("noassemble", "", cxxopts::value<bool>()->default_value("false"))
     ("noputative", "", cxxopts::value<bool>()->default_value("false"))
     ("binary", "", cxxopts::value<bool>()->default_value("false"))
@@ -89,6 +90,7 @@ void Configuration::parse(int argc, char **argv) {
     al_accuracy = results["acc"].as<float>();
   binary = results["binary"].as<bool>();
   clipped = results["clipped"].as<bool>();
+  noref = results["noref"].as<bool>();
   assemble = !(results["noassemble"].as<bool>());
   putative = !(results["noputative"].as<bool>());
   version = results["version"].as<bool>();
