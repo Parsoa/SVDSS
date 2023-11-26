@@ -129,15 +129,20 @@ bool PingPong::load_batch_bam(int p) {
   // we need to fill with nullptr in order to stop processing (we have
   // alignments from previous batches still loaded)
 
-  // clean remaining threads at position i
-  while (nseqs % config->threads != 0) {
-    bam_entries[p][nseqs % config->threads][i] = nullptr;
-    ++nseqs;
+  if (nseqs % config->threads == 0) {
+    // we do not have to increment i in this case
+  } else {
+    // clean remaining threads at position i, then increment i to clear next row
+    while (nseqs % config->threads != 0) {
+      bam_entries[p][nseqs % config->threads][i] = nullptr;
+      ++nseqs;
+    }
+    ++i;
   }
-  ++i;
+
   // clean next position for all threads
   for (int _ = 0; _ < config->threads; ++_)
-    bam_entries[p][_ % config->threads][i] = nullptr;
+    bam_entries[p][_][i] = nullptr;
 
   return false;
 }
@@ -257,7 +262,8 @@ int PingPong::search() {
     bgzf_mt(bam_file->fp.bgzf, 8, 1);
     bam_mode = 1;
   } else if (config->fastq != "") {
-    spdlog::warn("FASTQ mode is not optimized (higher running times and larger SFSs set)");
+    spdlog::warn("FASTQ mode is not optimized (higher running times and larger "
+                 "SFSs set)");
     fastq_file = gzopen(config->fastq.c_str(), "r");
     fastq_iterator = kseq_init(fastq_file);
     bam_mode = 0;
@@ -272,9 +278,11 @@ int PingPong::search() {
     // entries vector contains current and next input
     if (bam_mode) {
       bam_entries.push_back(vector<vector<bam1_t *>>(config->threads));
-      for (int j = 0; j < config->threads; j++)
-        for (int k = 0; k < config->batch_size / config->threads; k++)
+      for (int j = 0; j < config->threads; ++j)
+        for (int k = 0; k < config->batch_size / config->threads;
+             ++k) // NOTE: doing so, batch size must be > than #threads
           bam_entries[i][j].push_back(bam_init1());
+
     } else
       fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads));
   }
@@ -295,11 +303,6 @@ int PingPong::search() {
     }
   }
 
-  if (bam_mode)
-    load_batch_bam(p);
-  else
-    load_batch_fastq(config->threads, config->batch_size, p);
-
   obatches.push_back(vector<batch_type_t>(
       config->threads)); // each loaded entry will produce a batch. An output
                          // batch is a vector of config->threads batches. We
@@ -315,15 +318,20 @@ int PingPong::search() {
   bool should_process = true;
   bool loaded_last_batch = false;
 
+  if (bam_mode)
+    loaded_last_batch = !load_batch_bam(p);
+  else
+    loaded_last_batch =
+        !load_batch_fastq(config->threads, config->batch_size, p);
+
   uint64_t total_sfs = 0;
   int64_t sfs_to_output = 0;
   spdlog::info("Extracting SFS strings on {} threads..", config->threads);
 
   while (should_process) {
-    if (!should_load)
-      should_process = false;
     if (loaded_last_batch)
       should_load = false;
+
 #pragma omp parallel for num_threads(config->threads + 2) schedule(static, 1)
     for (int i = 0; i < config->threads + 2; i++) {
       int t = omp_get_thread_num();
@@ -346,24 +354,22 @@ int PingPong::search() {
               c += it->second.size();
           total_sfs += c;
           sfs_to_output += c;
-          if (sfs_to_output >= config->max_output || !should_process) {
-            if (!should_process)
-              output_batch(obatches.size());
-            else
-              output_batch(obatches.size() - 1);
+          if (sfs_to_output >= config->max_output) {
+            output_batch(obatches.size() - 1);
             sfs_to_output = 0;
           }
         }
       } else {
         // other threads, process the batch
-        if (should_process)
-          obatches.back()[t - 2] = process_batch(index, p, t - 2);
+        obatches.back()[t - 2] = process_batch(index, p, t - 2);
       }
     }
 
     p = (p + 1) % 2;
     if (should_load)
       obatches.push_back(vector<batch_type_t>(config->threads));
+    else
+      should_process = false;
 
     time(&curr_time);
     if (curr_time - start_time == 0)
@@ -376,6 +382,8 @@ int PingPong::search() {
     cerr << "Time: " << curr_time - start_time << "\r";
   }
   cerr << endl;
+
+  output_batch(obatches.size());
 
   // cleanup
   if (bam_mode) {
