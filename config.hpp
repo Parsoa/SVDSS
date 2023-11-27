@@ -24,6 +24,8 @@ static const char INDEX_USAGE_MESSAGE[] =
 
 static const char SMOOTH_USAGE_MESSAGE[] =
   "SVDSS smooth --reference <reference> --bam <bam>\n"
+  "      --acc <INT>                      maximum percentage of errors in alignment (default: 0.02)\n"
+  "      --min-mapq                       minimum mapping quality (default: 20)\n"
   "      --threads <INT>                  number of threads to use (default: 4)\n"
   "      --help                           print help message\n";
 

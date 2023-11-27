@@ -390,6 +390,9 @@ bool Smoother::load_batch_bam(int p) {
         alignment->core.flag & BAM_FSUPPLEMENTARY ||
         alignment->core.flag & BAM_FSECONDARY)
       continue;
+    if (alignment->core.qual < config->min_mapq) {
+      continue;
+    }
     if (alignment->core.l_qseq < 2) {
       // FIXME: why do we need this?
       spdlog::warn(
