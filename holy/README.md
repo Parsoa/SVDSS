@@ -11,7 +11,7 @@ docker run -t -i --rm -v `pwd`:/io phusion/holy-build-box-64:latest /hbb_exe/act
 # quite useful (i.e., to run libcheck on a binary):
 cd holy
 docker run -t -i --rm -v `pwd`:/io phusion/holy-build-box-64:latest /hbb_exe/activate-exec bash
-libcheck SVDSS_linux_x86-64
+libcheck io/SVDSS_linux_x86-64
 ```
 
 Note:
