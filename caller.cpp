@@ -104,12 +104,17 @@ vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
   Cluster cluster_2 = cluster;
   cluster_2.clear();
   for (const SubRead &sr : cluster.subreads) {
-    if (sr.htag == 0)
+    if (config->useht) {
+      if (sr.htag == 1)
+        cluster_1.add_subread(sr);
+      else if (sr.htag == 2)
+        cluster_2.add_subread(sr);
+      else
+        // 0 or no tag
+        cluster_0.add_subread(sr);
+    } else {
       cluster_0.add_subread(sr);
-    else if (sr.htag == 1)
-      cluster_1.add_subread(sr);
-    else if (sr.htag == 2)
-      cluster_2.add_subread(sr);
+    }
   }
   cluster_0.cov1 = -1;
   cluster_0.cov2 = -1;
@@ -117,13 +122,6 @@ vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
   cluster_1.cov2 = -1;
   cluster_2.cov0 = -1;
   cluster_2.cov1 = -1;
-
-  assert(cluster_0.size() <= cluster_0.cov0 &&
-         cluster_1.size() <= cluster_1.cov1 &&
-         cluster_2.size() <= cluster_2.cov2);
-
-  assert(cluster_1.size() != 0 || cluster_2.size() != 0 ||
-         cluster_0.size() != 0);
 
   vector<Cluster> out_subclusters;
   if (cluster_1.size() == 0 && cluster_2.size() == 0) {
