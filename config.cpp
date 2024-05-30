@@ -33,7 +33,7 @@ Configuration::Configuration()
     ("poa", "", cxxopts::value<std::string>())
     ("clusters", "", cxxopts::value<std::string>())
     ("index", "", cxxopts::value<std::string>())
-    ("fastq", "", cxxopts::value<std::string>())
+    ("fastx", "", cxxopts::value<std::string>())
     ("reference", "", cxxopts::value<std::string>())
     ("append", "", cxxopts::value<std::string>())
     ("threads", "", cxxopts::value<int>())
@@ -67,8 +67,8 @@ void Configuration::parse(int argc, char **argv) {
     clusters = results["clusters"].as<std::string>();
   if (results.count("index"))
     index = results["index"].as<std::string>();
-  if (results.count("fastq"))
-    fastq = results["fastq"].as<std::string>();
+  if (results.count("fastx"))
+    fastq = results["fastx"].as<std::string>(); // FIXME: use fastx here and in pingpong
   if (results.count("overlap"))
     overlap = results["overlap"].as<int>();
   if (results.count("bsize"))

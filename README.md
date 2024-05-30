@@ -73,7 +73,7 @@ Index reference:
 Smooth sample:
     SVDSS smooth --reference /path/to/reference/genome/fasta --bam /path/to/input/bam/file > smoothed.bam
 
-Extract SFS from BAM/FASTQ/FASTA files:
+Extract SFS from BAM (--bam) or FASTQ/FASTA (--fastx) files:
     SVDSS search --index /path/to/index --bam smoothed.bam > specifics.txt
 
 Call SVs:

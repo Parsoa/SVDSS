@@ -262,13 +262,15 @@ int PingPong::search() {
     bgzf_mt(bam_file->fp.bgzf, 8, 1);
     bam_mode = 1;
   } else if (config->fastq != "") {
-    spdlog::warn("FASTQ mode is not optimized (higher running times and larger "
-                 "SFSs set)");
+    spdlog::warn("FASTX mode is not optimized (higher running times and larger "
+                 "SFSs set).");
+    spdlog::warn("If you get a segfault, please consider reducing the batch "
+                 "size (--bsize) to something <= the number of reads in the sample");
     fastq_file = gzopen(config->fastq.c_str(), "r");
     fastq_iterator = kseq_init(fastq_file);
     bam_mode = 0;
   } else {
-    spdlog::critical("No .bam/.fq file provided, aborting..");
+    spdlog::critical("No .bam/.fa/.fq file provided, aborting..");
     exit(1);
   }
   // allocate all necessary stuff
