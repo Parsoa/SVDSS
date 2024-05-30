@@ -111,7 +111,7 @@ SET(ABPOA_INCLUDE_DIR ${ABPOA_SOURCE_DIR}/include)
 message(STATUS "parasail will be built from source")
 ExternalProject_Add(parasail
   GIT_REPOSITORY https://github.com/jeffdaily/parasail.git
-  GIT_TAG d23aed253fb5ecc7aeab0f81b6d64fcc26448089 # v2.6
+  GIT_TAG 600fb26151ff19899ee39a214972dcf2b9b11ed7 # v2.6.2
   UPDATE_COMMAND ""
   BUILD_IN_SOURCE 1
   CMAKE_ARGS -DBUILD_SHARED_LIBS=OFF
