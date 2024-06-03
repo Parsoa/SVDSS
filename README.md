@@ -68,7 +68,7 @@ Please refer to or use [Snakefile](Snakefile)/[run-svdss.sh](tests/run-svdss.sh)
 
 ```
 Index reference:
-    SVDSS index --reference /path/to/genome/file --index /path/to/output/index/file
+    SVDSS index --fasta /path/to/genome/file --index /path/to/output/index/file
 
 Smooth sample:
     SVDSS smooth --reference /path/to/reference/genome/fasta --bam /path/to/input/bam/file > smoothed.bam
