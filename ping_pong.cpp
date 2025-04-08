@@ -1,62 +1,41 @@
 #include "ping_pong.hpp"
 
-// string interval2str(rldintv_t sai) {
-//   return "[" + to_string(sai.x[0]) + "," + to_string(sai.x[1]) + "," +
-//           to_string(sai.x[2]) + "]";
-// }
-
-void seq_char2nt6(int l, unsigned char *s) {
-  int i;
-  for (i = 0; i < l; ++i) {
-    s[i] = s[i] < 128 ? seq_nt6_table[s[i]] : 5;
-  }
-}
-
-/* Compute SFS strings from P and store them into solutions*/
-void PingPong::ping_pong_search(rld_t *index, const string &qname, uint8_t *P,
-                                int l, vector<SFS> &solutions, int hp_tag) {
-  rldintv_t sai;
+// Compute SFS strings from P and store them into solutions
+void PingPong::ping_pong_search(const rb3_fmi_t *index, const string &qname,
+                                uint8_t *P, int l, vector<SFS> &solutions,
+                                int hp_tag) {
+  rb3_sai_t ik;
   int begin = l - 1;
   while (begin >= 0) {
     // Backward search. Stop at first mismatch.
     int bmatches = 0;
-    fm6_set_intv(index, P[begin], sai);
-    // cerr << "BS from " << int2char[P[begin]] << " (" << begin << "): " <<
-    // interval2str(sai) << endl;
+    rb3_fmd_set_intv(index, P[begin], &ik);
+
     bmatches = 0;
-    while (sai.x[2] != 0 && begin > 0) {
-      begin--;
-      bmatches++;
-      rldintv_t
-          osai[6]; // output SA intervals (one for each symbol between 0 and 5)
-      rld_extend(index, &sai, osai, 1);
-      sai = osai[P[begin]];
+    while (ik.size != 0 && begin > 0) {
+      --begin;
+      ++bmatches;
+      rb3_sai_t ok[RB3_ASIZE]; // output SA intervals (one for each symbol
+                               // between 0 and 5)
+      rb3_fmd_extend(index, &ik, ok, 1);
+      ik = ok[P[begin]];
     }
     // last checked char (i.e., first of the query) was a match
-    if (begin == 0 && sai.x[2] != 0) {
+    if (begin == 0 && ik.size != 0)
       break;
-    }
-    // cerr << "Mismatch " << int2char[P[begin]] << " (" <<  begin << ").
-    // bmatches: " << to_string(bmatches) << endl;
 
     //  Forward search:
     int end = begin;
     int fmatches = 0;
-    fm6_set_intv(index, P[end], sai);
-    // cerr << "FS from " << int2char[P[end]] << " (" << end << "): " <<
-    // interval2str(sai) << endl;
-    while (sai.x[2] != 0) {
-      end++;
-      fmatches++;
-      rldintv_t osai[6];
-      rld_extend(index, &sai, osai, 0);
-      sai = osai[P[end] >= 1 && P[end] <= 4 ? 5 - P[end] : P[end]];
-      // DEBUG(cerr << "- FE with " << int2char[P[end]] << " (" <<  end << "): "
-      // << interval2str(sai) << endl ;)
+    rb3_fmd_set_intv(index, P[end], &ik);
+    while (ik.size != 0) {
+      ++end;
+      ++fmatches;
+      rb3_sai_t ok[RB3_ASIZE];
+      rb3_fmd_extend(index, &ik, ok, 0);
+      ik = ok[P[end] >= 1 && P[end] <= 4 ? 5 - P[end] : P[end]];
     }
-    // DEBUG(cerr << "Mismatch " << int2char[P[end]] << " (" << end << ").
-    // fmatches: " << fmatches << endl ;) DEBUG(cerr << "Adding [" << begin <<
-    // ", " << end << "]." << endl ;)
+
     int sfs_len = end - begin + 1;
     SFS sfs(qname, begin, sfs_len, hp_tag);
     solutions.push_back(sfs);
@@ -69,8 +48,8 @@ void PingPong::ping_pong_search(rld_t *index, const string &qname, uint8_t *P,
   }
 }
 
-/* Load batch from BAM file and store to input entry p. The logic behind is:
- * fill position i per each thread, then move to position i+1.. */
+// Load batch from BAM file and store to input entry p. The logic behind is:
+// fill position i per each thread, then move to position i+1..
 bool PingPong::load_batch_bam(int p) {
   int i = 0;     // current position per thread where to load read
   int nseqs = 0; // loaded seqs
@@ -111,9 +90,7 @@ bool PingPong::load_batch_bam(int p) {
     uint8_t *q = bam_get_seq(alignment);
     for (uint _ = 0; _ < l; _++)
       read_seqs[p][nseqs % config->threads][i][_] =
-          seq_nt16_str[bam_seqi(q, _)] < 128
-              ? seq_nt6_table[seq_nt16_str[bam_seqi(q, _)]]
-              : 5;
+          seq_nt6_table[(int)seq_nt16_str[bam_seqi(q, _)]];
     read_seqs[p][nseqs % config->threads][i][l] = '\0';
 
     ++nseqs;
@@ -164,17 +141,17 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
           fastq_entry_t(fastq_iterator->name.s, fastq_iterator->seq.s,
                         fastq_iterator->name.s));
     }
-    int l = fastq_entries[p][n % threads][i].seq.size();
+    uint l = fastq_entries[p][n % threads][i].seq.size();
     if (read_seq_max_lengths[p][n % threads][i] < l) {
       free(read_seqs[p][n % threads][i]);
       read_seqs[p][n % threads][i] = (uint8_t *)malloc(sizeof(char) * (l + 1));
       read_seq_max_lengths[p][n % threads][i] = l;
     }
-    for (int _ = 0; _ < l; _++) {
+    for (uint _ = 0; _ < l; _++) {
       read_seqs[p][n % threads][i][_] = fastq_entries[p][n % threads][i].seq[_];
     }
     read_seqs[p][n % threads][i][l] = '\0';
-    seq_char2nt6(l, read_seqs[p][n % threads][i]); // convert to integers
+    rb3_char2nt6(l, read_seqs[p][n % threads][i]); // convert to integers
     read_names[p][n % threads][i] = fastq_iterator->name.s;
     n += 1;
     if (n % threads == 0) {
@@ -187,8 +164,9 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
   return n != 0 ? true : false;
 }
 
-/* Process batch loaded in position p for thread */
-batch_type_t PingPong::process_batch(rld_t *index, int p, int thread) {
+// Process batch loaded in position p for thread
+batch_type_t PingPong::process_batch(const rb3_fmi_t *index, int p,
+                                     int thread) {
   batch_type_t solutions;
   // store read id once for all strings to save space, is it worth it?
   if (!bam_mode) {
@@ -222,8 +200,8 @@ batch_type_t PingPong::process_batch(rld_t *index, int p, int thread) {
   return solutions;
 }
 
-/* Output batches until batch b. We keep in memory all batches (empty if already
- * output), but some have been already output*/
+// Output batches until batch b. We keep in memory all batches (empty if already
+// output), but some have been already output
 void PingPong::output_batch(int b) {
   // FIXME: can we avoid keeping empty batches in memory? maybe unnecessary fix
   for (int i = 0; i < b; i++) {       // for each of the unmerged batches
@@ -249,13 +227,14 @@ void PingPong::output_batch(int b) {
   }
 }
 
-/** Search for specific strings in input .bam/.fq w.r.t. FMD-Index **/
+// Search for specific strings in input .bam/.fq w.r.t. FMD-Index
 int PingPong::search() {
   config = Configuration::getInstance();
 
   // parse arguments
   spdlog::info("Restoring index..");
-  rld_t *index = rld_restore(config->index.c_str());
+  rb3_fmi_t index;
+  rb3_fmi_restore(&index, config->index.c_str(), 0);
   if (config->bam != "") {
     bam_file = hts_open(config->bam.c_str(), "r");
     bam_header = sam_hdr_read(bam_file);
@@ -264,8 +243,9 @@ int PingPong::search() {
   } else if (config->fastq != "") {
     spdlog::warn("FASTX mode is not optimized (higher running times and larger "
                  "SFSs set).");
-    spdlog::warn("If you get a segfault, please consider reducing the batch "
-                 "size (--bsize) to something <= the number of reads in the sample");
+    spdlog::warn(
+        "If you get a segfault, please consider reducing the batch "
+        "size (--bsize) to something <= the number of reads in the sample");
     fastq_file = gzopen(config->fastq.c_str(), "r");
     fastq_iterator = kseq_init(fastq_file);
     bam_mode = 0;
@@ -295,7 +275,7 @@ int PingPong::search() {
     read_names.push_back(
         vector<vector<string>>(config->threads)); // current and next output
     read_seq_max_lengths.push_back(
-        vector<vector<int>>(config->threads)); // current and next output
+        vector<vector<uint>>(config->threads)); // current and next output
     for (int j = 0; j < config->threads; j++) {
       for (int k = 0; k < config->batch_size / config->threads; k++) {
         read_seqs[i][j].push_back((uint8_t *)malloc(sizeof(uint8_t) * (30001)));
@@ -363,7 +343,7 @@ int PingPong::search() {
         }
       } else {
         // other threads, process the batch
-        obatches.back()[t - 2] = process_batch(index, p, t - 2);
+        obatches.back()[t - 2] = process_batch(&index, p, t - 2);
       }
     }
 
@@ -397,130 +377,6 @@ int PingPong::search() {
     kseq_destroy(fastq_iterator);
     gzclose(fastq_file);
   }
-
-  return 0;
-}
-
-/* Build FMD-index for input .fa/.fq. Code adapted from ropebwt2 (main_ropebwt2
- * in main.c) **/
-int PingPong::index() {
-  config = Configuration::getInstance();
-
-  spdlog::info("Indexing..");
-
-  // hardcoded parameters
-  uint64_t m = (uint64_t)(.97 * 10 * 1024 * 1024 * 1024) +
-               1; // batch size for multi-string indexing
-  int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES,
-      so = MR_SO_RCLO;
-  int thr_min =
-      100; // switch to single thread when < 100 strings remain in a batch
-
-  // the index
-  mrope_t *mr = 0;
-
-  bool binary_output = config->binary;
-  if (config->append != "") {
-    FILE *fp;
-    spdlog::info("Appending to index: {}", config->append);
-    if ((fp = fopen(config->append.c_str(), "rb")) == 0) {
-      spdlog::critical("Failed to open file {}", config->append);
-      return 1;
-    }
-    mr = mr_restore(fp);
-    fclose(fp);
-  }
-
-  // Initialize mr if not restored
-  if (mr == 0)
-    mr = mr_init(max_nodes, block_len, so);
-  mr_thr_min(mr, thr_min);
-
-  // Parsing the input sample
-  gzFile fp;
-  if (config->reference != "")
-    fp = gzopen(config->reference.c_str(), "rb");
-  else if (config->fastq != "")
-    fp = gzopen(config->fastq.c_str(), "rb");
-  else {
-    spdlog::critical("Please provide a FASTA/Q file. Halting..");
-    exit(1);
-  }
-  kseq_t *ks = kseq_init(fp);
-  kstring_t buf = {0, 0, 0}; // buffer, will contain the concatenation
-  int l;
-  uint8_t *s;
-  int i;
-  while ((l = kseq_read(ks)) >= 0) {
-    s = (uint8_t *)ks->seq.s;
-
-    // change encoding
-    for (i = 0; i < l; ++i) {
-      s[i] = s[i] < 128 ? seq_nt6_table[s[i]] : 5;
-    }
-
-    // Reverse the sequence
-    for (i = 0; i < (l >> 1); ++i) {
-      int tmp = s[l - 1 - i];
-      s[l - 1 - i] = s[i];
-      s[i] = tmp;
-    }
-
-    // Add forward to buffer
-    kputsn((char *)ks->seq.s, ks->seq.l + 1, &buf);
-
-    // Add reverse to buffer
-    for (i = 0; i < (l >> 1); ++i) {
-      int tmp = s[l - 1 - i];
-      tmp = (tmp >= 1 && tmp <= 4) ? 5 - tmp : tmp;
-      s[l - 1 - i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
-      s[i] = tmp;
-    }
-    if (l & 1)
-      s[i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
-    kputsn((char *)ks->seq.s, ks->seq.l + 1, &buf);
-
-    if (buf.l >= m) {
-      mr_insert_multi(mr, buf.l, (uint8_t *)buf.s, 1);
-      buf.l = 0;
-    }
-  }
-
-  if (buf.l) { // last batch
-    mr_insert_multi(mr, buf.l, (uint8_t *)buf.s, 1);
-  }
-
-  free(buf.s);
-  kseq_destroy(ks);
-  gzclose(fp);
-
-  // dump index to stdout
-  if (binary_output) {
-    // binary FMR format
-    mr_dump(mr, fopen(config->index.c_str(), "wb"));
-  } else {
-    // FMD format
-    mritr_t itr;
-    const uint8_t *block;
-    rld_t *e = 0;
-    rlditr_t di;
-    e = rld_init(6, 3);
-    rld_itr_init(e, &di, 0);
-    mr_itr_first(mr, &itr, 1);
-    while ((block = mr_itr_next_block(&itr)) != 0) {
-      const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
-      while (q < end) {
-        int c = 0;
-        int64_t l;
-        rle_dec1(q, c, l);
-        rld_enc(e, &di, l, c);
-      }
-    }
-    rld_enc_finish(e, &di);
-    rld_dump(e, config->index.c_str());
-  }
-
-  mr_destroy(mr);
 
   return 0;
 }

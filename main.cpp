@@ -48,12 +48,9 @@ int main(int argc, char **argv) {
     auto caller = new Caller();
     caller->run();
   } else if (strcmp(argv[1], "index") == 0) {
-    if (c->reference == "" || c->index == "") {
-      c->print_help(argv[1]);
-      exit(EXIT_FAILURE);
-    }
-    auto pingpong = new PingPong();
-    pingpong->index();
+    spdlog::critical("Please use robebwt3 to create the index");
+    spdlog::critical("e.g., ropebwt3 build -t16 -d <REFERENCE.FA> > <REFERENCE.FA.FMD>");
+    exit(EXIT_FAILURE);
   } else if (strcmp(argv[1], "search") == 0) {
     if (c->index == "" || (c->fastq == "" && c->bam == "")) {
       c->print_help(argv[1]);

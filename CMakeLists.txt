@@ -5,6 +5,7 @@ include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(HOLYBUILD "Static compilation with holy-build-box" OFF)
 
@@ -148,23 +149,23 @@ SET(INTERVALTREE_INCLUDE_DIR ${INTERVALTREE_SOURCE_DIR}/include/interval-tree)
 
 # ropebwt2
 ##########
-message(STATUS "ropebwt2 will be built from source")
+message(STATUS "ropebwt3 will be built from source")
 ExternalProject_Add(ropebwt
-    GIT_REPOSITORY https://github.com/lh3/ropebwt2.git
-    GIT_TAG bd8dbd3db2e9e3cff74acc2907c0742c9ebbf033
+    GIT_REPOSITORY https://github.com/lh3/ropebwt3.git
+    GIT_TAG 0ea3919ed21f10d857d508b0ea728a27abbd8a35
     UPDATE_COMMAND ""
     BUILD_IN_SOURCE 1
-    PATCH_COMMAND bash ${CMAKE_SOURCE_DIR}/patches/patch_ropebwt.sh <SOURCE_DIR>/mrope.c # I haven't been able to run sed here.. I could use my branch btw
+    PATCH_COMMAND "" # bash ${CMAKE_SOURCE_DIR}/patches/patch_ropebwt.sh <SOURCE_DIR>/mrope.c # I haven't been able to run sed here.. I could use my branch btw
     CONFIGURE_COMMAND ""
     BUILD_COMMAND make
       "CC=${CMAKE_C_COMPILER}"
-      "CFLAGS=-g -Wall -O2 ${CONDA_INCLUDE}"
+      "CFLAGS=-g -Wall -O2 -fopenmp ${CONDA_INCLUDE}"
     INSTALL_COMMAND ""
 )
 ExternalProject_Get_Property(ropebwt SOURCE_DIR)
 SET(ROPEBWT_SOURCE_DIR ${SOURCE_DIR})
 SET(ROPEBWT_INCLUDE_DIR ${ROPEBWT_SOURCE_DIR})
-set(ropebwt-src ${ROPEBWT_SOURCE_DIR}/mrope.c ${ROPEBWT_SOURCE_DIR}/rope.c ${ROPEBWT_SOURCE_DIR}/rld0.c ${ROPEBWT_SOURCE_DIR}/rle.c)
+set(ropebwt-src ${ROPEBWT_SOURCE_DIR}/fm-index.c ${ROPEBWT_SOURCE_DIR}/rld0.c ${ROPEBWT_SOURCE_DIR}/mrope.c ${ROPEBWT_SOURCE_DIR}/rope.c ${ROPEBWT_SOURCE_DIR}/io.c ${ROPEBWT_SOURCE_DIR}/rle.c ${ROPEBWT_SOURCE_DIR}/kthread.c ${ROPEBWT_SOURCE_DIR}/kalloc.c ${ROPEBWT_SOURCE_DIR}/misc.c ${ROPEBWT_SOURCE_DIR}/ssa.c ${ROPEBWT_SOURCE_DIR}/dawg.c ${ROPEBWT_SOURCE_DIR}/libsais16.c)
 set_source_files_properties(${ropebwt-src} PROPERTIES GENERATED TRUE)
 add_library(ROPEBWT OBJECT ${ropebwt-src})
 add_dependencies(ROPEBWT ropebwt)
