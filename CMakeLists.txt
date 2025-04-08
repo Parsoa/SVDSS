@@ -17,7 +17,7 @@ if(DEFINED CONDAPREFIX)
 endif()
 
 project(SVDSS VERSION 2.0.0)
-add_executable(SVDSS assembler.cpp bam.cpp caller.cpp chromosomes.cpp clipper.cpp clusterer.cpp config.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp genotyper.cpp main.cpp)
+add_executable(SVDSS assembler.cpp bam.cpp caller.cpp chromosomes.cpp clipper.cpp clusterer.cpp config.cpp ping_pong.cpp sfs.cpp smoother.cpp sv.cpp main.cpp)
 set_target_properties(SVDSS PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}")
 target_compile_options(SVDSS PRIVATE -Wall -Wextra)
 
@@ -107,22 +107,19 @@ SET(ABPOA_INCLUDE_DIR ${ABPOA_SOURCE_DIR}/include)
 # add_library(ABPOA STATIC IMPORTED)
 # set_target_properties(ABPOA PROPERTIES IMPORTED_LOCATION ${ABPOA_SOURCE_DIR}/lib/libabpoa.a)
 
-# parasail
-###########
-message(STATUS "parasail will be built from source")
-ExternalProject_Add(parasail
-  GIT_REPOSITORY https://github.com/jeffdaily/parasail.git
-  GIT_TAG 600fb26151ff19899ee39a214972dcf2b9b11ed7 # v2.6.2
-  UPDATE_COMMAND ""
-  BUILD_IN_SOURCE 1
-  CMAKE_ARGS -DBUILD_SHARED_LIBS=OFF
-  INSTALL_COMMAND ""
-  )
-ExternalProject_Get_Property(parasail SOURCE_DIR)
-SET(PARASAIL_SOURCE_DIR ${SOURCE_DIR})
-SET(PARASAIL_INCLUDE_DIR ${PARASAIL_SOURCE_DIR})
-add_library(PARASAIL STATIC IMPORTED)
-set_target_properties(PARASAIL PROPERTIES IMPORTED_LOCATION ${PARASAIL_SOURCE_DIR}/libparasail.a)
+# ksw2
+message(STATUS "ksw2 will be built from source")
+ExternalProject_Add(ksw2
+    GIT_REPOSITORY https://github.com/lh3/ksw2.git
+    GIT_TAG ""
+    BUILD_IN_SOURCE 1
+    UPDATE_COMMAND ""
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND make
+    INSTALL_COMMAND ""
+)
+ExternalProject_Get_Property(ksw2 SOURCE_DIR)
+SET(KSW2_INCLUDE_DIR ${SOURCE_DIR})
 
 # rapidfuzz-cpp
 ################
@@ -182,7 +179,7 @@ FetchContent_MakeAvailable(spdlog)
 ### final setup (includes and libraries) ###
 ############################################
 
-add_dependencies(SVDSS abpoa parasail rapidfuzz intervaltree ropebwt spdlog)
+add_dependencies(SVDSS abpoa rapidfuzz intervaltree ropebwt spdlog ksw2)
 if(NOT DEFINED CONDAPREFIX)
   # we need to build them
   add_dependencies(SVDSS deflate htslib)
@@ -191,7 +188,7 @@ endif()
 target_include_directories(SVDSS
   PRIVATE ${HTS_INCLUDE_DIR}
   PRIVATE ${ABPOA_INCLUDE_DIR}
-  PRIVATE ${PARASAIL_INCLUDE_DIR}
+  PRIVATE ${KSW2_INCLUDE_DIR}
   PRIVATE ${RAPIDFUZZ_INCLUDE_DIR}
   PRIVATE ${INTERVALTREE_INCLUDE_DIR}
   PRIVATE ${ROPEBWT_INCLUDE_DIR}
@@ -220,7 +217,8 @@ endif()
 target_link_libraries(SVDSS
   PUBLIC rapidfuzz::rapidfuzz
   PUBLIC ${BINARY_DIR}/lib/libabpoa.a
-  PUBLIC PARASAIL
+  PUBLIC ${KSW2_INCLUDE_DIR}/ksw2_extz2_sse.o
+  PUBLIC ${KSW2_INCLUDE_DIR}/ksw2_extd2_sse.o
   PUBLIC ROPEBWT
   PUBLIC spdlog::spdlog
   PUBLIC z

@@ -1,6 +1,7 @@
 #ifndef BAM_HPP
 #define BAM_HPP
 
+#include <cstring>
 #include <ctype.h>
 #include <iostream>
 #include <iterator>
@@ -47,21 +48,24 @@ struct CIGAR {
     }
   }
 
-  void parse_cigar(char *cigar) {
+  void parse_cigar(const char *cigar) {
     int b = 0;
     int lc = strlen(cigar);
+    char *cigar_cpy = (char *)malloc(lc + 1);
+    strncpy(cigar_cpy, cigar, lc + 1);
     for (int i = 0; i < lc; i++) {
-      if (isdigit(cigar[i]))
+      if (isdigit(cigar_cpy[i]))
         continue;
       else {
-        char type = cigar[i];
-        cigar[i] = '\0';
-        int l = stoi(string(cigar + b));
+        char type = cigar_cpy[i];
+        cigar_cpy[i] = '\0';
+        int l = stoi(string(cigar_cpy + b));
         ops.push_back(make_pair(l, type));
-        cigar[i] = type;
+        cigar_cpy[i] = type;
         b = i + 1;
       }
     }
+    free(cigar_cpy);
   }
 
   CIGAR(char *cigar, int score_, int start_ = 0) {

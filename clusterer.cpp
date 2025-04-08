@@ -334,7 +334,7 @@ void Clusterer::extend_alignment(bam1_t *aln, int index) {
       merged_extended_sfs.push_back(local_extended_sfs.at(i));
     }
   }
-  for (const auto mes : merged_extended_sfs)
+  for (const auto &mes : merged_extended_sfs)
     _p_extended_sfs[index].push_back(mes);
 
   if (lclip.second > 0)

@@ -7,8 +7,7 @@
 #include <map>
 
 #include <abpoa.h>
-#include <parasail.h>
-#include <parasail/matrices/nuc44.h>
+#include <ksw2.h>
 #include <rapidfuzz/fuzz.hpp>
 #include <spdlog/spdlog.h>
 
@@ -16,7 +15,6 @@
 #include "chromosomes.hpp"
 #include "clipper.hpp"
 #include "clusterer.hpp"
-#include "genotyper.hpp"
 #include "config.hpp"
 #include "sfs.hpp"
 #include "sv.hpp"

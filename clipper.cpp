@@ -25,7 +25,7 @@ vector<Clip> Clipper::combine(const vector<Clip> &clips) {
   }
 // we then merge
 #pragma omp parallel for num_threads(threads) schedule(static, 1)
-  for (int i = 0; i < chromosomes.size(); i++) {
+  for (uint i = 0; i < chromosomes.size(); i++) {
     int t = i % threads;
     const string &chrom = chromosomes[i];
     for (auto it = clips_dict[chrom].begin(); it != clips_dict[chrom].end();
@@ -36,16 +36,14 @@ vector<Clip> Clipper::combine(const vector<Clip> &clips) {
           max_l = c.l;
         }
       }
-      Clip clip = Clip("", chrom, it->first, max_l,
-      it->second.front().starting,
+      Clip clip = Clip("", chrom, it->first, max_l, it->second.front().starting,
                        it->second.size());
       _p_combined_clips[t].push_back(clip);
     }
   }
   vector<Clip> combined_clips;
   for (int i = 0; i < threads; i++) {
-    combined_clips.insert(combined_clips.begin(),
-    _p_combined_clips[i].begin(),
+    combined_clips.insert(combined_clips.begin(), _p_combined_clips[i].begin(),
                           _p_combined_clips[i].end());
   }
   return combined_clips;
@@ -93,7 +91,7 @@ vector<Clip> Clipper::filter_tooclose_clips(const vector<Clip> &clips,
                                             interval_tree_t<int> &vartree) {
   vector<Clip> fclips;
   for (const Clip &c : clips) {
-    if (vartree.overlap_find({c.p, c.p + 1}) == end(vartree)) {
+    if (vartree.overlap_find({(int)c.p, (int)c.p + 1}) == end(vartree)) {
       fclips.push_back(c);
     }
   }
@@ -101,18 +99,12 @@ vector<Clip> Clipper::filter_tooclose_clips(const vector<Clip> &clips,
 }
 
 // find smallest right that is larger than query
-int binary_search(const vector<Clip> &clips, int begin, int end,
+int binary_search(const vector<Clip> &clips, uint begin, uint end,
                   const Clip &query) {
-  // for (int i = 0; i < clips.size(); i++) {
-  //     if (query.p < clips[i].p) {
-  //         return i ;
-  //     }
-  // }
-  // return -1 ;
   if (begin > end || begin >= clips.size()) {
     return -1;
   }
-  int m = (begin + end) / 2;
+  uint m = (begin + end) / 2;
   if (clips[m].p == query.p) {
     if (m + 1 < clips.size()) {
       return m + 1;
@@ -130,7 +122,8 @@ int binary_search(const vector<Clip> &clips, int begin, int end,
 }
 
 void Clipper::call(int threads, interval_tree_t<int> &vartree) {
-  // lprint({"Predicting SVS from", to_string(clips.size()), "clipped SFS on", to_string(threads), "threads.."});
+  // lprint({"Predicting SVS from", to_string(clips.size()), "clipped SFS on",
+  // to_string(threads), "threads.."});
   vector<Clip> rclips;
   vector<Clip> lclips;
   for (const Clip &clip : clips) {
@@ -169,7 +162,7 @@ void Clipper::call(int threads, interval_tree_t<int> &vartree) {
   }
   // lprint({"Predicting insertions.."});
 #pragma omp parallel for num_threads(threads) schedule(static, 1)
-  for (int i = 0; i < lclips.size(); i++) {
+  for (uint i = 0; i < lclips.size(); i++) {
     const Clip &lc = lclips[i];
     int t = omp_get_thread_num();
     string chrom = lc.chrom;
@@ -194,7 +187,7 @@ void Clipper::call(int threads, interval_tree_t<int> &vartree) {
   }
   // lprint({"Predicting deletions.."});
 #pragma omp parallel for num_threads(threads) schedule(static, 1)
-  for (int i = 0; i < rclips.size(); i++) {
+  for (uint i = 0; i < rclips.size(); i++) {
     const Clip &rc = rclips[i];
     int t = omp_get_thread_num();
     string chrom = rc.chrom;

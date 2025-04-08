@@ -52,6 +52,8 @@ void Caller::run() {
     for (const SV &sv : clipped_svs)
       cout << sv << endl;
   }
+
+  destroy_chromosomes();
 }
 
 void Caller::write_vcf() {
@@ -94,7 +96,7 @@ vector<Cluster> Caller::split_cluster_by_len(const Cluster &cluster) {
   return subclusters;
 }
 
-/* Split cluster in subclusters */
+// Split cluster in subclusters
 vector<Cluster> Caller::split_cluster(const Cluster &cluster) {
   // Step 1: split cluster by haplotype tag
   Cluster cluster_0 = cluster;
@@ -256,13 +258,16 @@ string Caller::run_poa(const vector<string> &seqs) {
   uint n_seqs = seqs.size();
   abpoa_t *ab = abpoa_init();
   abpoa_para_t *abpt = abpoa_init_para();
-  abpt->disable_seeding = 1;
   abpt->align_mode = 0; // global
+  abpt->disable_seeding = 1;
+  abpt->progressive_poa = 0;
+  abpt->amb_strand = 0;
   abpt->out_msa = 0;
   abpt->out_cons = 1;
   abpt->out_gfa = 0;
   // abpt->is_diploid = 1; // TODO: maybe this works now
-  abpt->progressive_poa = 0;
+  // abpt->max_n_cons = 2;
+  // abpt->min_freq = 0.25;
   abpoa_post_set_para(abpt);
 
   // abpt->match = 2;      // match score
@@ -285,7 +290,8 @@ string Caller::run_poa(const vector<string> &seqs) {
 
   abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, NULL, NULL);
   abpoa_cons_t *abc = ab->abc;
-  string cons = "";
+  string cons = ""; // XXX: we may avoid converting to ACGT here since we need
+                    // to reconvert back for ksw2
   if (abc->n_cons > 0)
     for (int j = 0; j < abc->cons_len[0]; ++j)
       cons += "ACGTN"[abc->cons_base[0][j]];
@@ -301,10 +307,8 @@ string Caller::run_poa(const vector<string> &seqs) {
   return cons;
 }
 
-/* Call SVs by POA+realignment */
+// Call SVs by POA+realignment
 void Caller::pcall(const vector<Cluster> &clusters) {
-  // vector<Genotyper> genotypers(config->threads);
-  vector<string> gt_strings = {"0/0", "0/1", "1/0", "1/1"};
 #pragma omp parallel for num_threads(config->threads) schedule(static, 1)
   for (size_t i = 0; i < clusters.size(); i++) {
     int t = omp_get_thread_num();
@@ -313,24 +317,6 @@ void Caller::pcall(const vector<Cluster> &clusters) {
       continue;
     string chrom = cluster.chrom;
 
-    // genotypers.at(t).posterior_sv_genotype_give_reads(cluster.reads);
-    // vector<double> gts = genotypers.at(t).get_posterior_sv_genotype();
-    Genotyper gtyper;
-    gtyper.posterior_sv_genotype_give_reads(cluster.reads);
-    vector<double> gts = gtyper.get_posterior_sv_genotype();
-    auto max_gt = max_element(gts.begin(), gts.end());
-    double gtq = *max_gt;
-    if (gtq < 0 || gtq > 1) {
-      cerr << chrom << ":" << cluster.s << "-" << cluster.e << endl;
-      for (const auto &tpl : cluster.reads)
-        cerr << get<0>(tpl) << ":" << get<1>(tpl) << " ";
-      cerr << endl;
-      for (int i = 0; i < 4; ++i)
-        cerr << gt_strings[i] << " - " << gts[i] << endl;
-    }
-    string gt = gt_strings[distance(gts.begin(), max_gt)];
-    if (config->noref && gt.compare("0/0") == 0)
-      continue;
     const vector<Cluster> &subclusters = split_cluster(cluster);
 
     // Calling from one or two clusters
@@ -342,26 +328,41 @@ void Caller::pcall(const vector<Cluster> &clusters) {
 
       string ref = string(chromosome_seqs[chrom] + cl.s, cl.e - cl.s + 1);
       string consensus = run_poa(cl.get_seqs());
-      parasail_result_t *result = NULL;
-      result = parasail_nw_trace_striped_16(consensus.c_str(), consensus.size(),
-                                            ref.c_str(), ref.size(), 10, 1,
-                                            &parasail_nuc44);
-      parasail_cigar_t *pcigar =
-          parasail_result_get_cigar(result, consensus.c_str(), consensus.size(),
-                                    ref.c_str(), ref.size(), NULL);
-      char *cigar_str = parasail_cigar_decode(pcigar);
-      int score = result->score;
-      parasail_cigar_free(pcigar);
-      parasail_result_free(result);
+
+      // ksw2 stuff - TODO: move to a separate function
+      int sc_mch = 1, sc_mis = -9, gapo = 16, gape = 2, gapo2 = 41, gape2 = 1;
+      int8_t a = (int8_t)sc_mch,
+             b = sc_mis < 0 ? (int8_t)sc_mis : -(int8_t)sc_mis; // a>0 and b<0
+      int8_t mat[25] = {a, b, b, b, 0, b, a, b, b, 0, b, b, a,
+                        b, 0, b, b, b, a, 0, 0, 0, 0, 0, 0};
+      uint tl = ref.size(), ql = consensus.size();
+      uint8_t *ts = (uint8_t *)malloc(tl);
+      uint8_t *qs = (uint8_t *)malloc(ql);
+      for (i = 0; i < tl; ++i)
+        ts[i] = _char26_table[(uint8_t)ref[i]]; // encode to 0/1/2/3
+      for (i = 0; i < ql; ++i)
+        qs[i] = _char26_table[(uint8_t)consensus[i]];
+
+      ksw_extz_t ez;
+      memset(&ez, 0, sizeof(ksw_extz_t));
+      ksw_extd2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, gape2, -1, -1,
+                    -1, 0, &ez);
+
+      int score = ez.score;
+      string cigar_str = "";
+      for (int i = 0; i < ez.n_cigar; ++i) {
+        cigar_str += to_string(ez.cigar[i] >> 4) + "MID"[ez.cigar[i] & 0xf];
+      }
       _p_alignments[t].push_back(
           Consensus(consensus, cigar_str, chrom, cl.s, cl.e));
+
       // -- Extracting SVs
       uint rpos = cl.s; // position on reference
       uint cpos = 0;    // position on consensus
       CIGAR cigar;
-      cigar.parse_cigar(cigar_str);
+      cigar.parse_cigar(cigar_str.c_str());
       int nv = 0;
-      for (const auto cigar_pair : cigar.ops) {
+      for (const auto &cigar_pair : cigar.ops) {
         uint l = cigar_pair.first;
         char op = cigar_pair.second;
         if (op == '=' || op == 'M') {
@@ -394,7 +395,7 @@ void Caller::pcall(const vector<Cluster> &clusters) {
       }
       for (size_t v = 0; v < _svs.size(); v++) {
         _svs[v].ngaps = nv;
-        _svs[v].set_gt(gt, max(0, (int)(gtq * 100)));
+        _svs[v].set_gt("./.", 100);
         _svs[v].set_cov(cl.cov, cl.cov0, cl.cov1, cl.cov2);
         _svs[v].set_rvec(cluster.reads);
       }
@@ -404,7 +405,7 @@ void Caller::pcall(const vector<Cluster> &clusters) {
   }
 }
 
-/* Clean same SV reported twice */
+// Clean same SV reported twice
 void Caller::clean_dups() {
   vector<SV> _svs;
   string last_chrom = "";
