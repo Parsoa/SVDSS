@@ -125,12 +125,12 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, int _i, int _j,
              cigar_offsets[m].first);
       n += cigar_offsets[m].first;
       for (int j = 0; j < cigar_offsets[m].first; j++) {
-        num_mismatch +=
-            1 ? ref_seq[ref_offset + j] !=
-                    read_seq[match_offset + ins_offset + soft_clip_offset + j]
-              : 0;
+        if (ref_seq[ref_offset + j] ==
+            read_seq[match_offset + ins_offset + soft_clip_offset + j])
+          ++num_match;
+        else
+          ++num_mismatch;
       }
-      num_match += cigar_offsets[m].first;
       ref_offset += cigar_offsets[m].first;
       match_offset += cigar_offsets[m].first;
       if (new_cigar.size() >= 1 &&
@@ -210,7 +210,7 @@ void Smoother::smooth_read(bam1_t *alignment, char *read_seq, int _i, int _j,
   // }
   // cerr << endl;
 
-  if (num_mismatch / num_match >= config->al_accuracy) {
+  if (num_mismatch / num_match > al_accuracy) {
     // read is too dirty or is not interesting, just skip it
     bam_aux_update_int(alignment, "XF", 1);
   } else if (should_ignore) {
@@ -242,11 +242,117 @@ void Smoother::process_batch(vector<bam1_t *> bam_entries, int p, int i) {
   }
 }
 
+// adapted from https://stackoverflow.com/a/48240847
+double quantile(const vector<double> &x, double q) {
+  assert(q >= 0.0 && q <= 1.0);
+  const auto n = x.size();
+  const auto id = (n - 1) * q;
+  const auto lo = floor(id);
+  const auto hi = ceil(id);
+  const auto qs = x[lo];
+  const auto h = (id - lo);
+  return (1.0 - h) * qs + h * x[hi];
+}
+
+// similar to smooth_read, just on first 10000 alignments to get 0.98 quantile
+// of accuracies
+double Smoother::compute_maxaccuracy() {
+  bam_file = hts_open(config->bam.c_str(), "r");
+  bam_index = sam_index_load(bam_file, config->bam.c_str());
+  bam_header = sam_hdr_read(bam_file); // read header
+  bgzf_mt(bam_file->fp.bgzf, 8, 1);
+  bam1_t *alignment = bam_init1();
+  vector<double> accuracies;
+  while (accuracies.size() < 10000 &&
+         sam_read1(bam_file, bam_header, alignment) >= 0) {
+    if (alignment == nullptr) {
+      spdlog::critical("nullptr. Why are we here? Please check");
+      exit(1);
+    }
+    if (alignment->core.flag & BAM_FUNMAP ||
+        alignment->core.flag & BAM_FSUPPLEMENTARY ||
+        alignment->core.flag & BAM_FSECONDARY)
+      continue;
+    if (alignment->core.qual < config->min_mapq) {
+      continue;
+    }
+    if (alignment->core.l_qseq < 2) {
+      // FIXME: why do we need this?
+      spdlog::warn(
+          "Alignment filtered due to l_qseq. Why are we here? Please check");
+      continue;
+    }
+    if (alignment->core.tid < 0) {
+      spdlog::critical("core.tid < 0. Why are we here? Please check");
+      exit(1);
+    }
+    if (chromosome_seqs.find(bam_header->target_name[alignment->core.tid]) ==
+        chromosome_seqs.end()) {
+      continue;
+    }
+
+    int l = alignment->core.l_qseq; // length of read
+    char *read_seq =
+        (char *)malloc(l + 1); // TODO: avoid allocation at each iteration
+    uint8_t *q = bam_get_seq(alignment);
+    for (int _ = 0; _ < l; _++)
+      read_seq[_] = seq_nt16_str[bam_seqi(q, _)];
+    read_seq[l] = '\0';
+
+    vector<pair<int, int>> cigar = decode_cigar(alignment);
+
+    int ref_offset = alignment->core.pos;
+    int ins_offset = 0;
+    int del_offset = 0;
+    int match_offset = 0;
+    int soft_clip_offset = 0;
+    int num_match = 0;
+    int num_mismatch = 0;
+    char *ref_seq =
+        chromosome_seqs[bam_header->target_name[alignment->core.tid]];
+
+    for (const pair<int, int> &op : cigar) {
+      if (op.second == BAM_CMATCH || op.second == BAM_CEQUAL ||
+          op.second == BAM_CDIFF) {
+        for (int j = 0; j < op.first; ++j) {
+          if (ref_seq[ref_offset + j] ==
+              read_seq[match_offset + ins_offset + soft_clip_offset + j])
+            ++num_match;
+          else
+            ++num_mismatch;
+        }
+        ref_offset += op.first;
+        match_offset += op.first;
+      } else if (op.second == BAM_CINS) {
+        ins_offset += op.first;
+      } else if (op.second == BAM_CDEL) {
+        del_offset += op.first;
+        ref_offset += op.first;
+      } else if (op.second == BAM_CSOFT_CLIP) {
+        soft_clip_offset += op.first;
+      } else {
+        break;
+      }
+    }
+    free(read_seq);
+    accuracies.push_back(num_mismatch / (double)num_match);
+  }
+  bam_destroy1(alignment);
+  sam_hdr_destroy(bam_header);
+  hts_idx_destroy(bam_index);
+  sam_close(bam_file);
+  std::sort(accuracies.begin(), accuracies.end());
+  return quantile(accuracies, 0.98);
+}
+
 // BAM writing based on https://www.biostars.org/p/181580/
 void Smoother::run() {
   config = Configuration::getInstance();
 
   load_chromosomes(config->reference);
+
+  al_accuracy = compute_maxaccuracy();
+  spdlog::info("Max allowed alignment accuracy: {}", al_accuracy);
 
   // parse arguments
   bam_file = hts_open(config->bam.c_str(), "r");
@@ -367,10 +473,24 @@ void Smoother::run() {
          // << ". Alignments wrote: " << reads_written
          << ". Time: " << curr_time - start_time << "\r";
   }
+  cerr << endl;
+  sam_hdr_destroy(bam_header);
+  hts_idx_destroy(bam_index);
   sam_close(bam_file);
   sam_close(out_bam_file);
 
-  cerr << endl;
+  // deallocate stuff
+  for (int i = 0; i < modulo; ++i) {
+    for (int j = 0; j < config->threads; ++j) {
+      for (int k = 0; k < config->batch_size / config->threads; ++k) {
+        free(read_seqs[i][j][k]);
+        free(new_read_seqs[i][j][k]);
+        free(new_read_quals[i][j][k]);
+        bam_destroy1(bam_entries[i][j][k]);
+      }
+    }
+  }
+  destroy_chromosomes();
 }
 
 /* Load batch from BAM file and store to input entry p. The logic behind is:
@@ -395,8 +515,8 @@ bool Smoother::load_batch_bam(int p) {
     }
     if (alignment->core.l_qseq < 2) {
       // FIXME: why do we need this?
-      spdlog::warn(
-          "Alignment filtered due to l_qseq. Why are we here? Please check");
+      spdlog::warn("Alignment filtered due to l_qseq. Why are we here? "
+                   "Please check");
       continue;
     }
     if (alignment->core.tid < 0) {
@@ -419,7 +539,8 @@ bool Smoother::load_batch_bam(int p) {
     int l = alignment->core.l_qseq; // length of the read
     // if allocated space for read is not enough, reallocate more
     if (read_seq_max_lengths[p][nseqs % config->threads][i] <
-        l) { // FIXME: can we avoid this just by allocating *A LOT* per read?
+        l) { // FIXME: can we avoid this just by allocating *A LOT* per
+             // read?
       free(read_seqs[p][nseqs % config->threads][i]);
       read_seqs[p][nseqs % config->threads][i] =
           (char *)malloc(sizeof(char) * (l + 1));

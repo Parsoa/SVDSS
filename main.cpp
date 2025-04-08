@@ -69,8 +69,7 @@ int main(int argc, char **argv) {
       c->print_help(argv[1]);
       exit(EXIT_FAILURE);
     }
-    auto smoother = new Smoother();
-    smoother->run();
+    Smoother().run();
   } else {
     c->print_help("");
     exit(EXIT_FAILURE);

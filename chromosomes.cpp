@@ -25,3 +25,9 @@ void load_chromosomes(string path) {
   kseq_destroy(seq);
   gzclose(fp);
 }
+
+void destroy_chromosomes() {
+  for(const auto &chrom : chromosomes) {
+    free(chromosome_seqs[chrom]);
+  }
+}

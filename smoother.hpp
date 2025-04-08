@@ -51,12 +51,15 @@ public:
   Configuration *config;
 
 private:
+  double al_accuracy;
   double global_num_bases = 1;
   double global_num_mismatch;
   double global_num_indel;
   double expected_mismatch_rate = 0.002;
   int num_ignored_reads = 0;
   int reads_processed = 0;
+
+  double compute_maxaccuracy();
 };
 
 #endif

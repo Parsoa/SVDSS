@@ -20,5 +20,6 @@ extern vector<string> chromosomes;
 extern unordered_map<string, char *> chromosome_seqs;
 
 void load_chromosomes(string path);
+void destroy_chromosomes();
 
 #endif

@@ -24,7 +24,6 @@ static const char INDEX_USAGE_MESSAGE[] =
 
 static const char SMOOTH_USAGE_MESSAGE[] =
   "SVDSS smooth --reference <reference> --bam <bam>\n"
-  "      --acc <INT>                      maximum percentage of errors in alignment (default: 0.02)\n"
   "      --min-mapq                       minimum mapping quality (default: 20)\n"
   "      --threads <INT>                  number of threads to use (default: 4)\n"
   "      --help                           print help message\n";
@@ -70,8 +69,6 @@ public:
   bool verbose = false;
   bool help = false;
 
-  // smooth
-  float al_accuracy = 0.02;
   // pingpong.index
   bool binary = false;
   // pingpong.search
