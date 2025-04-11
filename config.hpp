@@ -44,7 +44,7 @@ static const char CALL_USAGE_MESSAGE[] =
   "      --min-cluster-weight <INT>       minimum number of supporting superstrings for a call to be reported (default: 2)\n"
   "      --min-sv-length <INT>            minimum length of reported SVs (default: 25)\n"
   "      --noht                           do not use haplotagging information even if present\n"
-  "      --noref                          do not report 0/0 calls\n"
+  // "      --noref                          do not report 0/0 calls\n"
   "      --min-mapq                       minimum mapping quality (default: 20)\n"
   "      --clipped                        calls SVs from clipped SFS (EXPERIMENTAL)\n"
   "      --threads <INT>                  number of threads to use (default: 4)\n"
@@ -89,7 +89,7 @@ public:
   uint min_cluster_weight = 2;
   float min_ratio = 0.97; // FIXME: change name
   bool useht = true;
-  bool noref = false;
+  // bool noref = false;
   bool clipped = false;
 
   string bam = "";
