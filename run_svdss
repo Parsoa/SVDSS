@@ -1,0 +1,173 @@
+#!/bin/sh
+
+bindir=$(dirname $0)
+
+SCRIPT_NAME=$(basename $0)
+
+DEFAULT_WD="."
+DEFAULT_MQ=20
+DEFAULT_ACCP=0.98
+DEFAULT_SUPP=2
+DEFAULT_MINL=50
+DEFAULT_THREADS=4
+DEFAULT_KANPIG="kanpig"
+
+USAGE=$'\nUsage: '"${SCRIPT_NAME}"' <reference.fa> <alignments.bam>
+
+Arguments:
+     -w                 working direction (default: '$DEFAULT_WD')
+     -i                 use this FMD index/store it here (default: build FMD index and store to <reference.fa.fmd>)
+     -q                 mapping quality (default: '$DEFAULT_MQ')
+     -p                 accuracy percentile (default: '$DEFAULT_ACCP')
+     -s                 minimum support for calling (default: '$DEFAULT_SUPP')
+     -l                 minimum length for SV (default: '$DEFAULT_MINL')
+     -t                 do not consider haplotagging information (default: consider it)
+     -@                 number of threads (default: '$DEFAULT_THREADS')
+     -k                 path to kanpig binary (default: '$DEFAULT_KANPIG')
+     -h                 print this help and exit
+
+Positional arguments:
+     <reference.fa>     reference file in FASTA format
+     <alignments.bam>   alignments in BAM format
+'
+
+wd=${DEFAULT_WD}
+supp=${DEFAULT_SUPP}
+minl=${DEFAULT_MINL}
+mq=${DEFAULT_MQ}
+accp=${DEFAULT_ACCP}
+threads=${DEFAULT_THREADS}
+kanpig=${DEFAULT_KANPIG}
+FMD=""
+noht=""
+
+while getopts "w:i:s:l:q:@:p:k:th" flag; do
+	case "${flag}" in
+	h)
+		$(echo >&2 "${USAGE}")
+		exit 0
+		;;
+	w)
+		wd=${OPTARG}
+		;;
+	i)
+		FMD=${OPTARG}
+		;;
+	s)
+		supp=${OPTARG}
+		;;
+	l)
+		minl=${OPTARG}
+		;;
+	p)
+		accp=${OPTARG}
+		;;
+	q)
+		mq=${OPTARG}
+		;;
+	k)
+		kanpig=${OPTARG}
+		;;
+	@)
+		threads=${OPTARG}
+		;;
+	t)
+		noht="--noht"
+		;;
+	esac
+done
+
+if [[ $# -lt $((${OPTIND} + 1)) ]]; then
+	(echo >&2 "ERROR: Wrong number of arguments.")
+	(echo >&2 "")
+	(echo >&2 "${USAGE}")
+	exit 1
+fi
+
+FA=${@:$OPTIND:1}
+BAM=${@:$OPTIND+1:1}
+
+if [[ ! -f $FA ]]; then
+	(echo >&2 "ERROR: input FASTA does not exist")
+	(echo >&2 "")
+	(echo >&2 "${USAGE}")
+	exit 1
+fi
+if [[ ! -f $BAM ]]; then
+	(echo >&2 "ERROR: input BAM does not exist")
+	(echo >&2 "")
+	(echo >&2 "${USAGE}")
+	exit 1
+fi
+
+mkdir -p $wd
+
+# === INDEXING ===
+if [[ -z $FMD ]]; then
+	FMD="${FA}.fmd"
+fi
+if [[ ! -f $FMD ]]; then
+	echo "[$(date)] Building FMD index: $FMD..."
+	/usr/bin/time -vo ${wd}/indexing.time $bindir/build/ropebwt-prefix/src/ropebwt/ropebwt3 build -t $threads -d $FA -o $FMD
+	echo ""
+else
+	echo "[$(date)] Using existing FMD index: $FMD"
+	echo ""
+fi
+
+# === SMOOTHING ===
+echo "[$(date)] Smoothing input BAM file (--min-mapq $mq --accp $accp)..."
+/usr/bin/time -vo $wd/smoothing.time $bindir/SVDSS smooth \
+	--threads $threads \
+	--min-mapq $mq \
+	--accp $accp \
+	--reference $FA \
+	--bam $BAM >$wd/smoothed.bam
+samtools index $wd/smoothed.bam
+echo ""
+
+# === SEARCHING ===
+echo "[$(date)] Searching for specific strings..."
+/usr/bin/time -vo $wd/searching.time $bindir/SVDSS search \
+	--threads $threads \
+	--index $FMD \
+	--bam $wd/smoothed.bam >$wd/specifics.txt
+echo ""
+
+# === CALLING ===
+echo "[$(date)] Calling SVs (--min-cluster-weight $supp --min-sv-length $minl --min-mapq $mq $noht)..."
+/usr/bin/time -vo ${wd}/calling.time $bindir/SVDSS call \
+	$noht \
+	--threads $threads \
+	--min-cluster-weight $supp \
+	--min-sv-length $minl \
+	--min-mapq $mq \
+	--reference $FA \
+	--bam $BAM \
+	--sfs $wd/specifics.txt >$wd/variations.vcf
+bgzip $wd/variations.vcf
+tabix -p vcf $wd/variations.vcf.gz
+echo ""
+
+FINAL_VCF="$wd/variations.vcf.gz"
+
+# === GENOTYPING ===
+if ! command -v ${kanpig} 2>&1 >/dev/null; then
+	echo "[$(date)] Skipping genotyping since $kanpig can not be found"
+	echo ""
+else
+	echo "[$(date)] Genotyping variations..."
+	if [[ ! -f ${FA}.fai ]]; then
+		samtools faidx $FA
+	fi
+	# sed "s/FT/KF/g"
+	/usr/bin/time -vo ${wd}/genotyping.time ${kanpig} gt --input $wd/variations.vcf.gz --reads $BAM --reference $FA | bcftools sort -Oz >$wd/variations-gt.vcf.gz
+	tabix -p vcf $wd/variations-gt.vcf.gz
+	FINAL_VCF="$wd/variations-gt.vcf.gz"
+	echo ""
+fi
+
+echo "[$(date)] Done!"
+echo ""
+echo "VCF: ${FINAL_VCF}"
+echo ""
