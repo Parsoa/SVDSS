@@ -243,7 +243,7 @@ void Smoother::process_batch(vector<bam1_t *> bam_entries, int p, int i) {
 }
 
 // adapted from https://stackoverflow.com/a/48240847
-double quantile(const vector<double> &x, double q) {
+double percentile(const vector<double> &x, double q) {
   assert(q >= 0.0 && q <= 1.0);
   const auto n = x.size();
   const auto id = (n - 1) * q;
@@ -254,7 +254,7 @@ double quantile(const vector<double> &x, double q) {
   return (1.0 - h) * qs + h * x[hi];
 }
 
-// similar to smooth_read, just on first 10000 alignments to get 0.98 quantile
+// similar to smooth_read, just on first 10000 alignments to get (98-)percentile
 // of accuracies
 double Smoother::compute_maxaccuracy() {
   bam_file = hts_open(config->bam.c_str(), "r");
@@ -342,7 +342,7 @@ double Smoother::compute_maxaccuracy() {
   hts_idx_destroy(bam_index);
   sam_close(bam_file);
   std::sort(accuracies.begin(), accuracies.end());
-  return quantile(accuracies, config->accq);
+  return percentile(accuracies, config->accp);
 }
 
 // BAM writing based on https://www.biostars.org/p/181580/

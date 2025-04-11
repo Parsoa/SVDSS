@@ -42,7 +42,7 @@ Configuration::Configuration()
     ("min-sv-length", "", cxxopts::value<int>())
     ("min-mapq", "", cxxopts::value<int>())
     ("min-cluster-weight", "", cxxopts::value<int>())
-    ("accq", "", cxxopts::value<float>())
+    ("accp", "", cxxopts::value<float>())
     ("clipped", "", cxxopts::value<bool>()->default_value("false"))
     ("noref", "", cxxopts::value<bool>()->default_value("false"))
     ("noht", "", cxxopts::value<bool>()->default_value("false"))
@@ -89,8 +89,8 @@ void Configuration::parse(int argc, char **argv) {
     min_cluster_weight = results["min-cluster-weight"].as<int>();
   if (results.count("min-mapq"))
     min_mapq = results["min-mapq"].as<int>();
-  if (results.count("accq"))
-    accq = results["accq"].as<float>();
+  if (results.count("accp"))
+    accp = results["accp"].as<float>();
   if (results.count("l"))
     min_ratio = results["l"].as<float>();
   binary = results["binary"].as<bool>();
