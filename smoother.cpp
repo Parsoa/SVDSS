@@ -342,7 +342,7 @@ double Smoother::compute_maxaccuracy() {
   hts_idx_destroy(bam_index);
   sam_close(bam_file);
   std::sort(accuracies.begin(), accuracies.end());
-  return quantile(accuracies, 0.98);
+  return quantile(accuracies, config->accq);
 }
 
 // BAM writing based on https://www.biostars.org/p/181580/

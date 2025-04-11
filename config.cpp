@@ -42,6 +42,7 @@ Configuration::Configuration()
     ("min-sv-length", "", cxxopts::value<int>())
     ("min-mapq", "", cxxopts::value<int>())
     ("min-cluster-weight", "", cxxopts::value<int>())
+    ("accq", "", cxxopts::value<float>())
     ("clipped", "", cxxopts::value<bool>()->default_value("false"))
     ("noref", "", cxxopts::value<bool>()->default_value("false"))
     ("noht", "", cxxopts::value<bool>()->default_value("false"))
@@ -68,7 +69,8 @@ void Configuration::parse(int argc, char **argv) {
   if (results.count("index"))
     index = results["index"].as<std::string>();
   if (results.count("fastx"))
-    fastq = results["fastx"].as<std::string>(); // FIXME: use fastx here and in pingpong
+    fastq = results["fastx"]
+                .as<std::string>(); // FIXME: use fastx here and in pingpong
   if (results.count("overlap"))
     overlap = results["overlap"].as<int>();
   if (results.count("bsize"))
@@ -87,6 +89,8 @@ void Configuration::parse(int argc, char **argv) {
     min_cluster_weight = results["min-cluster-weight"].as<int>();
   if (results.count("min-mapq"))
     min_mapq = results["min-mapq"].as<int>();
+  if (results.count("accq"))
+    accq = results["accq"].as<float>();
   if (results.count("l"))
     min_ratio = results["l"].as<float>();
   binary = results["binary"].as<bool>();

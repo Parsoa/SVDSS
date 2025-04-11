@@ -24,7 +24,8 @@ static const char INDEX_USAGE_MESSAGE[] =
 
 static const char SMOOTH_USAGE_MESSAGE[] =
   "SVDSS smooth --reference <reference> --bam <bam>\n"
-  "      --min-mapq                       minimum mapping quality (default: 20)\n"
+  "      --min-mapq <INT>                 minimum mapping quality (default: 20)\n"
+  "      --accq <FLOAT>                   accuracy percentile for alignments filtering (default: 0.98)\n"
   "      --threads <INT>                  number of threads to use (default: 4)\n"
   "      --help                           print help message\n";
 
@@ -68,6 +69,9 @@ public:
   bool version = false;
   bool verbose = false;
   bool help = false;
+
+  // smoother
+  float accq = 0.98;
 
   // pingpong.index
   bool binary = false;
