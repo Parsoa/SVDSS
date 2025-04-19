@@ -1,9 +1,11 @@
 ![C/C++ CI](https://github.com/Parsoa/SVDSS/workflows/C/C++%20CI/badge.svg)
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/svdss/badges/version.svg)](https://anaconda.org/bioconda/svdss)
 
-# SVDSS2: Structural Variant Discovery from Sample-specific Strings
+# SVDSS: Structural Variant Discovery from Sample-specific Strings
 
-### Note: for SVDSS (v1, conda version), please refer to [v1.0.5-fix](https://github.com/Parsoa/SVDSS/releases/tag/v1.0.5-fix) and [6fa89f0](https://github.com/Parsoa/SVDSS/tree/6fa89f0a4f8ec03ab87c3eb8a3288a6b82214767). This is the v2 README. [SVDSS2](https://github.com/Parsoa/SVDSS/releases/tag/v2.0.0-alpha.2) should be ready for release, so feel free to use the new version. We just want to test it a bit more before officially releasing it.
+#### Note: SVDSS is designed to work with accurate long reads (e.g., PacBio HiFi). It can theoretically work with other technologies (e.g., ONT) but results may be inaccurate.
+
+---
 
 SVDSS is a novel method for discovery of structural variants in accurate long reads (e.g PacBio HiFi) using sample-specific strings (SFS).
 
