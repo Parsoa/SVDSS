@@ -1,4 +1,3 @@
-![C/C++ CI](https://github.com/Parsoa/SVDSS/workflows/C/C++%20CI/badge.svg)
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/svdss/badges/version.svg)](https://anaconda.org/bioconda/svdss)
 
 # SVDSS: Structural Variant Discovery from Sample-specific Strings
