@@ -6,7 +6,7 @@
 
 ---
 
-SVDSS is a method for structural variations discovery from accurate long reads (e.g PacBio HiFi), based on the notion of sample-specific strings (SFS, or simply specific strings).
+SVDSS is a method for structural variations discovery from accurate long reads (e.g PacBio HiFi), based on the notion of sample-specific strings (SFS, or simply _specific strings_).
 
 SFS are the shortest substrings that are unique to one sample, called target, w.r.t a genome reference. Here our method utilizes SFS for coarse-grained identification (anchoring) of potential SV sites and performs local partial-order-assembly (POA) of clusters of SFS from such sites to produce accurate SV predictions. We refer to [our manuscript on SFS](https://doi.org/10.1093/bioadv/vbab005) for more details regarding the concept of SFS.
 
@@ -25,7 +25,7 @@ To compile and use SVDSS, you need:
 * git
 * some other development libraries: zlib, bz2, lzma
 * samtools and bcftools (>=1.9)
-* [kanpig](https://github.com/ACEnglish/kanpig) (optional)
+* [kanpig](https://github.com/ACEnglish/kanpig) (optional, just for genotyping)
 
 To install these dependencies:
 ```bash
@@ -56,7 +56,7 @@ make
 This will create the `SVDSS` binary in the root of the repo.
 
 #### Static Binary
-For user convenience, we also provide a static binary for x86_64 linux systems (see [Releases](https://github.com/Parsoa/SVDSS/releases/latest)) - use at your own risk. If it does not work, please let us know or build it yourself :)
+For user convenience, we also provide a static binary for x86_64 linux systems (see [Releases](https://github.com/Parsoa/SVDSS/releases/latest)) - use at your own risk. If it does not work, please let us know.
 
 #### Install from Conda
 SVDSS is available on bioconda:
@@ -72,7 +72,7 @@ Please refer to or use [run_svdss](run_svdss).
 Usage: run_svdss <reference.fa> <alignments.bam>
 
 Arguments:
-     -w                 working direction (default: .)
+     -w                 output directory (default: .)
      -i                 use this FMD index/store it here (default: build FMD index and store to <reference.fa.fmd>)
      -q                 mapping quality (default: 20)
      -p                 accuracy percentile (default: 0.98)
@@ -156,6 +156,8 @@ This commands output the calls to stdout. Additionally, you can output the align
 **Note:** to run this example, `samtools` and `bcftools` **must be in your path**. Running `SVDSS` on the example data, once downloaded, should take less than 5 minutes.
 
 ```bash
+cd [svdss-local-repo]
+
 # Download example data from zenodo
 wget https://zenodo.org/record/6563662/files/svdss-data.tar.gz
 mkdir -p input
@@ -165,7 +167,7 @@ wget https://github.com/Parsoa/SVDSS/releases/download/v2.1.0/SVDSS_linux_x86-64
 chmod +x SVDSS_linux_x86-64
 
 # Run the full pipeline (assuming kanpig is in your path, otherwise SVs won't be genotyped)
-./run_svdss -x SVDSS_linux_x86-64 -w svdss2-output input/22.fa input/22.bam
+./run_svdss -x SVDSS_linux_x86-64 -r ./build/ropebwt-prefix/src/ropebwt/ropebwt3 -w svdss2-output input/22.fa input/22.bam
 ```
 
 ### Authors
