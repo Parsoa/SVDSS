@@ -19,7 +19,7 @@ DEFAULT_KANPIG="kanpig"
 USAGE=$'\nUsage: '"${SCRIPT_NAME}"' <reference.fa> <alignments.bam>
 
 Arguments:
-     -w                 working direction (default: '$DEFAULT_WD')
+     -w                 output directory (default: '$DEFAULT_WD')
      -i                 use this FMD index/store it here (default: build FMD index and store to <reference.fa.fmd>)
      -q                 mapping quality (default: '$DEFAULT_MQ')
      -p                 accuracy percentile (default: '$DEFAULT_ACCP')
