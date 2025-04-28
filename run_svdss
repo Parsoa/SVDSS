@@ -4,12 +4,16 @@ bindir=$(dirname $0)
 
 SCRIPT_NAME=$(basename $0)
 
+VERSION=2.1.0
+
 DEFAULT_WD="."
 DEFAULT_MQ=20
 DEFAULT_ACCP=0.98
 DEFAULT_SUPP=2
 DEFAULT_MINL=50
 DEFAULT_THREADS=4
+DEFAULT_SVDSS="SVDSS"
+DEFAULT_RB3="ropebwt3"
 DEFAULT_KANPIG="kanpig"
 
 USAGE=$'\nUsage: '"${SCRIPT_NAME}"' <reference.fa> <alignments.bam>
@@ -23,7 +27,10 @@ Arguments:
      -l                 minimum length for SV (default: '$DEFAULT_MINL')
      -t                 do not consider haplotagging information (default: consider it)
      -@                 number of threads (default: '$DEFAULT_THREADS')
+     -x                 path to SVDSS binary (default: '$DEFAULT_SVDSS')
+     -r                 path to robebwt3 binary (default: '$DEFAULT_RB3')
      -k                 path to kanpig binary (default: '$DEFAULT_KANPIG')
+     -v                 print version
      -h                 print this help and exit
 
 Positional arguments:
@@ -37,11 +44,12 @@ minl=${DEFAULT_MINL}
 mq=${DEFAULT_MQ}
 accp=${DEFAULT_ACCP}
 threads=${DEFAULT_THREADS}
+svdss=${DEFAULT_SVDSS}
 kanpig=${DEFAULT_KANPIG}
 FMD=""
 noht=""
 
-while getopts "w:i:s:l:q:@:p:k:th" flag; do
+while getopts "w:i:s:l:p:q:@:x:r:k:tvh" flag; do
 	case "${flag}" in
 	h)
 		$(echo >&2 "${USAGE}")
@@ -65,6 +73,12 @@ while getopts "w:i:s:l:q:@:p:k:th" flag; do
 	q)
 		mq=${OPTARG}
 		;;
+	x)
+	        svdss=${OPTARG}
+	        ;;
+	r)
+	        rb3=${OPTARG}
+	        ;;
 	k)
 		kanpig=${OPTARG}
 		;;
@@ -74,10 +88,18 @@ while getopts "w:i:s:l:q:@:p:k:th" flag; do
 	t)
 		noht="--noht"
 		;;
+	v)
+	        (echo >&2 "SVDSS, v${VERSION}")
+	        exit 0
+		;;
+	*)
+	        $(echo >&2 "${USAGE}")
+		exit 1
 	esac
 done
 
-if [[ $# -lt $((${OPTIND} + 1)) ]]; then
+# === Checking positions arguments ===
+	  if [[ $# -lt $((${OPTIND} + 1)) ]]; then
 	(echo >&2 "ERROR: Wrong number of arguments.")
 	(echo >&2 "")
 	(echo >&2 "${USAGE}")
@@ -100,6 +122,24 @@ if [[ ! -f $BAM ]]; then
 	exit 1
 fi
 
+# === Checking SVDSS and ropebwt3 ===
+if [[ ! -f $svdss && ! $(which $svdss 2>/dev/null) ]]; then
+    (echo >&2 "ERROR: cannot execute SVDSS.")
+    (echo >&2 "Current binary: $svdss Add it to your \$PATH or set it via -x")
+    (echo >&2 "")
+    exit 1
+fi
+
+if [[ ! -f $rb3 && ! $(which $rb3 2>/dev/null) ]]; then
+    (echo >&2 "ERROR: cannot execute ropebwt3.")
+    (echo >&2 "Current binary: $rb3 Add it to your \$PATH or set it via -x")
+    (echo >&2 "")
+    exit 1
+fi
+
+echo "Using SVDSS ($svdss) and ropebwt3 ($rb3)"
+echo ""
+
 mkdir -p $wd
 
 # === INDEXING ===
@@ -108,7 +148,7 @@ if [[ -z $FMD ]]; then
 fi
 if [[ ! -f $FMD ]]; then
 	echo "[$(date)] Building FMD index: $FMD..."
-	/usr/bin/time -vo ${wd}/indexing.time $bindir/build/ropebwt-prefix/src/ropebwt/ropebwt3 build -t $threads -d $FA -o $FMD
+	/usr/bin/time -vo ${wd}/indexing.time $rb3 build -t $threads -d $FA -o $FMD
 	echo ""
 else
 	echo "[$(date)] Using existing FMD index: $FMD"
@@ -117,7 +157,7 @@ fi
 
 # === SMOOTHING ===
 echo "[$(date)] Smoothing input BAM file (--min-mapq $mq --accp $accp)..."
-/usr/bin/time -vo $wd/smoothing.time $bindir/SVDSS smooth \
+/usr/bin/time -vo $wd/smoothing.time $svdss smooth \
 	--threads $threads \
 	--min-mapq $mq \
 	--accp $accp \
@@ -128,7 +168,7 @@ echo ""
 
 # === SEARCHING ===
 echo "[$(date)] Searching for specific strings..."
-/usr/bin/time -vo $wd/searching.time $bindir/SVDSS search \
+/usr/bin/time -vo $wd/searching.time $svdss search \
 	--threads $threads \
 	--index $FMD \
 	--bam $wd/smoothed.bam >$wd/specifics.txt
@@ -136,7 +176,7 @@ echo ""
 
 # === CALLING ===
 echo "[$(date)] Calling SVs (--min-cluster-weight $supp --min-sv-length $minl --min-mapq $mq $noht)..."
-/usr/bin/time -vo ${wd}/calling.time $bindir/SVDSS call \
+/usr/bin/time -vo ${wd}/calling.time $svdss call \
 	$noht \
 	--threads $threads \
 	--min-cluster-weight $supp \
@@ -145,26 +185,31 @@ echo "[$(date)] Calling SVs (--min-cluster-weight $supp --min-sv-length $minl --
 	--reference $FA \
 	--bam $BAM \
 	--sfs $wd/specifics.txt >$wd/variations.vcf
-bgzip $wd/variations.vcf
+bgzip -f $wd/variations.vcf
 tabix -p vcf $wd/variations.vcf.gz
 echo ""
 
-FINAL_VCF="$wd/variations.vcf.gz"
+FINAL_VCF="$wd/variations-final.vcf.gz"
 
 # === GENOTYPING ===
 if ! command -v ${kanpig} 2>&1 >/dev/null; then
-	echo "[$(date)] Skipping genotyping since $kanpig can not be found"
-	echo ""
+    echo "[$(date)] Skipping genotyping since $kanpig can not be found"
+    mv $wd/variations.vcf.gz $FINAL_VCF
+    tabix -p vcf $FINAL_VCF
+    echo ""
 else
-	echo "[$(date)] Genotyping variations..."
-	if [[ ! -f ${FA}.fai ]]; then
-		samtools faidx $FA
-	fi
-	# sed "s/FT/KF/g"
-	/usr/bin/time -vo ${wd}/genotyping.time ${kanpig} gt --input $wd/variations.vcf.gz --reads $BAM --reference $FA | bcftools sort -Oz >$wd/variations-gt.vcf.gz
-	tabix -p vcf $wd/variations-gt.vcf.gz
-	FINAL_VCF="$wd/variations-gt.vcf.gz"
-	echo ""
+    echo "[$(date)] Genotyping variations..."
+    if [[ ! -f ${FA}.fai ]]; then
+	samtools faidx $FA
+    fi
+    # sed "s/FT/KF/g"
+    /usr/bin/time -vo ${wd}/genotyping.time ${kanpig} gt --input $wd/variations.vcf.gz --reads $BAM --reference $FA | bcftools sort -Oz >$wd/variations-gt.vcf.gz
+    tabix -p vcf $wd/variations-gt.vcf.gz
+    
+    # VAF computation
+    bcftools +fill-tags $wd/variations-gt.vcf.gz -- -t VAF | bcftools view -Oz > $FINAL_VCF
+    tabix -p vcf $FINAL_VCF
+    echo ""
 fi
 
 echo "[$(date)] Done!"
