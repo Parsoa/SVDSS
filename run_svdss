@@ -13,7 +13,6 @@ DEFAULT_SUPP=2
 DEFAULT_MINL=50
 DEFAULT_THREADS=4
 DEFAULT_SVDSS="SVDSS"
-DEFAULT_RB3="ropebwt3"
 DEFAULT_KANPIG="kanpig"
 
 USAGE=$'\nUsage: '"${SCRIPT_NAME}"' <reference.fa> <alignments.bam>
@@ -28,7 +27,6 @@ Arguments:
      -t                 do not consider haplotagging information (default: consider it)
      -@                 number of threads (default: '$DEFAULT_THREADS')
      -x                 path to SVDSS binary (default: '$DEFAULT_SVDSS')
-     -r                 path to robebwt3 binary (default: '$DEFAULT_RB3')
      -k                 path to kanpig binary (default: '$DEFAULT_KANPIG')
      -v                 print version
      -h                 print this help and exit
@@ -122,7 +120,7 @@ if [[ ! -f $BAM ]]; then
 	exit 1
 fi
 
-# === Checking SVDSS and ropebwt3 ===
+# === Checking SVDSS ===
 if [[ ! -f $svdss && ! $(which $svdss 2>/dev/null) ]]; then
     (echo >&2 "ERROR: cannot execute SVDSS.")
     (echo >&2 "Current binary: $svdss Add it to your \$PATH or set it via -x")
@@ -130,14 +128,7 @@ if [[ ! -f $svdss && ! $(which $svdss 2>/dev/null) ]]; then
     exit 1
 fi
 
-if [[ ! -f $rb3 && ! $(which $rb3 2>/dev/null) ]]; then
-    (echo >&2 "ERROR: cannot execute ropebwt3.")
-    (echo >&2 "Current binary: $rb3 Add it to your \$PATH or set it via -x")
-    (echo >&2 "")
-    exit 1
-fi
-
-echo "Using SVDSS ($svdss) and ropebwt3 ($rb3)"
+echo "Using SVDSS ($svdss)"
 echo ""
 
 mkdir -p $wd
@@ -148,7 +139,7 @@ if [[ -z $FMD ]]; then
 fi
 if [[ ! -f $FMD ]]; then
 	echo "[$(date)] Building FMD index: $FMD..."
-	/usr/bin/time -vo ${wd}/indexing.time $rb3 build -t $threads -d $FA -o $FMD
+	/usr/bin/time -vo ${wd}/indexing.time $svdss index -t $threads -d $FA -o $FMD
 	echo ""
 else
 	echo "[$(date)] Using existing FMD index: $FMD"

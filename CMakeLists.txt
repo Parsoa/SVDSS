@@ -144,7 +144,7 @@ ExternalProject_Get_Property(intervaltree SOURCE_DIR)
 SET(INTERVALTREE_SOURCE_DIR ${SOURCE_DIR})
 SET(INTERVALTREE_INCLUDE_DIR ${INTERVALTREE_SOURCE_DIR}/include/interval-tree)
 
-# ropebwt2
+# ropebwt3
 ##########
 message(STATUS "ropebwt3 will be built from source")
 ExternalProject_Add(ropebwt
@@ -162,7 +162,7 @@ ExternalProject_Add(ropebwt
 ExternalProject_Get_Property(ropebwt SOURCE_DIR)
 SET(ROPEBWT_SOURCE_DIR ${SOURCE_DIR})
 SET(ROPEBWT_INCLUDE_DIR ${ROPEBWT_SOURCE_DIR})
-set(ropebwt-src ${ROPEBWT_SOURCE_DIR}/fm-index.c ${ROPEBWT_SOURCE_DIR}/rld0.c ${ROPEBWT_SOURCE_DIR}/mrope.c ${ROPEBWT_SOURCE_DIR}/rope.c ${ROPEBWT_SOURCE_DIR}/io.c ${ROPEBWT_SOURCE_DIR}/rle.c ${ROPEBWT_SOURCE_DIR}/kthread.c ${ROPEBWT_SOURCE_DIR}/kalloc.c ${ROPEBWT_SOURCE_DIR}/misc.c ${ROPEBWT_SOURCE_DIR}/ssa.c ${ROPEBWT_SOURCE_DIR}/dawg.c ${ROPEBWT_SOURCE_DIR}/libsais16.c)
+set(ropebwt-src ${ROPEBWT_SOURCE_DIR}/build.c ${ROPEBWT_SOURCE_DIR}/sais-ss.c ${ROPEBWT_SOURCE_DIR}/libsais16x64.c ${ROPEBWT_SOURCE_DIR}/fm-index.c ${ROPEBWT_SOURCE_DIR}/rld0.c ${ROPEBWT_SOURCE_DIR}/mrope.c ${ROPEBWT_SOURCE_DIR}/rope.c ${ROPEBWT_SOURCE_DIR}/io.c ${ROPEBWT_SOURCE_DIR}/rle.c ${ROPEBWT_SOURCE_DIR}/kthread.c ${ROPEBWT_SOURCE_DIR}/kalloc.c ${ROPEBWT_SOURCE_DIR}/misc.c ${ROPEBWT_SOURCE_DIR}/ssa.c ${ROPEBWT_SOURCE_DIR}/dawg.c ${ROPEBWT_SOURCE_DIR}/libsais16.c)
 set_source_files_properties(${ropebwt-src} PROPERTIES GENERATED TRUE)
 add_library(ROPEBWT OBJECT ${ropebwt-src})
 add_dependencies(ROPEBWT ropebwt)
