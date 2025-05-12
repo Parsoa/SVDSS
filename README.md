@@ -109,13 +109,13 @@ We will now explain each step in more detail:
 
 ### Index reference genome
 
-Build the FMD index of the reference genome:
+Build the FMD index of the reference genome using 16 threads:
 
 ```
-SVDSS index --reference GRCh38.fa --index GRCh38.fa.fmd
+SVDSS index -t16 -d GRCh38.fa > GRCh38.fa.fmd
 ```
+The `index` subcommand is a wrapper around `robebwt3 build` (it exposes the same interface).
 
-The `--index` option specifies the output file name.
 
 ### Smoothing the target sample
 
