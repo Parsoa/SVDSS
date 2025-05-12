@@ -63,7 +63,7 @@ SVDSS is available on bioconda:
 ```bash
 conda create -n svdss -c conda-forge -c bioconda svdss
 ```
-This will create the environment `svdss` that includes `SVDSS` and its runtime dependencies (i.e., `samtools` and `bcftools`).
+This will create the environment `svdss` that includes `SVDSS` and its runtime dependencies (i.e., `samtools`, `bcftools`, and `kanpig`).
 
 ## Usage Guide
 Please refer to or use [run_svdss](run_svdss).
