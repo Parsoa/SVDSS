@@ -38,7 +38,7 @@ sudo dnf install gcc gcc-c++ make automake autoconf cmake git libstdc++-static z
 The following libraries are needed to build and run SVDSS but they are automatically downloaded and compiled while compiling SVDSS:
 * [htslib](https://github.com/samtools/htslib) built with [libdeflate](https://github.com/ebiggers/libdeflate) for BAM processing.
 * [ksw2](https://github.com/lh3/ksw2) for FASTA and FASTQ processing.
-* [ropebwt2](https://github.com/lh3/ropebwt2) for FMD index creation and querying.
+* [ropebwt3](https://github.com/lh3/ropebwt3) for FMD index creation and querying.
 * [abPOA](https://github.com/yangao07/abPOA) for POA computation.
 * [parasail](https://github.com/jeffdaily/parasail) for local alignment of POA consensus.
 * [rapidfuzz](https://github.com/maxbachmann/rapidfuzz-cpp) for string similarity computation.
