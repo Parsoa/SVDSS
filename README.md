@@ -81,7 +81,6 @@ Arguments:
      -t                 do not consider haplotagging information (default: consider it)
      -@                 number of threads (default: 4)
      -x                 path to SVDSS binary (default: SVDSS)
-     -r                 path to robebwt3 binary (default: ropebwt3)
      -k                 path to kanpig binary (default: kanpig)
      -v                 print version
      -h                 print this help and exit
@@ -97,15 +96,14 @@ SVDSS requires as input the BAM file of the sample to be genotyped and a referen
 1. Build FMD index of reference genome (`SVDSS index`)
 2. Smooth the input BAM file (`SVDSS smooth`)
 3. Extract SFS from smoothed BAM file (`SVDSS search`)
-4. Assemble SFS into superstrings (`SVDSS assemble`)
-5. Call SVs from the assembled superstrings (`SVDSS call`)
-6. Genotype SVs using [kanpig](https://github.com/ACEnglish/kanpig)
+4. Call SVs from the assembled superstrings (`SVDSS call`)
+5. Genotype SVs using [kanpig](https://github.com/ACEnglish/kanpig)
 
 In the guide below we assume we are using the reference genome file `GRCh38.fa` and the input BAM file `sample.bam`.
 
 Note that you can reuse the index from step 1 for any number of samples genotyped against the same reference genome.
 
-We will now explain each step in more detail:
+We will now explain each step in more detail.
 
 ### Index reference genome
 
@@ -119,7 +117,7 @@ The `index` subcommand is a wrapper around `robebwt3 build` (it exposes the same
 
 ### Smoothing the target sample
 
-Smoothing removes nearly all SNPs, small indels and sequencing errors from reads. This results in smaller number of SFS being extracted and increases the relevance of extracted SFS to SV discovery significantly. To smooth the sample run:
+Smoothing removes nearly all SNPs, small indels, and sequencing errors from reads. This results in smaller number of SFS being extracted and increases the relevance of extracted SFS to SV discovery significantly. To smooth the sample run:
 
 ```
 SVDSS smooth --reference GRCh38.fa --bam sample.bam --threads 16 > smoothed.bam
