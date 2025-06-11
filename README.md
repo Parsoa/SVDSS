@@ -165,7 +165,7 @@ wget https://github.com/Parsoa/SVDSS/releases/download/v2.1.0/SVDSS_linux_x86-64
 chmod +x SVDSS_linux_x86-64
 
 # Run the full pipeline (assuming kanpig is in your path, otherwise SVs won't be genotyped)
-./run_svdss -x SVDSS_linux_x86-64 -r ./build/ropebwt-prefix/src/ropebwt/ropebwt3 -w svdss2-output input/22.fa input/22.bam
+./run_svdss -x SVDSS_linux_x86-64 -w svdss2-output input/22.fa input/22.bam
 ```
 
 ### Authors
