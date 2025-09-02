@@ -369,7 +369,7 @@ void Caller::pcall(const vector<Cluster> &clusters) {
           rpos += l;
           cpos += l;
         } else if (op == 'I') {
-          if (l > config->min_sv_length) {
+          if (l >= config->min_sv_length) {
             SV sv = SV("INS", cl.chrom, rpos,
                        string(chromosome_seqs[chrom] + rpos - 1, 1),
                        string(chromosome_seqs[chrom] + rpos - 1, 1) +
@@ -381,7 +381,7 @@ void Caller::pcall(const vector<Cluster> &clusters) {
           }
           cpos += l;
         } else if (op == 'D') {
-          if (l > config->min_sv_length) {
+          if (l >= config->min_sv_length) {
             SV sv = SV("DEL", cl.chrom, rpos,
                        string(chromosome_seqs[chrom] + rpos - 1, l),
                        string(chromosome_seqs[chrom] + rpos - 1, 1), cl.size(),
