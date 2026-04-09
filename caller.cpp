@@ -395,7 +395,7 @@ void Caller::pcall(const vector<Cluster> &clusters) {
       }
       for (size_t v = 0; v < _svs.size(); v++) {
         _svs[v].ngaps = nv;
-        _svs[v].set_gt("./.", 100);
+        _svs[v].set_gt("0/1", 100);
         _svs[v].set_cov(cl.cov, cl.cov0, cl.cov1, cl.cov2);
         _svs[v].set_rvec(cluster.reads);
       }
