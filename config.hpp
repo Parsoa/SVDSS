@@ -24,13 +24,14 @@ static const char INDEX_USAGE_MESSAGE[] =
 
 static const char SMOOTH_USAGE_MESSAGE[] =
   "SVDSS smooth --reference <reference> --bam <bam>\n"
+  "      --trf <bed>                      TRF bed file (default: \"\")\n"
   "      --min-mapq <INT>                 minimum mapping quality (default: 20)\n"
   "      --accp <FLOAT>                   accuracy percentile for alignments filtering (default: 0.98)\n"
   "      --threads <INT>                  number of threads to use (default: 4)\n"
   "      --help                           print help message\n";
 
 static const char SEARCH_USAGE_MESSAGE[] =
-  "SVDSS search --index <index> [--bam <bam>|--fastq <fastq>]\n"
+  "SVDSS search --index <index> [--bam <bam>|--fastx <fastq>]\n"
   "      --bsize <INT>                    batch size (default: 10000)\n"
   "      --noputative                     when input is smoothed bam, do not filter unsmoothed reads (default: putative)\n"
   "      --noassemble                     do not assemble specific strings overlapping on a read (default: assemble)\n"
