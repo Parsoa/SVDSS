@@ -71,6 +71,7 @@ private:
   samFile *bam_file;
   bam_hdr_t *bam_header;
 
+  vector<vector<bool>> processed;
   vector<vector<vector<uint>>> read_seq_lengths;
   vector<vector<vector<uint>>> read_seq_max_lengths;
   vector<vector<vector<uint8_t *>>> read_seqs;

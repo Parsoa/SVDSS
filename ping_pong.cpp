@@ -93,6 +93,9 @@ bool PingPong::load_batch_bam(int p) {
           seq_nt6_table[(int)seq_nt16_str[bam_seqi(q, _)]];
     read_seqs[p][nseqs % config->threads][i][l] = '\0';
 
+    // flag batch to be process
+    processed[p][nseqs % config->threads] = false;
+
     ++nseqs;
     if (nseqs % config->threads == 0)
       // ith position filled for all threads, move to next one
@@ -131,6 +134,7 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
   int k = 0;
   int i = 0;
   int n = 0;
+
   while ((k = kseq_read(fastq_iterator)) >= 0) {
     if (fastq_iterator->qual.l) {
       fastq_entries[p][n % threads].push_back(
@@ -153,6 +157,10 @@ bool PingPong::load_batch_fastq(int threads, int batch_size, int p) {
     read_seqs[p][n % threads][i][l] = '\0';
     rb3_char2nt6(l, read_seqs[p][n % threads][i]); // convert to integers
     read_names[p][n % threads][i] = fastq_iterator->name.s;
+
+    // flag batch to be process
+    processed[p][n % threads] = false;
+
     n += 1;
     if (n % threads == 0) {
       i += 1;
@@ -200,8 +208,8 @@ batch_type_t PingPong::process_batch(const rb3_fmi_t *index, int p,
   return solutions;
 }
 
-// Output batches until batch b. We keep in memory all batches (empty if already
-// output), but some have been already output
+// Output batches up to  batch b. We keep in memory all batches (empty if
+// already output), but some have been already output
 void PingPong::output_batch(int b) {
   // FIXME: can we avoid keeping empty batches in memory? maybe unnecessary fix
   for (int i = 0; i < b; i++) {       // for each of the unmerged batches
@@ -267,6 +275,10 @@ int PingPong::search() {
 
     } else
       fastq_entries.push_back(vector<vector<fastq_entry_t>>(config->threads));
+
+    // ugly hack to avoid same batch to be processed twice. If "second" batch is
+    // last one, first batch was still processed
+    processed.push_back(vector<bool>(config->threads, true));
   }
   // pre-allocate read seqs
   for (int i = 0; i < 2; i++) {
@@ -343,7 +355,10 @@ int PingPong::search() {
         }
       } else {
         // other threads, process the batch
-        obatches.back()[t - 2] = process_batch(&index, p, t - 2);
+        if (!processed[p][t - 2]) {
+          obatches.back()[t - 2] = process_batch(&index, p, t - 2);
+          processed[p][t - 2] = true;
+        }
       }
     }
 
