@@ -16,7 +16,7 @@ extern "C" {
 int main_build(int argc, char *argv[]);
 }
 
-const string version = "v2.1.0";
+const string version = "v2.1.1";
 
 int main(int argc, char **argv) {
   time_t t;
