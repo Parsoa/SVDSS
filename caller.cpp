@@ -383,7 +383,7 @@ void Caller::pcall(const vector<Cluster> &clusters) {
         } else if (op == 'D') {
           if (l >= config->min_sv_length) {
             SV sv = SV("DEL", cl.chrom, rpos,
-                       string(chromosome_seqs[chrom] + rpos - 1, l),
+                       string(chromosome_seqs[chrom] + rpos - 1, l + 1),
                        string(chromosome_seqs[chrom] + rpos - 1, 1), cl.size(),
                        cl.cov, nv, score, false, l, cigar_str);
             sv.add_reads(cl.get_names());
